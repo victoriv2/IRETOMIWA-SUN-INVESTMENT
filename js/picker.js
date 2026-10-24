@@ -12,10 +12,9 @@
 
 const CustomPicker = (() => {
   // Current date boundary (No future dates allowed)
-  const now = new Date();
-  const maxYear  = now.getFullYear();
-  const maxMonth = now.getMonth(); // 0-indexed
-  const maxDate  = now.getDate();
+  function getNow() {
+    return new Date();
+  }
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -29,8 +28,8 @@ const CustomPicker = (() => {
   let selectedDate = new Date(); // Current picked date
 
   // Calendar browsing state
-  let browsingYear  = maxYear;
-  let browsingMonth = maxMonth;
+  let browsingYear  = getNow().getFullYear();
+  let browsingMonth = getNow().getMonth();
 
   // Format helpers
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
@@ -40,7 +39,7 @@ const CustomPicker = (() => {
   }
 
   function formatDayLabel(d) {
-    const isToday = formatDateISO(d) === formatDateISO(now);
+    const isToday = formatDateISO(d) === formatDateISO(getNow());
     if (isToday) return 'Today (' + d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ')';
     return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   }
@@ -61,15 +60,16 @@ const CustomPicker = (() => {
   }
 
   function isFutureDate(year, month, day) {
-    if (year > maxYear) return true;
-    if (year === maxYear && month > maxMonth) return true;
-    if (year === maxYear && month === maxMonth && day > maxDate) return true;
-    return false;
+    const today = getNow();
+    const cur = new Date(year, month, day);
+    const todayZero = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    return cur > todayZero;
   }
 
   function isFutureMonth(year, month) {
-    if (year > maxYear) return true;
-    if (year === maxYear && month > maxMonth) return true;
+    const today = getNow();
+    if (year > today.getFullYear()) return true;
+    if (year === today.getFullYear() && month > today.getMonth()) return true;
     return false;
   }
 
@@ -213,11 +213,15 @@ const CustomPicker = (() => {
       activeCallback({
         period: currentPeriod,
         dateISO: iso,
+        isoString: iso,
         displayLabel: label,
         dateObj: selectedDate,
         dayLabel,
         monthLabel,
         yearLabel,
+        dayNum: selectedDate.getDate(),
+        monthIdx: selectedDate.getMonth(),
+        yearNum: selectedDate.getFullYear(),
       });
     }
 
@@ -226,19 +230,21 @@ const CustomPicker = (() => {
   }
 
   function openDayPicker({ initialDate, onSelect }) {
+    const today = getNow();
     openDayModal({
-      selectedDay: initialDate ? parseInt(initialDate.split('-')[2], 10) : now.getDate(),
+      selectedDay: initialDate ? parseInt(initialDate.split('-')[2], 10) : today.getDate(),
       onSelect: (dayNum) => {
-        const d = new Date(now.getFullYear(), now.getMonth(), dayNum);
+        const d = new Date(today.getFullYear(), today.getMonth(), dayNum);
         if (onSelect) {
           onSelect({
             period: 'day',
             dateISO: formatDateISO(d),
+            isoString: formatDateISO(d),
             displayLabel: formatDayLabel(d),
             dateObj: d,
             dayLabel: 'Day ' + dayNum,
-            monthLabel: monthNames[now.getMonth()],
-            yearLabel: '' + now.getFullYear(),
+            monthLabel: monthNames[today.getMonth()],
+            yearLabel: '' + today.getFullYear(),
             dayNum: dayNum,
           });
         }
@@ -247,18 +253,20 @@ const CustomPicker = (() => {
   }
 
   function openMonthPicker({ initialDate, onSelect }) {
+    const today = getNow();
     openMonthModal({
-      selectedMonth: initialDate ? parseInt(initialDate.split('-')[1], 10) - 1 : now.getMonth(),
+      selectedMonth: initialDate ? parseInt(initialDate.split('-')[1], 10) - 1 : today.getMonth(),
       onSelect: (monthIdx, monthName) => {
-        const d = new Date(now.getFullYear(), monthIdx, 1);
+        const d = new Date(today.getFullYear(), monthIdx, 1);
         if (onSelect) {
           onSelect({
             period: 'month',
             dateISO: formatDateISO(d),
+            isoString: formatDateISO(d),
             displayLabel: monthName,
             dateObj: d,
             monthLabel: monthName,
-            yearLabel: '' + now.getFullYear(),
+            yearLabel: '' + today.getFullYear(),
             monthIdx: monthIdx,
           });
         }
@@ -267,14 +275,16 @@ const CustomPicker = (() => {
   }
 
   function openYearPicker({ initialDate, onSelect }) {
+    const today = getNow();
     openYearModal({
-      selectedYear: initialDate ? parseInt(initialDate.split('-')[0], 10) : now.getFullYear(),
+      selectedYear: initialDate ? parseInt(initialDate.split('-')[0], 10) : today.getFullYear(),
       onSelect: (yearNum) => {
         const d = new Date(yearNum, 0, 1);
         if (onSelect) {
           onSelect({
             period: 'year',
             dateISO: formatDateISO(d),
+            isoString: formatDateISO(d),
             displayLabel: '' + yearNum,
             dateObj: d,
             yearLabel: '' + yearNum,
@@ -288,6 +298,7 @@ const CustomPicker = (() => {
   function openDatePicker({ period, initialDate, title, hidePeriodSwitcher, onSelect }) {
     currentPeriod = period || 'day';
     activeCallback = onSelect;
+    const today = getNow();
 
     if (initialDate) {
       const parts = initialDate.split('-');
@@ -299,7 +310,7 @@ const CustomPicker = (() => {
       selectedDate = new Date();
     }
 
-    if (selectedDate > now) selectedDate = new Date();
+    if (selectedDate > today) selectedDate = new Date();
 
     browsingYear  = selectedDate.getFullYear();
     browsingMonth = selectedDate.getMonth();
@@ -337,8 +348,18 @@ const CustomPicker = (() => {
   }
 
   function renderDayGrid() {
+    const today = getNow();
     const labelEl = document.getElementById('cal-month-year-label');
     if (labelEl) labelEl.textContent = monthNames[browsingMonth] + ' ' + browsingYear;
+
+    const nextMonthBtn = document.getElementById('cal-next-month');
+    if (nextMonthBtn) {
+      const nextM = (browsingMonth + 1) % 12;
+      const nextY = browsingMonth === 11 ? browsingYear + 1 : browsingYear;
+      const cannotGoNext = isFutureMonth(nextY, nextM);
+      nextMonthBtn.disabled = cannotGoNext;
+      nextMonthBtn.classList.toggle('disabled', cannotGoNext);
+    }
 
     const grid = document.getElementById('cal-days-grid');
     if (!grid) return;
@@ -366,9 +387,9 @@ const CustomPicker = (() => {
         selectedDate.getDate() === d
       );
       const isToday = (
-        now.getFullYear() === browsingYear &&
-        now.getMonth() === browsingMonth &&
-        now.getDate() === d
+        today.getFullYear() === browsingYear &&
+        today.getMonth() === browsingMonth &&
+        today.getDate() === d
       );
 
       if (isToday) dayBtn.classList.add('cal-day--today');
@@ -663,6 +684,41 @@ const CustomPicker = (() => {
   }
 
   function init() {
+    // Cal month nav buttons
+    const prevMonthBtn = document.getElementById('cal-prev-month');
+    const nextMonthBtn = document.getElementById('cal-next-month');
+    if (prevMonthBtn) {
+      prevMonthBtn.addEventListener('click', () => {
+        browsingMonth--;
+        if (browsingMonth < 0) {
+          browsingMonth = 11;
+          browsingYear--;
+        }
+        renderDayGrid();
+      });
+    }
+    if (nextMonthBtn) {
+      nextMonthBtn.addEventListener('click', () => {
+        const nextM = (browsingMonth + 1) % 12;
+        const nextY = browsingMonth === 11 ? browsingYear + 1 : browsingYear;
+        if (isFutureMonth(nextY, nextM)) return;
+        browsingMonth = nextM;
+        browsingYear  = nextY;
+        renderDayGrid();
+      });
+    }
+
+    // Quick today button in calendar modal
+    const calTodayBtn = document.getElementById('cal-quick-today');
+    if (calTodayBtn) {
+      calTodayBtn.addEventListener('click', () => {
+        selectedDate = getNow();
+        browsingYear  = selectedDate.getFullYear();
+        browsingMonth = selectedDate.getMonth();
+        applyAndClose();
+      });
+    }
+
     // Segmented period switch buttons
     document.querySelectorAll('.segmented-btn[data-picker-mode]').forEach(btn => {
       btn.addEventListener('click', () => {

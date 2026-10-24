@@ -259,6 +259,18 @@ const AdminApp = (() => {
     return `${recYear}-${pad(recMonth + 1)}-${pad(recDay)}`;
   }
 
+  function isDateToday(y, m, d) {
+    const n = new Date();
+    return y === n.getFullYear() && m === n.getMonth() && d === n.getDate();
+  }
+
+  function isDateFuture(y, m, d) {
+    const n = new Date();
+    const cur = new Date(y, m, d);
+    const todayZero = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+    return cur > todayZero;
+  }
+
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
@@ -269,9 +281,16 @@ const AdminApp = (() => {
     if (fullDateEl) {
       fullDateEl.textContent = `${recDay} ${monthNames[recMonth]} ${recYear}`;
     }
+    const isToday = isDateToday(recYear, recMonth, recDay);
     const todayBtn = document.getElementById('admin-rec-date-today');
-    const isToday = (recDay === todayDateObj.getDate() && recMonth === todayDateObj.getMonth() && recYear === todayDateObj.getFullYear());
     if (todayBtn) todayBtn.classList.toggle('active', isToday);
+
+    const nextBtn = document.getElementById('admin-rec-date-next');
+    if (nextBtn) {
+      const atOrAfterToday = isToday || isDateFuture(recYear, recMonth, recDay);
+      nextBtn.disabled = atOrAfterToday;
+      nextBtn.classList.toggle('disabled', atOrAfterToday);
+    }
   }
 
   function initReceivedPicker() {
@@ -298,6 +317,9 @@ const AdminApp = (() => {
       nextBtn.addEventListener('click', () => {
         const cur = new Date(recYear, recMonth, recDay);
         cur.setDate(cur.getDate() + 1);
+        if (isDateFuture(cur.getFullYear(), cur.getMonth(), cur.getDate())) {
+          return; // Strictly no future date!
+        }
         recDay   = cur.getDate();
         recMonth = cur.getMonth();
         recYear  = cur.getFullYear();
@@ -328,11 +350,17 @@ const AdminApp = (() => {
           initialDate: buildRecDateISO(),
           title: 'Select Date',
           hidePeriodSwitcher: true,
-          onSelect: ({ isoString }) => {
-            const parts = isoString.split('-');
-            recYear  = parseInt(parts[0], 10);
-            recMonth = parseInt(parts[1], 10) - 1;
-            recDay   = parseInt(parts[2], 10);
+          onSelect: (res) => {
+            const str = (res && (res.isoString || res.dateISO)) || '';
+            if (!str) return;
+            const parts = str.split('-');
+            const y = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) - 1;
+            const d = parseInt(parts[2], 10);
+            if (isDateFuture(y, m, d)) return; // Strictly no future date!
+            recYear  = y;
+            recMonth = m;
+            recDay   = d;
             recPeriod = 'day';
             recFilterDate = buildRecDateISO();
             updateReceivedFilterButtons();
@@ -632,9 +660,16 @@ const AdminApp = (() => {
     if (fullDateEl) {
       fullDateEl.textContent = `${payDay} ${monthNames[payMonth]} ${payYear}`;
     }
+    const isToday = isDateToday(payYear, payMonth, payDay);
     const todayBtn = document.getElementById('admin-pay-date-today');
-    const isToday = (payDay === todayDateObj.getDate() && payMonth === todayDateObj.getMonth() && payYear === todayDateObj.getFullYear());
     if (todayBtn) todayBtn.classList.toggle('active', isToday);
+
+    const nextBtn = document.getElementById('admin-pay-date-next');
+    if (nextBtn) {
+      const atOrAfterToday = isToday || isDateFuture(payYear, payMonth, payDay);
+      nextBtn.disabled = atOrAfterToday;
+      nextBtn.classList.toggle('disabled', atOrAfterToday);
+    }
   }
 
   function initPayoutsPicker() {
@@ -661,6 +696,9 @@ const AdminApp = (() => {
       nextBtn.addEventListener('click', () => {
         const cur = new Date(payYear, payMonth, payDay);
         cur.setDate(cur.getDate() + 1);
+        if (isDateFuture(cur.getFullYear(), cur.getMonth(), cur.getDate())) {
+          return; // Strictly no future date!
+        }
         payDay   = cur.getDate();
         payMonth = cur.getMonth();
         payYear  = cur.getFullYear();
@@ -691,11 +729,17 @@ const AdminApp = (() => {
           initialDate: buildPayDateISO(),
           title: 'Select Date',
           hidePeriodSwitcher: true,
-          onSelect: ({ isoString }) => {
-            const parts = isoString.split('-');
-            payYear  = parseInt(parts[0], 10);
-            payMonth = parseInt(parts[1], 10) - 1;
-            payDay   = parseInt(parts[2], 10);
+          onSelect: (res) => {
+            const str = (res && (res.isoString || res.dateISO)) || '';
+            if (!str) return;
+            const parts = str.split('-');
+            const y = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) - 1;
+            const d = parseInt(parts[2], 10);
+            if (isDateFuture(y, m, d)) return; // Strictly no future date!
+            payYear  = y;
+            payMonth = m;
+            payDay   = d;
             payPeriod = 'day';
             payFilterDate = buildPayDateISO();
             updatePayoutsFilterButtons();

@@ -1296,6 +1296,53 @@
     </div>
   </div>
 
+  <!-- DATE PICKER MODAL (Full Calendar Picker: Day, Month, Year - Strict Present/Past Only) -->
+  <div id="modal-date-picker" class="modal-overlay hidden">
+    <div class="modal-card modal-card--sheet" style="max-width: 400px;">
+      <div class="sheet-handle"></div>
+      <div class="modal-header">
+        <h3 class="modal-title" id="date-picker-modal-title">Select Date</h3>
+        <button type="button" class="modal-close" data-modal="modal-date-picker" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Quick Action: Jump to Today -->
+      <div class="picker-quick-bar" style="margin-bottom: 12px;">
+        <button type="button" class="btn-outline btn-full btn-sm" id="cal-quick-today">
+          Jump to Today
+        </button>
+      </div>
+
+      <!-- Day / Calendar View -->
+      <div id="picker-day-view">
+        <div class="calendar-nav" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+          <button type="button" class="cal-nav-btn" id="cal-prev-month" aria-label="Previous Month">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
+          <span class="cal-current-label" id="cal-month-year-label" style="font-weight: 700; font-size: 15px; color: var(--primary);">October 2026</span>
+          <button type="button" class="cal-nav-btn" id="cal-next-month" aria-label="Next Month">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="cal-weekdays">
+          <span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
+        </div>
+
+        <div class="cal-days-grid" id="cal-days-grid">
+          <!-- Calendar day buttons rendered dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- STANDALONE MODAL 1: SELECT DAY (Carries ONLY Day) -->
   <div id="modal-day-picker" class="modal-overlay hidden">
     <div class="modal-card modal-card--sheet">

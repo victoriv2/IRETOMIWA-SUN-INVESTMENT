@@ -46,6 +46,18 @@ const UserApp = (() => {
     return `${selectedYear}-${pad(selectedMonth + 1)}-${pad(selectedDay)}`;
   }
 
+  function isDateToday(y, m, d) {
+    const n = new Date();
+    return y === n.getFullYear() && m === n.getMonth() && d === n.getDate();
+  }
+
+  function isDateFuture(y, m, d) {
+    const n = new Date();
+    const cur = new Date(y, m, d);
+    const todayZero = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+    return cur > todayZero;
+  }
+
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
@@ -57,10 +69,17 @@ const UserApp = (() => {
       fullDateEl.textContent = `${selectedDay} ${monthNames[selectedMonth]} ${selectedYear}`;
     }
 
+    const isCurrentDay = isDateToday(selectedYear, selectedMonth, selectedDay);
     const todayBtn = document.getElementById('user-date-today');
-    const isToday = (selectedDay === todayDateObj.getDate() && selectedMonth === todayDateObj.getMonth() && selectedYear === todayDateObj.getFullYear());
     if (todayBtn) {
-      todayBtn.classList.toggle('active', isToday);
+      todayBtn.classList.toggle('active', isCurrentDay);
+    }
+
+    const nextBtn = document.getElementById('user-date-next');
+    if (nextBtn) {
+      const atOrAfterToday = isCurrentDay || isDateFuture(selectedYear, selectedMonth, selectedDay);
+      nextBtn.disabled = atOrAfterToday;
+      nextBtn.classList.toggle('disabled', atOrAfterToday);
     }
   }
 
@@ -90,6 +109,9 @@ const UserApp = (() => {
       nextBtn.addEventListener('click', () => {
         const cur = new Date(selectedYear, selectedMonth, selectedDay);
         cur.setDate(cur.getDate() + 1);
+        if (isDateFuture(cur.getFullYear(), cur.getMonth(), cur.getDate())) {
+          return; // Strictly no future date!
+        }
         selectedDay   = cur.getDate();
         selectedMonth = cur.getMonth();
         selectedYear  = cur.getFullYear();
@@ -122,11 +144,17 @@ const UserApp = (() => {
           initialDate: buildDateISO(),
           title: 'Select Date',
           hidePeriodSwitcher: true,
-          onSelect: ({ isoString }) => {
-            const parts = isoString.split('-');
-            selectedYear  = parseInt(parts[0], 10);
-            selectedMonth = parseInt(parts[1], 10) - 1;
-            selectedDay   = parseInt(parts[2], 10);
+          onSelect: (res) => {
+            const str = (res && (res.isoString || res.dateISO)) || '';
+            if (!str) return;
+            const parts = str.split('-');
+            const y = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) - 1;
+            const d = parseInt(parts[2], 10);
+            if (isDateFuture(y, m, d)) return; // Strictly no future date!
+            selectedYear  = y;
+            selectedMonth = m;
+            selectedDay   = d;
             activePeriod  = 'day';
             selectedFilterDate = buildDateISO();
             updateFilterButtons();

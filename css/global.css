@@ -934,6 +934,16 @@ input.input-error {
   stroke: currentColor;
 }
 
+.date-step-btn:disabled,
+.date-step-btn.disabled {
+  opacity: 0.3 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  background: #f1f5f3 !important;
+  border-color: var(--border) !important;
+  color: var(--text-muted) !important;
+}
+
 .date-picker-trigger-btn {
   flex: 1;
   min-width: 0;
