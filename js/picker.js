@@ -478,6 +478,17 @@ const CustomPicker = (() => {
 
     if (titleEl && title) titleEl.textContent = title;
 
+    // Load custom persistent categories if allowCustom is enabled
+    let allOptions = [...options];
+    if (allowCustom && typeof DB !== 'undefined' && DB.getCustomCategories) {
+      const savedCustom = DB.getCustomCategories();
+      savedCustom.forEach(name => {
+        if (!allOptions.some(o => o.value.toLowerCase() === name.toLowerCase())) {
+          allOptions.push({ label: name, value: name, isCustom: true });
+        }
+      });
+    }
+
     // 1. Search Bar Setup
     if (searchWrap && searchInput) {
       if (searchable) {
@@ -495,7 +506,7 @@ const CustomPicker = (() => {
       if (allowCustom) {
         customWrap.classList.remove('hidden');
         customInput.placeholder = customPlaceholder;
-        const isStandard = options.some(o => o.value === selectedValue);
+        const isStandard = allOptions.some(o => o.value === selectedValue);
         customInput.value = (!isStandard && selectedValue) ? selectedValue : '';
       } else {
         customWrap.classList.add('hidden');
@@ -507,7 +518,7 @@ const CustomPicker = (() => {
       container.innerHTML = '';
       const q = filterQuery.trim().toLowerCase();
 
-      const filtered = options.filter(opt => {
+      const filtered = allOptions.filter(opt => {
         if (!q) return true;
         const text = `${opt.label || ''} ${opt.sublabel || ''}`.toLowerCase();
         return text.includes(q);
@@ -533,16 +544,72 @@ const CustomPicker = (() => {
             <span class="action-sheet-label">${escapeHtml(opt.label)}</span>
             ${opt.sublabel ? `<span class="action-sheet-sublabel">${escapeHtml(opt.sublabel)}</span>` : ''}
           </div>
-          ${isSelected ? `
-            <svg class="action-sheet-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>` : ''}
+          <div class="action-sheet-item-right" style="display: flex; align-items: center; gap: 8px;">
+            ${isSelected ? `
+              <svg class="action-sheet-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>` : ''}
+            ${opt.isCustom ? `
+              <span class="btn-remove-custom" title="Remove custom category">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </span>` : ''}
+          </div>
         `;
 
-        btn.addEventListener('click', () => {
+        // Handle item select
+        btn.addEventListener('click', (e) => {
+          // If the remove button was clicked, do not select
+          if (e.target.closest('.btn-remove-custom')) return;
           if (onSelect) onSelect(opt);
           modal.classList.add('hidden');
         });
+
+        // Handle remove custom category
+        const removeBtn = btn.querySelector('.btn-remove-custom');
+        if (removeBtn) {
+          removeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const catToRemove = opt.value;
+
+            // Show custom modal confirmation (NOT browser alert / confirm)
+            const confirmModal = document.getElementById('modal-confirm-delete-category');
+            const msgEl = document.getElementById('delete-category-confirm-msg');
+            const confirmBtn = document.getElementById('btn-confirm-delete-category');
+            const cancelBtn = document.getElementById('btn-cancel-delete-category');
+
+            if (msgEl) {
+              msgEl.innerHTML = `Are you sure you want to remove the category <strong>"${escapeHtml(catToRemove)}"</strong>?`;
+            }
+
+            if (confirmModal) {
+              confirmModal.classList.remove('hidden');
+
+              const cleanup = () => {
+                confirmModal.classList.add('hidden');
+                if (confirmBtn) confirmBtn.onclick = null;
+                if (cancelBtn) cancelBtn.onclick = null;
+              };
+
+              if (cancelBtn) {
+                cancelBtn.onclick = cleanup;
+              }
+
+              if (confirmBtn) {
+                confirmBtn.onclick = () => {
+                  if (typeof DB !== 'undefined' && DB.removeCustomCategory) {
+                    DB.removeCustomCategory(catToRemove);
+                  }
+                  allOptions = allOptions.filter(o => o.value !== catToRemove);
+                  cleanup();
+                  renderItems(searchInput ? searchInput.value : '');
+                };
+              }
+            }
+          });
+        }
 
         container.appendChild(btn);
       });
@@ -565,6 +632,12 @@ const CustomPicker = (() => {
           customInput.focus();
           return;
         }
+
+        // Save custom category to DB so it persists for future
+        if (typeof DB !== 'undefined' && DB.saveCustomCategory) {
+          DB.saveCustomCategory(val);
+        }
+
         if (onSelect) {
           onSelect({ label: val, value: val, isCustom: true });
         }

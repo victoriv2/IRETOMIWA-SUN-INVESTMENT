@@ -1224,3 +1224,111 @@ input.input-error {
   box-sizing: border-box !important;
   background: #ffffff !important;
 }
+
+/* Custom Category Input & Button Full-Width Flush Alignment */
+.action-sheet-custom-wrap {
+  padding: 14px 0 0 0 !important;
+  border-top: 1px solid #eef2f6 !important;
+  background: transparent !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  margin-top: 6px !important;
+}
+
+.custom-category-box {
+  display: flex !important;
+  gap: 10px !important;
+  align-items: center !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.custom-category-box input {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  height: 44px !important;
+  padding: 0 14px !important;
+  border: 1.5px solid #d1d5db !important;
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  outline: none !important;
+  background: #ffffff !important;
+  color: #1e293b !important;
+  box-sizing: border-box !important;
+}
+
+.custom-category-box input:focus {
+  border-color: var(--primary) !important;
+}
+
+.btn-custom-apply {
+  flex-shrink: 0 !important;
+  height: 44px !important;
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  border: none !important;
+  padding: 0 20px !important;
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  box-sizing: border-box !important;
+}
+
+.btn-remove-custom {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 50% !important;
+  color: #94a3b8 !important;
+  background: transparent !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer !important;
+  flex-shrink: 0 !important;
+}
+
+.btn-remove-custom:hover {
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
+}
+
+.btn-remove-custom svg {
+  width: 14px !important;
+  height: 14px !important;
+  pointer-events: none !important;
+}
+
+/* Admin header buttons single-line enforcement on smaller screens */
+.admin-header .btn-outline {
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 6px 12px !important;
+  font-size: 12.5px !important;
+  line-height: 1 !important;
+}
+
+@media (max-width: 540px) {
+  .admin-header {
+    padding: 0 12px !important;
+    height: 60px !important;
+  }
+  .admin-header-logo-img {
+    max-height: 36px !important;
+    max-width: 130px !important;
+  }
+  .admin-header .btn-outline {
+    padding: 5px 8px !important;
+    font-size: 11.5px !important;
+    gap: 4px !important;
+  }
+  .admin-header .btn-outline svg {
+    width: 13px !important;
+    height: 13px !important;
+  }
+}

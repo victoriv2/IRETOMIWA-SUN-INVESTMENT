@@ -38,6 +38,7 @@ const DB = {
         users: this.getUsers(),
         transactions: this.getAllTransactions(),
         admin: this.getAdmin(),
+        customCategories: this.getCustomCategories(),
         updatedAt: new Date().toISOString(),
       };
 
@@ -127,6 +128,13 @@ const DB = {
       // 3. Admin sync if exists
       if (cloudAdmin && cloudAdmin.password) {
         localStorage.setItem('sun_admin', JSON.stringify(cloudAdmin));
+      }
+
+      // 4. Custom Categories sync if exists
+      if (Array.isArray(remoteData.customCategories)) {
+        const localCats = this.getCustomCategories();
+        const mergedCats = Array.from(new Set([...localCats, ...remoteData.customCategories]));
+        localStorage.setItem('sun_custom_categories', JSON.stringify(mergedCats));
       }
 
       // Check if local had data that wasn't in cloud yet
@@ -345,6 +353,34 @@ const DB = {
       totalWithdrawn,
       balance: Math.max(0, totalDeposited - totalWithdrawn),
     };
+  },
+
+  // ---- CUSTOM SAVINGS CATEGORIES ----
+  getCustomCategories() {
+    try {
+      const raw = localStorage.getItem('sun_custom_categories');
+      return raw ? JSON.parse(raw) : [];
+    } catch(e) {
+      return [];
+    }
+  },
+  saveCustomCategory(name) {
+    if (!name || typeof name !== 'string') return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const list = this.getCustomCategories();
+    if (!list.some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+      list.push(trimmed);
+      localStorage.setItem('sun_custom_categories', JSON.stringify(list));
+      this.scheduleCloudPush();
+    }
+  },
+  removeCustomCategory(name) {
+    if (!name) return;
+    const trimmed = name.trim().toLowerCase();
+    const list = this.getCustomCategories().filter(c => c.toLowerCase() !== trimmed);
+    localStorage.setItem('sun_custom_categories', JSON.stringify(list));
+    this.scheduleCloudPush();
   },
 
   // Calculate system-wide totals across all users
