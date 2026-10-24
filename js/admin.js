@@ -19,6 +19,7 @@ const AdminApp = (() => {
 
   let payPeriod = 'day';
   let payFilterDate = new Date().toISOString().slice(0, 10);
+  let currentViewedUserId = null;
 
   // Password toggle SVGs
   const eyeOpenSVG = `<svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
@@ -183,6 +184,7 @@ const AdminApp = (() => {
 
   // Modal: View User Profile & Complete Ledger History
   function openUserProfile(userId) {
+    currentViewedUserId = userId;
     const user = DB.getUserById(userId);
     if (!user) return;
 
@@ -388,11 +390,20 @@ const AdminApp = (() => {
     // Populate client selector if previously empty or refreshed
     const clientIdInput = document.getElementById('admin-record-client-id');
     const clientLabel   = document.getElementById('admin-record-client-label');
+    const balWrap       = document.getElementById('admin-record-client-balance-wrap');
+    const balEl         = document.getElementById('admin-record-client-balance');
     if (clientIdInput && clientIdInput.value) {
       const u = DB.getUserById(clientIdInput.value);
-      if (u && clientLabel) {
-        clientLabel.textContent = DB.formatName(u.firstName) + ' ' + DB.formatName(u.lastName) + ' (' + u.phone + ')';
+      if (u) {
+        if (clientLabel) clientLabel.textContent = `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)} (${u.phone})`;
+        const bal = DB.getUserBalance(u.id);
+        if (balEl) balEl.textContent = '₦' + formatAmount(bal.balance);
+        if (balWrap) balWrap.classList.remove('hidden');
+      } else {
+        if (balWrap) balWrap.classList.add('hidden');
       }
+    } else {
+      if (balWrap) balWrap.classList.add('hidden');
     }
   }
 
@@ -419,7 +430,7 @@ const AdminApp = (() => {
       });
     }
 
-    // 2. Client Picker Modal
+    // 2. Client Picker Modal (Searchable with Balances)
     const clientBtn = document.getElementById('admin-record-client-btn');
     if (clientBtn) {
       clientBtn.addEventListener('click', () => {
@@ -429,10 +440,15 @@ const AdminApp = (() => {
           return;
         }
 
-        const options = users.map(u => ({
-          label: `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)} (${u.phone})`,
-          value: u.id,
-        }));
+        const options = users.map(u => {
+          const bal = DB.getUserBalance(u.id);
+          return {
+            label: `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)} (${u.phone})`,
+            sublabel: `Available Balance: ₦${formatAmount(bal.balance)}`,
+            balance: bal.balance,
+            value: u.id,
+          };
+        });
 
         const currentId = (document.getElementById('admin-record-client-id') || {}).value;
 
@@ -440,13 +456,22 @@ const AdminApp = (() => {
           title: 'Select Client / User',
           options,
           selectedValue: currentId,
+          searchable: true,
+          searchPlaceholder: 'Search client by name or phone...',
           onSelect: (opt) => {
             const labelEl = document.getElementById('admin-record-client-label');
             const idEl    = document.getElementById('admin-record-client-id');
             const errEl   = document.getElementById('err-admin-record-client');
+            const balWrap = document.getElementById('admin-record-client-balance-wrap');
+            const balEl   = document.getElementById('admin-record-client-balance');
+
             if (labelEl) labelEl.textContent = opt.label;
             if (idEl)    idEl.value = opt.value;
             if (errEl)   errEl.textContent = '';
+
+            const userBal = DB.getUserBalance(opt.value);
+            if (balEl)   balEl.textContent = '₦' + formatAmount(userBal.balance);
+            if (balWrap) balWrap.classList.remove('hidden');
           },
         });
       });
@@ -463,7 +488,7 @@ const AdminApp = (() => {
       });
     });
 
-    // 4. Category Selector
+    // 4. Category Selector (with Custom Option)
     const catBtn = document.getElementById('admin-record-category-btn');
     if (catBtn) {
       catBtn.addEventListener('click', () => {
@@ -474,6 +499,8 @@ const AdminApp = (() => {
           title: 'Select Savings Category',
           options: SAVINGS_CATEGORIES,
           selectedValue: currentCat,
+          allowCustom: true,
+          customPlaceholder: 'Type custom savings category (e.g. School Fees, Rent)...',
           onSelect: (opt) => {
             const labelEl = document.getElementById('admin-record-category-label');
             if (labelEl)  labelEl.textContent = opt.label;
@@ -558,11 +585,15 @@ const AdminApp = (() => {
         succBox.classList.remove('hidden');
       }
 
-      // Reset form fields
+      // Reset form fields & update client balance display
       const amtInput = document.getElementById('admin-record-amount');
       const noteInput = document.getElementById('admin-record-note');
       if (amtInput) amtInput.value = '';
       if (noteInput) noteInput.value = '';
+
+      const updatedBal = DB.getUserBalance(clientId);
+      const balEl = document.getElementById('admin-record-client-balance');
+      if (balEl) balEl.textContent = '₦' + formatAmount(updatedBal.balance);
 
       // Refresh totals across tabs
       renderUsersTab();
@@ -1007,6 +1038,154 @@ const AdminApp = (() => {
     });
   }
 
+  // Admin Data Exporters (Excel & PDF)
+  function initAdminExports() {
+    // 1. Export All Registered Clients
+    const btnUserExcel = document.getElementById('btn-admin-export-users-excel');
+    const btnUserPdf   = document.getElementById('btn-admin-export-users-pdf');
+
+    if (btnUserExcel) {
+      btnUserExcel.addEventListener('click', () => {
+        const users = DB.getUsers();
+        if (users.length === 0) {
+          alert('No client records to export.');
+          return;
+        }
+        const headers = ['Client Name', 'Phone Number', 'Email Address', 'Total Deposited (₦)', 'Total Withdrawn (₦)', 'Available Balance (₦)', 'Registration Date'];
+        const rows = users.map(u => {
+          const bal = DB.getUserBalance(u.id);
+          const fullName = DB.formatName(u.firstName) + ' ' + DB.formatName(u.lastName);
+          const joined = u.joinedAt ? new Date(u.joinedAt).toLocaleDateString('en-GB') : '-';
+          return [
+            fullName,
+            u.phone || '-',
+            u.email || '-',
+            formatAmount(bal.totalDeposited),
+            formatAmount(bal.totalWithdrawn),
+            formatAmount(bal.balance),
+            joined,
+          ];
+        });
+        Exporter.toExcel({
+          filename: `Iretomiwa_Sun_Clients_${new Date().toISOString().slice(0, 10)}`,
+          headers,
+          rows,
+        });
+      });
+    }
+
+    if (btnUserPdf) {
+      btnUserPdf.addEventListener('click', () => {
+        const users = DB.getUsers();
+        const totals = DB.getSystemTotals();
+        if (users.length === 0) {
+          alert('No client records to export.');
+          return;
+        }
+        const headers = ['Client Name', 'Phone', 'Email', 'Deposited (₦)', 'Withdrawn (₦)', 'Balance (₦)'];
+        const rows = users.map(u => {
+          const bal = DB.getUserBalance(u.id);
+          const fullName = DB.formatName(u.firstName) + ' ' + DB.formatName(u.lastName);
+          return [
+            fullName,
+            u.phone || '-',
+            u.email || '-',
+            '₦' + formatAmount(bal.totalDeposited),
+            '₦' + formatAmount(bal.totalWithdrawn),
+            '₦' + formatAmount(bal.balance),
+          ];
+        });
+        Exporter.toPDF({
+          title: 'Registered Clients & System Balances',
+          subtitle: 'Official Client Master Ledger',
+          meta: [
+            { label: 'Total Clients', value: users.length },
+            { label: 'System Status', value: 'Active Official Operations' },
+          ],
+          summary: [
+            { label: 'Active Balance', value: '₦' + formatAmount(totals.totalBalance) },
+            { label: 'Total Inflows', value: '₦' + formatAmount(totals.totalDeposited) },
+            { label: 'Total Payouts', value: '₦' + formatAmount(totals.totalWithdrawn), isDebit: true },
+          ],
+          headers,
+          rows,
+        });
+      });
+    }
+
+    // 2. Export Single Client Transaction Ledger
+    const btnLedgerExcel = document.getElementById('btn-admin-export-ledger-excel');
+    const btnLedgerPdf   = document.getElementById('btn-admin-export-ledger-pdf');
+
+    if (btnLedgerExcel) {
+      btnLedgerExcel.addEventListener('click', () => {
+        if (!currentViewedUserId) return;
+        const u = DB.getUserById(currentViewedUserId);
+        const txs = DB.getTransactions(currentViewedUserId);
+        const fullName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Client';
+
+        const headers = ['Date & Time', 'Transaction Type', 'Category', 'Amount (₦)', 'Note / Remarks'];
+        const rows = txs.map(t => {
+          const isDeposit = (t.type || 'deposit') === 'deposit';
+          const amtPrefix = isDeposit ? '+₦' : '-₦';
+          return [
+            formatDateTime(t.createdAt),
+            isDeposit ? 'Deposit (Inflow)' : 'Payout (Disbursed)',
+            t.category || 'General Savings',
+            amtPrefix + formatAmount(t.amount),
+            t.note || '-',
+          ];
+        });
+
+        Exporter.toExcel({
+          filename: `Statement_${fullName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}`,
+          headers,
+          rows,
+        });
+      });
+    }
+
+    if (btnLedgerPdf) {
+      btnLedgerPdf.addEventListener('click', () => {
+        if (!currentViewedUserId) return;
+        const u = DB.getUserById(currentViewedUserId);
+        const userBal = DB.getUserBalance(currentViewedUserId);
+        const txs = DB.getTransactions(currentViewedUserId);
+        const fullName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Client';
+
+        const headers = ['Date & Time', 'Type', 'Category', 'Amount (₦)', 'Note / Remarks'];
+        const rows = txs.map(t => {
+          const isDeposit = (t.type || 'deposit') === 'deposit';
+          const amtPrefix = isDeposit ? '+₦' : '-₦';
+          return [
+            formatDateTime(t.createdAt),
+            isDeposit ? 'Deposit' : 'Payout',
+            t.category || 'General Savings',
+            amtPrefix + formatAmount(t.amount),
+            t.note || '-',
+          ];
+        });
+
+        Exporter.toPDF({
+          title: `Account Statement - ${fullName}`,
+          subtitle: 'Official Client Passbook Record',
+          meta: [
+            { label: 'Client', value: fullName },
+            { label: 'Phone', value: (u && u.phone) || '-' },
+            { label: 'Email', value: (u && u.email) || '-' },
+          ],
+          summary: [
+            { label: 'Available Balance', value: '₦' + formatAmount(userBal.balance) },
+            { label: 'Total Saved', value: '₦' + formatAmount(userBal.totalDeposited) },
+            { label: 'Total Withdrawn', value: '₦' + formatAmount(userBal.totalWithdrawn), isDebit: true },
+          ],
+          headers,
+          rows,
+        });
+      });
+    }
+  }
+
   // Generic modal close handler - handled universally by user.js and picker.js
   function initModalCloseHandlers() {}
 
@@ -1022,6 +1201,7 @@ const AdminApp = (() => {
     initRecordForm();
     initPayoutsPicker();
     initAdminChangePassword();
+    initAdminExports();
     initLogout();
     initModalCloseHandlers();
 

@@ -103,7 +103,8 @@
   border-bottom: 1px solid rgba(9, 84, 38, 0.08);
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 50;
+  flex-shrink: 0;
 }
 
 .app-brand-lockup {
@@ -870,6 +871,9 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   width: 100%;
   box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  z-index: 50;
 }
 
 .admin-header-left {
@@ -1216,4 +1220,177 @@
   font-weight: 800;
   color: var(--primary);
   letter-spacing: -0.2px;
+}
+
+/* ---- CLIENT RECORD BALANCE BADGE ---- */
+.client-balance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 14px;
+  background: #eaf4ed;
+  border: 1px solid rgba(9, 84, 38, 0.22);
+  border-radius: 10px;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.client-balance-badge.hidden {
+  display: none !important;
+}
+
+.client-balance-badge-label {
+  color: #374151;
+  font-weight: 600;
+}
+
+.client-balance-badge-val {
+  color: var(--primary);
+  font-weight: 800;
+  font-size: 14.5px;
+}
+
+/* ---- ACTION SHEET (CUSTOM SELECT) ENHANCEMENTS ---- */
+.action-sheet-search-wrap {
+  padding: 10px 18px 6px;
+  border-bottom: 1px solid #f0f2f5;
+  background: #ffffff;
+}
+
+.search-input-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f4f6f8;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+
+.search-input-inner svg {
+  flex-shrink: 0;
+  color: #64748b;
+}
+
+.action-sheet-search {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: #1e293b;
+  outline: none;
+  font-family: inherit;
+}
+
+.action-sheet-search::placeholder {
+  color: #94a3b8;
+}
+
+.action-sheet-label-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.action-sheet-sublabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.action-sheet-custom-wrap {
+  padding: 10px 18px 14px;
+  border-top: 1px solid #f0f2f5;
+  background: #fafbfc;
+}
+
+.custom-category-box {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.custom-category-box input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13.5px;
+  outline: none;
+  background: #ffffff;
+}
+
+.custom-category-box input:focus {
+  border-color: var(--primary);
+}
+
+.btn-custom-apply {
+  background: var(--primary);
+  color: #ffffff;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-custom-apply:hover {
+  background: var(--primary-dark, #07401d);
+}
+
+/* ---- EXPORT BUTTONS & GROUPS ---- */
+.export-btn-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #ffffff;
+  color: #1f2937;
+  border: 1.5px solid #d1d5db;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-export svg {
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.btn-export:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+  color: #111827;
+}
+
+.btn-export--mini {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+#btn-admin-export-users-excel:hover,
+#btn-admin-export-ledger-excel:hover,
+#btn-user-export-excel:hover {
+  border-color: #095426;
+  color: #095426;
+}
+
+#btn-admin-export-users-pdf:hover,
+#btn-admin-export-ledger-pdf:hover,
+#btn-user-export-pdf:hover {
+  border-color: #dc2626;
+  color: #dc2626;
 }

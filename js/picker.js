@@ -455,37 +455,130 @@ const CustomPicker = (() => {
   }
 
   // ---- Custom Select Action Sheet ----
-  function openCustomSelect({ title, options, selectedValue, onSelect }) {
-    const modal = document.getElementById('modal-custom-select');
-    const titleEl = document.getElementById('custom-select-title');
-    const container = document.getElementById('custom-select-options');
+  function openCustomSelect({
+    title,
+    options,
+    selectedValue,
+    onSelect,
+    searchable = false,
+    searchPlaceholder = 'Search...',
+    allowCustom = false,
+    customPlaceholder = 'Type custom option...',
+  }) {
+    const modal       = document.getElementById('modal-custom-select');
+    const titleEl     = document.getElementById('custom-select-title');
+    const container   = document.getElementById('custom-select-options');
+    const searchWrap  = document.getElementById('custom-select-search-wrap');
+    const searchInput = document.getElementById('custom-select-search-input');
+    const customWrap  = document.getElementById('custom-select-custom-wrap');
+    const customInput = document.getElementById('custom-select-custom-input');
+    const customApply = document.getElementById('custom-select-custom-apply');
+
     if (!modal || !container) return;
 
     if (titleEl && title) titleEl.textContent = title;
-    container.innerHTML = '';
 
-    options.forEach(opt => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'action-sheet-item';
-      const isSelected = opt.value === selectedValue;
-      if (isSelected) btn.classList.add('action-sheet-item--active');
+    // 1. Search Bar Setup
+    if (searchWrap && searchInput) {
+      if (searchable) {
+        searchWrap.classList.remove('hidden');
+        searchInput.value = '';
+        searchInput.placeholder = searchPlaceholder;
+        setTimeout(() => searchInput.focus(), 80);
+      } else {
+        searchWrap.classList.add('hidden');
+      }
+    }
 
-      btn.innerHTML = `
-        <span class="action-sheet-label">${escapeHtml(opt.label)}</span>
-        ${isSelected ? `
-          <svg class="action-sheet-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="20 6 9 17 4 12"/>
-          </svg>` : ''}
-      `;
+    // 2. Custom Category Input Setup
+    if (customWrap && customInput) {
+      if (allowCustom) {
+        customWrap.classList.remove('hidden');
+        customInput.placeholder = customPlaceholder;
+        const isStandard = options.some(o => o.value === selectedValue);
+        customInput.value = (!isStandard && selectedValue) ? selectedValue : '';
+      } else {
+        customWrap.classList.add('hidden');
+      }
+    }
 
-      btn.addEventListener('click', () => {
-        if (onSelect) onSelect(opt);
-        modal.classList.add('hidden');
+    // 3. Render List
+    function renderItems(filterQuery = '') {
+      container.innerHTML = '';
+      const q = filterQuery.trim().toLowerCase();
+
+      const filtered = options.filter(opt => {
+        if (!q) return true;
+        const text = `${opt.label || ''} ${opt.sublabel || ''}`.toLowerCase();
+        return text.includes(q);
       });
 
-      container.appendChild(btn);
-    });
+      if (filtered.length === 0) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'action-sheet-empty';
+        emptyDiv.textContent = 'No matching options found.';
+        container.appendChild(emptyDiv);
+        return;
+      }
+
+      filtered.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'action-sheet-item';
+        const isSelected = opt.value === selectedValue;
+        if (isSelected) btn.classList.add('action-sheet-item--active');
+
+        btn.innerHTML = `
+          <div class="action-sheet-label-group">
+            <span class="action-sheet-label">${escapeHtml(opt.label)}</span>
+            ${opt.sublabel ? `<span class="action-sheet-sublabel">${escapeHtml(opt.sublabel)}</span>` : ''}
+          </div>
+          ${isSelected ? `
+            <svg class="action-sheet-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>` : ''}
+        `;
+
+        btn.addEventListener('click', () => {
+          if (onSelect) onSelect(opt);
+          modal.classList.add('hidden');
+        });
+
+        container.appendChild(btn);
+      });
+    }
+
+    renderItems('');
+
+    // Bind Search Input
+    if (searchInput) {
+      searchInput.oninput = () => {
+        renderItems(searchInput.value);
+      };
+    }
+
+    // Bind Custom Input Apply
+    if (customApply && customInput) {
+      const handleCustomApply = () => {
+        const val = customInput.value.trim();
+        if (!val) {
+          customInput.focus();
+          return;
+        }
+        if (onSelect) {
+          onSelect({ label: val, value: val, isCustom: true });
+        }
+        modal.classList.add('hidden');
+      };
+
+      customApply.onclick = handleCustomApply;
+      customInput.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleCustomApply();
+        }
+      };
+    }
 
     modal.classList.remove('hidden');
   }

@@ -305,6 +305,8 @@ const UserApp = (() => {
         CustomPicker.openCustomSelect({
           title: 'Select Category / Purpose',
           selectedValue: currentVal,
+          allowCustom: true,
+          customPlaceholder: 'Type custom savings category (e.g. School Fees)...',
           options: [
             { label: 'General Savings', value: 'General Savings' },
             { label: 'Personal Savings', value: 'Personal Savings' },
@@ -611,6 +613,93 @@ const UserApp = (() => {
     });
   }
 
+  // ---- Account Statement Exports ----
+  function initUserExports() {
+    const btnExcel = document.getElementById('btn-user-export-excel');
+    const btnPdf   = document.getElementById('btn-user-export-pdf');
+
+    function getUserStatementData() {
+      const u = (currentUserId ? DB.getUserById(currentUserId) : null) || (typeof currentUser !== 'undefined' ? currentUser : null);
+      if (!u) {
+        alert('Please log in to export your account statement.');
+        return null;
+      }
+      const savings = DB.getSavings(u.id);
+      if (!savings || savings.length === 0) {
+        alert('No savings or transaction records found to export.');
+        return null;
+      }
+
+      const bal = DB.getUserBalance(u.id);
+      const sorted = [...savings].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const clientName = (DB.formatName ? DB.formatName(u.firstName) + ' ' + DB.formatName(u.lastName) : `${u.firstName || ''} ${u.lastName || ''}`).trim();
+
+      const headers = ['Date & Time', 'Type', 'Category', 'Description / Note', 'Amount (₦)'];
+      const rows = sorted.map(s => {
+        const d = new Date(s.createdAt);
+        const dtStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        const isPayout = (s.type === 'withdrawal' || s.type === 'payout');
+        const typeStr = isPayout ? 'Withdrawal' : 'Deposit';
+        const amtStr = (isPayout ? '-₦' : '+₦') + Number(s.amount || 0).toLocaleString('en-NG', { minimumFractionDigits: 2 });
+        return [
+          dtStr,
+          typeStr,
+          s.category || 'General',
+          s.note || '-',
+          amtStr
+        ];
+      });
+
+      return {
+        user: u,
+        clientName,
+        bal,
+        headers,
+        rows,
+        totalCount: savings.length
+      };
+    }
+
+    if (btnExcel) {
+      btnExcel.addEventListener('click', () => {
+        const data = getUserStatementData();
+        if (!data) return;
+        const filename = `Account_Statement_${data.clientName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}`;
+        DataExporter.toExcel({
+          title: `Account Statement - ${data.clientName}`,
+          filename,
+          headers: data.headers,
+          rows: data.rows
+        });
+      });
+    }
+
+    if (btnPdf) {
+      btnPdf.addEventListener('click', () => {
+        const data = getUserStatementData();
+        if (!data) return;
+        DataExporter.toPDF({
+          title: 'Official Account Statement',
+          subtitle: `Client Statement: ${data.clientName} (${data.user.phone || ''})`,
+          filename: `Account_Statement_${data.clientName.replace(/\s+/g, '_')}`,
+          headers: data.headers,
+          rows: data.rows,
+          meta: [
+            { label: 'Client Name', value: data.clientName },
+            { label: 'Phone Number', value: data.user.phone || '-' },
+            { label: 'Email', value: data.user.email || '-' },
+            { label: 'Total Records', value: data.totalCount.toString() }
+          ],
+          summary: [
+            { label: 'Total Deposited', value: '₦' + Number(data.bal.totalDeposited || 0).toLocaleString('en-NG', { minimumFractionDigits: 2 }), color: '#095426' },
+            { label: 'Total Withdrawn', value: '₦' + Number(data.bal.totalWithdrawn || 0).toLocaleString('en-NG', { minimumFractionDigits: 2 }), color: '#b91c1c' },
+            { label: 'Net Available Balance', value: '₦' + Number(data.bal.balance || 0).toLocaleString('en-NG', { minimumFractionDigits: 2 }), color: '#095426' }
+          ]
+        });
+      });
+    }
+  }
+
   // ---- Public API ----
   return {
     load(userId) {
@@ -639,6 +728,7 @@ const UserApp = (() => {
       initChangePassword();
       initLogout();
       initModalClose();
+      initUserExports();
     },
 
     refresh() {
