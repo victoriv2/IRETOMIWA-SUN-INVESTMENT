@@ -1040,6 +1040,15 @@ const AdminApp = (() => {
   }
 
   return {
+    refresh() {
+      const session = DB.getAdminSession();
+      if (!session) return;
+      let activeTab = 'users';
+      try {
+        activeTab = localStorage.getItem('sun_admin_tab') || 'users';
+      } catch(e) {}
+      switchTab(activeTab);
+    },
     initOnce,
     switchTab,
     showView,

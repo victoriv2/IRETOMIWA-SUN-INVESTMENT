@@ -641,6 +641,16 @@ const UserApp = (() => {
       initModalClose();
     },
 
+    refresh() {
+      if (currentUser && currentUser.id) {
+        const freshUser = DB.getUserById(currentUser.id);
+        if (freshUser) currentUser = freshUser;
+        renderSavingsList();
+        renderTotal();
+        renderMoreUserInfo();
+      }
+    },
+
     switchTab,
   };
 })();

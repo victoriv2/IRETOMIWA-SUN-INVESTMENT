@@ -3,6 +3,172 @@
 // ============================================
 
 const DB = {
+  // ---- CLOUD CONFIG (jsonbin.io) ----
+  CLOUD: {
+    BIN_ID: '6adcc870ffd5d1605388749f',
+    MASTER_KEY: '$2a$10$nnSfeJQZY9FjkKghjfzlPuWFrIe/JV46TLSQbnho77T3kkmx/mMvK',
+    BASE_URL: 'https://api.jsonbin.io/v3/b',
+  },
+  _pushTimeout: null,
+  _isPulling: false,
+  _syncListeners: [],
+
+  onSync(fn) {
+    if (typeof fn === 'function') this._syncListeners.push(fn);
+  },
+
+  notifySync(status, detail) {
+    this._syncListeners.forEach(fn => {
+      try { fn(status, detail); } catch(e) {}
+    });
+  },
+
+  scheduleCloudPush() {
+    if (this._pushTimeout) clearTimeout(this._pushTimeout);
+    this._pushTimeout = setTimeout(() => {
+      this.syncPush();
+    }, 350);
+  },
+
+  async syncPush() {
+    if (!navigator.onLine) return;
+    try {
+      this.notifySync('syncing');
+      const payload = {
+        users: this.getUsers(),
+        transactions: this.getAllTransactions(),
+        admin: this.getAdmin(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const res = await fetch(`${this.CLOUD.BASE_URL}/${this.CLOUD.BIN_ID}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Master-Key': this.CLOUD.MASTER_KEY,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Sync Push HTTP ${res.status}`);
+      }
+      this.notifySync('synced');
+    } catch (err) {
+      console.warn('Cloud sync push:', err);
+      this.notifySync('error', err);
+    }
+  },
+
+  async syncPull(onComplete) {
+    if (!navigator.onLine) {
+      if (typeof onComplete === 'function') onComplete(false);
+      return;
+    }
+    if (this._isPulling) return;
+    this._isPulling = true;
+    this.notifySync('syncing');
+
+    try {
+      const res = await fetch(`${this.CLOUD.BASE_URL}/${this.CLOUD.BIN_ID}/latest`, {
+        method: 'GET',
+        headers: {
+          'X-Master-Key': this.CLOUD.MASTER_KEY,
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error(`Sync Pull HTTP ${res.status}`);
+      }
+
+      const json = await res.json();
+      const record = json.record || {};
+      const cloudUsers = Array.isArray(record.users) ? record.users : [];
+      const cloudTxs   = Array.isArray(record.transactions) ? record.transactions : [];
+      const cloudAdmin = record.admin;
+
+      // Smart merge: Local and Cloud
+      const localUsers = this.getUsers();
+      const localTxs   = this.getAllTransactions();
+
+      // 1. Merge users
+      const userMap = new Map();
+      localUsers.forEach(u => {
+        const k = u.id || (u.email ? u.email.toLowerCase() : null);
+        if (k) userMap.set(k, u);
+      });
+      cloudUsers.forEach(u => {
+        const k = u.id || (u.email ? u.email.toLowerCase() : null);
+        if (!k) return;
+        if (!userMap.has(k)) {
+          userMap.set(k, u);
+        } else {
+          const existing = userMap.get(k);
+          userMap.set(k, { ...existing, ...u });
+        }
+      });
+      const mergedUsers = Array.from(userMap.values());
+      localStorage.setItem('sun_users', JSON.stringify(mergedUsers));
+
+      // 2. Merge transactions
+      const txMap = new Map();
+      localTxs.forEach(t => {
+        if (t.id) txMap.set(t.id, t);
+      });
+      cloudTxs.forEach(t => {
+        if (t.id && !txMap.has(t.id)) {
+          txMap.set(t.id, t);
+        }
+      });
+      const mergedTxs = Array.from(txMap.values());
+      mergedTxs.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      localStorage.setItem('sun_transactions', JSON.stringify(mergedTxs));
+
+      // 3. Admin sync if exists
+      if (cloudAdmin && cloudAdmin.password) {
+        localStorage.setItem('sun_admin', JSON.stringify(cloudAdmin));
+      }
+
+      // Check if local had new data that wasn't in cloud yet
+      const needsPush = (mergedUsers.length > cloudUsers.length) || 
+                        (mergedTxs.length > cloudTxs.length);
+
+      this._isPulling = false;
+      this.notifySync('synced');
+
+      // Refresh active views
+      if (window.UserApp && typeof window.UserApp.refresh === 'function') {
+        window.UserApp.refresh();
+      }
+      if (window.AdminApp && typeof window.AdminApp.refresh === 'function') {
+        window.AdminApp.refresh();
+      }
+
+      if (needsPush) {
+        this.scheduleCloudPush();
+      }
+
+      if (typeof onComplete === 'function') onComplete(true);
+    } catch (err) {
+      console.warn('Cloud sync pull:', err);
+      this._isPulling = false;
+      this.notifySync('error', err);
+      if (typeof onComplete === 'function') onComplete(false);
+    }
+  },
+
+  initCloudSync() {
+    this.syncPull();
+    window.addEventListener('online', () => this.syncPull());
+    window.addEventListener('focus',  () => this.syncPull());
+    // Auto sync poll every 20 seconds
+    setInterval(() => {
+      if (navigator.onLine && !document.hidden) {
+        this.syncPull();
+      }
+    }, 20000);
+  },
+
   // ---- NAME CAPITALIZATION HELPER ----
   formatName(str) {
     if (!str) return '';
@@ -50,6 +216,7 @@ const DB = {
   },
   saveUsers(users) {
     localStorage.setItem('sun_users', JSON.stringify(users));
+    this.scheduleCloudPush();
   },
   getUserByEmail(email) {
     if (!email) return null;
@@ -154,6 +321,7 @@ const DB = {
     };
     all.push(tx);
     localStorage.setItem('sun_transactions', JSON.stringify(all));
+    this.scheduleCloudPush();
     return tx;
   },
 
@@ -254,6 +422,7 @@ const DB = {
     const admin = this.getAdmin();
     admin.password = newPassword;
     localStorage.setItem('sun_admin', JSON.stringify(admin));
+    this.scheduleCloudPush();
     return true;
   },
   getAdminSession() {
@@ -284,3 +453,4 @@ const DB = {
 // Automatically capitalize first/last names and migrate legacy transactions on load
 DB.migrateExistingRecords();
 DB.migrateTransactions();
+DB.initCloudSync();
