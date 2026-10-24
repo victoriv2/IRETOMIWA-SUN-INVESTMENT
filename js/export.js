@@ -12,25 +12,103 @@ const Exporter = (() => {
     });
   }
 
-  // ---- 1. EXCEL / CSV EXPORT ----
-  // Outputs UTF-8 BOM CSV so Microsoft Excel natively opens with perfect formatting & Naira (₦) signs
+  // ---- 1. EXCEL WORKBOOK EXPORT (.xlsx / .xls) ----
+  // Outputs authentic Microsoft Excel format (NOT CSV), fully formatted with Naira ₦ currency
   function toExcel({ filename, headers, rows }) {
-    const escapeCsv = (val) => {
-      if (val === null || val === undefined) return '""';
-      const s = String(val).replace(/"/g, '""');
-      return `"${s}"`;
+    const cleanFilename = (filename || 'Account_Statement').replace(/\.(csv|xlsx|xls)$/i, '');
+
+    // Option A: If SheetJS (XLSX) is available, generate true .xlsx binary workbook
+    if (typeof XLSX !== 'undefined') {
+      const data = [headers, ...rows];
+      const ws = XLSX.utils.aoa_to_sheet(data);
+
+      // Auto-fit column widths
+      const colWidths = headers.map((h, i) => {
+        let maxLen = String(h || '').length;
+        rows.forEach(r => {
+          if (r[i]) maxLen = Math.max(maxLen, String(r[i]).length);
+        });
+        return { wch: Math.min(Math.max(maxLen + 4, 14), 45) };
+      });
+      ws['!cols'] = colWidths;
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Statement");
+      XLSX.writeFile(wb, `${cleanFilename}.xlsx`);
+      return;
+    }
+
+    // Option B: Native Fallback - Official Microsoft Excel XML Spreadsheet format (.xls)
+    // Directly recognized by Excel as a rich spreadsheet with styled headers and column widths
+    const escapeXml = (str) => {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
     };
 
-    const headerLine = headers.map(h => escapeCsv(h)).join(',');
-    const rowLines = rows.map(r => r.map(c => escapeCsv(c)).join(','));
-    const csvContent = '\uFEFF' + [headerLine, ...rowLines].join('\r\n');
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+  <Author>Iretomiwa Sun Enterprise</Author>
+  <Company>Iretomiwa Sun Enterprise</Company>
+ </DocumentProperties>
+ <Styles>
+  <Style ss:ID="Header">
+   <Font ss:FontName="Segoe UI" ss:Size="11" ss:Color="#FFFFFF" ss:Bold="1"/>
+   <Interior ss:Color="#095426" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#063b1a"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="Cell">
+   <Font ss:FontName="Segoe UI" ss:Size="10" ss:Color="#1F2937"/>
+   <Alignment ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E7EB"/>
+   </Borders>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="Statement">
+  <Table>`;
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // Add Column Widths
+    headers.forEach(() => {
+      xml += '\n   <Column ss:AutoFitWidth="1" ss:Width="130"/>';
+    });
+
+    // Add Header Row
+    xml += '\n   <Row ss:Height="26">';
+    headers.forEach(h => {
+      xml += `\n    <Cell ss:StyleID="Header"><Data ss:Type="String">${escapeXml(h)}</Data></Cell>`;
+    });
+    xml += '\n   </Row>';
+
+    // Add Data Rows
+    rows.forEach(r => {
+      xml += '\n   <Row ss:Height="22">';
+      r.forEach(cell => {
+        xml += `\n    <Cell ss:StyleID="Cell"><Data ss:Type="String">${escapeXml(cell)}</Data></Cell>`;
+      });
+      xml += '\n   </Row>';
+    });
+
+    xml += '\n  </Table>\n </Worksheet>\n</Workbook>';
+
+    const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    const finalName = filename.endsWith('.csv') ? filename : `${filename}.csv`;
-    link.setAttribute('download', finalName);
+    link.setAttribute('download', `${cleanFilename}.xls`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
