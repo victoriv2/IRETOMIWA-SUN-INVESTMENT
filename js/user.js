@@ -639,13 +639,6 @@ const UserApp = (() => {
       initChangePassword();
       initLogout();
       initModalClose();
-
-      const btnAdmin = document.getElementById('btn-goto-admin');
-      if (btnAdmin) {
-        btnAdmin.addEventListener('click', () => {
-          if (window.App) App.navigate('admin');
-        });
-      }
     },
 
     switchTab,
