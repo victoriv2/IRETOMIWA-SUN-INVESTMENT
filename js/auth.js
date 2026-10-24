@@ -170,17 +170,16 @@ const Auth = (() => {
         valid = false;
       }
 
-      // Email validation (must have @ and .)
-      if (!email) {
-        setError('err-email', 'Email address is required.');
-        valid = false;
-      } else if (!isValidEmail(email)) {
-        setError('err-email', 'Enter a valid email with "@" and a domain "." (e.g. name@example.com).');
-        valid = false;
-      } else if (DB.getUserByEmail(email)) {
-        // Prevent duplicate email
-        setError('err-email', 'This email is already in use. Please sign in or use another.');
-        valid = false;
+      // Email validation (optional: only validate format & uniqueness if entered)
+      if (email) {
+        if (!isValidEmail(email)) {
+          setError('err-email', 'Enter a valid email with "@" and a domain "." (e.g. name@example.com).');
+          valid = false;
+        } else if (DB.getUserByEmail(email)) {
+          // Prevent duplicate email
+          setError('err-email', 'This email is already in use. Please sign in or use another.');
+          valid = false;
+        }
       }
 
       // Nigerian Phone validation (must start with 0, exactly 11 digits)

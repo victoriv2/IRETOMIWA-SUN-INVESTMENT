@@ -221,20 +221,21 @@ const DB = {
   },
   getUserByEmail(email) {
     if (!email) return null;
-    return this.getUsers().find(u => u.email.toLowerCase() === email.trim().toLowerCase()) || null;
+    const cleanEmail = email.trim().toLowerCase();
+    return this.getUsers().find(u => u.email && u.email.trim().toLowerCase() === cleanEmail) || null;
   },
   getUserByPhone(phone) {
     if (!phone) return null;
     const cleanPhone = phone.trim().replace(/\D/g, '');
-    return this.getUsers().find(u => u.phone.replace(/\D/g, '') === cleanPhone) || null;
+    return this.getUsers().find(u => u.phone && u.phone.replace(/\D/g, '') === cleanPhone) || null;
   },
   getUserByIdentifier(identifier) {
     if (!identifier) return null;
     const clean = identifier.trim().toLowerCase();
     const cleanDigits = identifier.trim().replace(/\D/g, '');
     return this.getUsers().find(u => {
-      const emailMatch = u.email.toLowerCase() === clean;
-      const phoneMatch = cleanDigits.length >= 10 && u.phone.replace(/\D/g, '') === cleanDigits;
+      const emailMatch = Boolean(u.email && u.email.trim().toLowerCase() === clean);
+      const phoneMatch = Boolean(cleanDigits.length >= 10 && u.phone && u.phone.replace(/\D/g, '') === cleanDigits);
       return emailMatch || phoneMatch;
     }) || null;
   },
@@ -247,7 +248,7 @@ const DB = {
       id: 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
       firstName: this.formatName(data.firstName),
       lastName:  this.formatName(data.lastName),
-      email: data.email.trim().toLowerCase(),
+      email: data.email ? data.email.trim().toLowerCase() : '',
       phone: data.phone.trim(),
       password: data.password,
       joinedAt: new Date().toISOString(),

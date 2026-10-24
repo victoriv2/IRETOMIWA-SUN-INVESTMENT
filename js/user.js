@@ -449,9 +449,9 @@ const UserApp = (() => {
         valid = false;
       }
 
-      // Email validation (must have @ and .)
+      // Email validation (optional: only validate if entered)
       const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-      if (!email || !emailRegex.test(email)) {
+      if (email && !emailRegex.test(email)) {
         document.getElementById('err-edit-email').textContent = 'Enter a valid email with "@" and "." (e.g. name@example.com).';
         valid = false;
       }
@@ -476,12 +476,14 @@ const UserApp = (() => {
 
       if (!valid) return;
 
-      // Check email conflict
-      const existingEmail = DB.getUserByEmail(email);
-      if (existingEmail && existingEmail.id !== currentUserId) {
-        document.getElementById('edit-profile-error').textContent = 'This email is already in use by another account.';
-        document.getElementById('edit-profile-error').classList.remove('hidden');
-        return;
+      // Check email conflict (only if email is provided)
+      if (email) {
+        const existingEmail = DB.getUserByEmail(email);
+        if (existingEmail && existingEmail.id !== currentUserId) {
+          document.getElementById('edit-profile-error').textContent = 'This email is already in use by another account.';
+          document.getElementById('edit-profile-error').classList.remove('hidden');
+          return;
+        }
       }
 
       // Check phone conflict
