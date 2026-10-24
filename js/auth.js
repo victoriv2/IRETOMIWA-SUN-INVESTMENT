@@ -97,7 +97,7 @@ const Auth = (() => {
 
     document.addEventListener('click', (e) => {
       const btn = e.target.closest('.toggle-pw');
-      if (!btn) return;
+      if (!btn || btn._hasAdminToggleBound) return;
       e.preventDefault();
 
       const targetId = btn.dataset.target;

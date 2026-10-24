@@ -755,6 +755,7 @@ const AdminApp = (() => {
           }
         });
 
+        initPasswordToggles();
         modal.classList.remove('hidden');
       });
     }
@@ -865,6 +866,15 @@ const AdminApp = (() => {
       if (loginEl) {
         loginEl.classList.add('active');
         loginEl.style.display = 'flex';
+        const adminPw = document.getElementById('admin-password');
+        if (adminPw) adminPw.type = 'password';
+        const adminPwBtn = document.querySelector('.toggle-pw[data-target="admin-password"]');
+        if (adminPwBtn) {
+          adminPwBtn.innerHTML = eyeOpenSVG;
+          adminPwBtn.setAttribute('aria-label', 'Show password');
+          adminPwBtn.classList.remove('active');
+        }
+        initPasswordToggles();
       }
     }
   }
@@ -970,8 +980,32 @@ const AdminApp = (() => {
     }
   }
 
-  // Password visibility eye icon toggles - handled universally by auth.js
-  function initPasswordToggles() {}
+  // Password visibility eye icon toggles on Admin side (Login & Modals)
+  function initPasswordToggles() {
+    const adminToggleBtns = document.querySelectorAll(
+      '#page-admin-login .toggle-pw, #modal-admin-change-password .toggle-pw'
+    );
+    adminToggleBtns.forEach(btn => {
+      if (btn._hasAdminToggleBound) return;
+      btn._hasAdminToggleBound = true;
+
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const targetId = btn.dataset.target;
+        if (!targetId) return;
+        const target = document.getElementById(targetId);
+        if (!target) return;
+
+        const isPassword = target.type === 'password';
+        target.type = isPassword ? 'text' : 'password';
+        btn.innerHTML = isPassword ? eyeOffSVG : eyeOpenSVG;
+        btn.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+        btn.classList.toggle('active', isPassword);
+      });
+    });
+  }
 
   // Generic modal close handler - handled universally by user.js and picker.js
   function initModalCloseHandlers() {}
