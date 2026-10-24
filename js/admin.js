@@ -259,72 +259,85 @@ const AdminApp = (() => {
     return `${recYear}-${pad(recMonth + 1)}-${pad(recDay)}`;
   }
 
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
   function updateReceivedFilterButtons() {
-    const dayValEl   = document.getElementById('admin-rec-day-val');
-    const monthValEl = document.getElementById('admin-rec-month-val');
-    const yearValEl  = document.getElementById('admin-rec-year-val');
-
+    const fullDateEl = document.getElementById('admin-rec-full-date');
+    if (fullDateEl) {
+      fullDateEl.textContent = `${recDay} ${monthNames[recMonth]} ${recYear}`;
+    }
+    const todayBtn = document.getElementById('admin-rec-date-today');
     const isToday = (recDay === todayDateObj.getDate() && recMonth === todayDateObj.getMonth() && recYear === todayDateObj.getFullYear());
-
-    if (dayValEl)   dayValEl.textContent   = isToday ? `Today (${recDay})` : `Day ${recDay}`;
-    if (monthValEl) monthValEl.textContent = CustomPicker.formatMonthLabel(new Date(recYear, recMonth, 1));
-    if (yearValEl)  yearValEl.textContent  = '' + recYear;
-
-    const dayBtn   = document.getElementById('admin-rec-filter-day');
-    const monthBtn = document.getElementById('admin-rec-filter-month');
-    const yearBtn  = document.getElementById('admin-rec-filter-year');
-
-    if (dayBtn)   dayBtn.classList.toggle('active', recPeriod === 'day');
-    if (monthBtn) monthBtn.classList.toggle('active', recPeriod === 'month');
-    if (yearBtn)  yearBtn.classList.toggle('active', recPeriod === 'year');
+    if (todayBtn) todayBtn.classList.toggle('active', isToday);
   }
 
   function initReceivedPicker() {
-    const dayBtn   = document.getElementById('admin-rec-filter-day');
-    const monthBtn = document.getElementById('admin-rec-filter-month');
-    const yearBtn  = document.getElementById('admin-rec-filter-year');
+    const prevBtn    = document.getElementById('admin-rec-date-prev');
+    const nextBtn    = document.getElementById('admin-rec-date-next');
+    const triggerBtn = document.getElementById('admin-rec-picker-trigger');
+    const todayBtn   = document.getElementById('admin-rec-date-today');
 
-    if (dayBtn) {
-      dayBtn.addEventListener('click', () => {
-        CustomPicker.openDayModal({
-          selectedDay: recDay,
-          onSelect: (dayNum) => {
-            recDay = dayNum;
+    if (prevBtn) {
+      prevBtn.addEventListener('click', () => {
+        const cur = new Date(recYear, recMonth, recDay);
+        cur.setDate(cur.getDate() - 1);
+        recDay   = cur.getDate();
+        recMonth = cur.getMonth();
+        recYear  = cur.getFullYear();
+        recPeriod = 'day';
+        recFilterDate = buildRecDateISO();
+        updateReceivedFilterButtons();
+        renderReceivedTab();
+      });
+    }
+
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => {
+        const cur = new Date(recYear, recMonth, recDay);
+        cur.setDate(cur.getDate() + 1);
+        recDay   = cur.getDate();
+        recMonth = cur.getMonth();
+        recYear  = cur.getFullYear();
+        recPeriod = 'day';
+        recFilterDate = buildRecDateISO();
+        updateReceivedFilterButtons();
+        renderReceivedTab();
+      });
+    }
+
+    if (todayBtn) {
+      todayBtn.addEventListener('click', () => {
+        const now = new Date();
+        recDay   = now.getDate();
+        recMonth = now.getMonth();
+        recYear  = now.getFullYear();
+        recPeriod = 'day';
+        recFilterDate = buildRecDateISO();
+        updateReceivedFilterButtons();
+        renderReceivedTab();
+      });
+    }
+
+    if (triggerBtn) {
+      triggerBtn.addEventListener('click', () => {
+        CustomPicker.openDatePicker({
+          period: 'day',
+          initialDate: buildRecDateISO(),
+          title: 'Select Date',
+          hidePeriodSwitcher: true,
+          onSelect: ({ isoString }) => {
+            const parts = isoString.split('-');
+            recYear  = parseInt(parts[0], 10);
+            recMonth = parseInt(parts[1], 10) - 1;
+            recDay   = parseInt(parts[2], 10);
             recPeriod = 'day';
             recFilterDate = buildRecDateISO();
             updateReceivedFilterButtons();
             renderReceivedTab();
-          },
-        });
-      });
-    }
-
-    if (monthBtn) {
-      monthBtn.addEventListener('click', () => {
-        CustomPicker.openMonthModal({
-          selectedMonth: recMonth,
-          onSelect: (monthIdx) => {
-            recMonth = monthIdx;
-            recPeriod = 'month';
-            recFilterDate = buildRecDateISO();
-            updateReceivedFilterButtons();
-            renderReceivedTab();
-          },
-        });
-      });
-    }
-
-    if (yearBtn) {
-      yearBtn.addEventListener('click', () => {
-        CustomPicker.openYearModal({
-          selectedYear: recYear,
-          onSelect: (yearNum) => {
-            recYear = yearNum;
-            recPeriod = 'year';
-            recFilterDate = buildRecDateISO();
-            updateReceivedFilterButtons();
-            renderReceivedTab();
-          },
+          }
         });
       });
     }
@@ -615,71 +628,79 @@ const AdminApp = (() => {
   }
 
   function updatePayoutsFilterButtons() {
-    const dayValEl   = document.getElementById('admin-pay-day-val');
-    const monthValEl = document.getElementById('admin-pay-month-val');
-    const yearValEl  = document.getElementById('admin-pay-year-val');
-
+    const fullDateEl = document.getElementById('admin-pay-full-date');
+    if (fullDateEl) {
+      fullDateEl.textContent = `${payDay} ${monthNames[payMonth]} ${payYear}`;
+    }
+    const todayBtn = document.getElementById('admin-pay-date-today');
     const isToday = (payDay === todayDateObj.getDate() && payMonth === todayDateObj.getMonth() && payYear === todayDateObj.getFullYear());
-
-    if (dayValEl)   dayValEl.textContent   = isToday ? `Today (${payDay})` : `Day ${payDay}`;
-    if (monthValEl) monthValEl.textContent = CustomPicker.formatMonthLabel(new Date(payYear, payMonth, 1));
-    if (yearValEl)  yearValEl.textContent  = '' + payYear;
-
-    const dayBtn   = document.getElementById('admin-pay-filter-day');
-    const monthBtn = document.getElementById('admin-pay-filter-month');
-    const yearBtn  = document.getElementById('admin-pay-filter-year');
-
-    if (dayBtn)   dayBtn.classList.toggle('active', payPeriod === 'day');
-    if (monthBtn) monthBtn.classList.toggle('active', payPeriod === 'month');
-    if (yearBtn)  yearBtn.classList.toggle('active', payPeriod === 'year');
+    if (todayBtn) todayBtn.classList.toggle('active', isToday);
   }
 
   function initPayoutsPicker() {
-    const dayBtn   = document.getElementById('admin-pay-filter-day');
-    const monthBtn = document.getElementById('admin-pay-filter-month');
-    const yearBtn  = document.getElementById('admin-pay-filter-year');
+    const prevBtn    = document.getElementById('admin-pay-date-prev');
+    const nextBtn    = document.getElementById('admin-pay-date-next');
+    const triggerBtn = document.getElementById('admin-pay-picker-trigger');
+    const todayBtn   = document.getElementById('admin-pay-date-today');
 
-    if (dayBtn) {
-      dayBtn.addEventListener('click', () => {
-        CustomPicker.openDayModal({
-          selectedDay: payDay,
-          onSelect: (dayNum) => {
-            payDay = dayNum;
+    if (prevBtn) {
+      prevBtn.addEventListener('click', () => {
+        const cur = new Date(payYear, payMonth, payDay);
+        cur.setDate(cur.getDate() - 1);
+        payDay   = cur.getDate();
+        payMonth = cur.getMonth();
+        payYear  = cur.getFullYear();
+        payPeriod = 'day';
+        payFilterDate = buildPayDateISO();
+        updatePayoutsFilterButtons();
+        renderPayoutsTab();
+      });
+    }
+
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => {
+        const cur = new Date(payYear, payMonth, payDay);
+        cur.setDate(cur.getDate() + 1);
+        payDay   = cur.getDate();
+        payMonth = cur.getMonth();
+        payYear  = cur.getFullYear();
+        payPeriod = 'day';
+        payFilterDate = buildPayDateISO();
+        updatePayoutsFilterButtons();
+        renderPayoutsTab();
+      });
+    }
+
+    if (todayBtn) {
+      todayBtn.addEventListener('click', () => {
+        const now = new Date();
+        payDay   = now.getDate();
+        payMonth = now.getMonth();
+        payYear  = now.getFullYear();
+        payPeriod = 'day';
+        payFilterDate = buildPayDateISO();
+        updatePayoutsFilterButtons();
+        renderPayoutsTab();
+      });
+    }
+
+    if (triggerBtn) {
+      triggerBtn.addEventListener('click', () => {
+        CustomPicker.openDatePicker({
+          period: 'day',
+          initialDate: buildPayDateISO(),
+          title: 'Select Date',
+          hidePeriodSwitcher: true,
+          onSelect: ({ isoString }) => {
+            const parts = isoString.split('-');
+            payYear  = parseInt(parts[0], 10);
+            payMonth = parseInt(parts[1], 10) - 1;
+            payDay   = parseInt(parts[2], 10);
             payPeriod = 'day';
             payFilterDate = buildPayDateISO();
             updatePayoutsFilterButtons();
             renderPayoutsTab();
-          },
-        });
-      });
-    }
-
-    if (monthBtn) {
-      monthBtn.addEventListener('click', () => {
-        CustomPicker.openMonthModal({
-          selectedMonth: payMonth,
-          onSelect: (monthIdx) => {
-            payMonth = monthIdx;
-            payPeriod = 'month';
-            payFilterDate = buildPayDateISO();
-            updatePayoutsFilterButtons();
-            renderPayoutsTab();
-          },
-        });
-      });
-    }
-
-    if (yearBtn) {
-      yearBtn.addEventListener('click', () => {
-        CustomPicker.openYearModal({
-          selectedYear: payYear,
-          onSelect: (yearNum) => {
-            payYear = yearNum;
-            payPeriod = 'year';
-            payFilterDate = buildPayDateISO();
-            updatePayoutsFilterButtons();
-            renderPayoutsTab();
-          },
+          }
         });
       });
     }

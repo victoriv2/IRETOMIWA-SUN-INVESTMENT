@@ -46,76 +46,93 @@ const UserApp = (() => {
     return `${selectedYear}-${pad(selectedMonth + 1)}-${pad(selectedDay)}`;
   }
 
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
   function updateFilterButtons() {
-    const dayValEl   = document.getElementById('user-filter-day-val');
-    const monthValEl = document.getElementById('user-filter-month-val');
-    const yearValEl  = document.getElementById('user-filter-year-val');
+    const fullDateEl = document.getElementById('user-filter-full-date');
+    if (fullDateEl) {
+      fullDateEl.textContent = `${selectedDay} ${monthNames[selectedMonth]} ${selectedYear}`;
+    }
 
+    const todayBtn = document.getElementById('user-date-today');
     const isToday = (selectedDay === todayDateObj.getDate() && selectedMonth === todayDateObj.getMonth() && selectedYear === todayDateObj.getFullYear());
-
-    if (dayValEl)   dayValEl.textContent   = isToday ? `Today (${selectedDay})` : `Day ${selectedDay}`;
-    if (monthValEl) monthValEl.textContent = CustomPicker.formatMonthLabel(new Date(selectedYear, selectedMonth, 1));
-    if (yearValEl)  yearValEl.textContent  = '' + selectedYear;
-
-    const dayBtn   = document.getElementById('user-filter-day');
-    const monthBtn = document.getElementById('user-filter-month');
-    const yearBtn  = document.getElementById('user-filter-year');
-
-    if (dayBtn)   dayBtn.classList.toggle('active', activePeriod === 'day');
-    if (monthBtn) monthBtn.classList.toggle('active', activePeriod === 'month');
-    if (yearBtn)  yearBtn.classList.toggle('active', activePeriod === 'year');
+    if (todayBtn) {
+      todayBtn.classList.toggle('active', isToday);
+    }
   }
 
-  // ---- 3-Button Modular Date Filter Listeners (Dedicated Day, Month, Year) ----
+  // ---- Unified Date Filter Listeners (dd Month yyyy) ----
   function initDateFilterGroup() {
-    const dayBtn   = document.getElementById('user-filter-day');
-    const monthBtn = document.getElementById('user-filter-month');
-    const yearBtn  = document.getElementById('user-filter-year');
+    const prevBtn    = document.getElementById('user-date-prev');
+    const nextBtn    = document.getElementById('user-date-next');
+    const triggerBtn = document.getElementById('user-date-picker-trigger');
+    const todayBtn   = document.getElementById('user-date-today');
 
-    if (dayBtn) {
-      dayBtn.addEventListener('click', () => {
-        CustomPicker.openDayModal({
-          selectedDay: selectedDay,
-          onSelect: (dayNum) => {
-            selectedDay = dayNum;
-            activePeriod = 'day';
-            selectedFilterDate = buildDateISO();
-            updateFilterButtons();
-            renderSavingsList();
-            renderTotal();
-          },
-        });
+    if (prevBtn) {
+      prevBtn.addEventListener('click', () => {
+        const cur = new Date(selectedYear, selectedMonth, selectedDay);
+        cur.setDate(cur.getDate() - 1);
+        selectedDay   = cur.getDate();
+        selectedMonth = cur.getMonth();
+        selectedYear  = cur.getFullYear();
+        activePeriod  = 'day';
+        selectedFilterDate = buildDateISO();
+        updateFilterButtons();
+        renderSavingsList();
+        renderTotal();
       });
     }
 
-    if (monthBtn) {
-      monthBtn.addEventListener('click', () => {
-        CustomPicker.openMonthModal({
-          selectedMonth: selectedMonth,
-          onSelect: (monthIdx) => {
-            selectedMonth = monthIdx;
-            activePeriod = 'month';
-            selectedFilterDate = buildDateISO();
-            updateFilterButtons();
-            renderSavingsList();
-            renderTotal();
-          },
-        });
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => {
+        const cur = new Date(selectedYear, selectedMonth, selectedDay);
+        cur.setDate(cur.getDate() + 1);
+        selectedDay   = cur.getDate();
+        selectedMonth = cur.getMonth();
+        selectedYear  = cur.getFullYear();
+        activePeriod  = 'day';
+        selectedFilterDate = buildDateISO();
+        updateFilterButtons();
+        renderSavingsList();
+        renderTotal();
       });
     }
 
-    if (yearBtn) {
-      yearBtn.addEventListener('click', () => {
-        CustomPicker.openYearModal({
-          selectedYear: selectedYear,
-          onSelect: (yearNum) => {
-            selectedYear = yearNum;
-            activePeriod = 'year';
+    if (todayBtn) {
+      todayBtn.addEventListener('click', () => {
+        const now = new Date();
+        selectedDay   = now.getDate();
+        selectedMonth = now.getMonth();
+        selectedYear  = now.getFullYear();
+        activePeriod  = 'day';
+        selectedFilterDate = buildDateISO();
+        updateFilterButtons();
+        renderSavingsList();
+        renderTotal();
+      });
+    }
+
+    if (triggerBtn) {
+      triggerBtn.addEventListener('click', () => {
+        CustomPicker.openDatePicker({
+          period: 'day',
+          initialDate: buildDateISO(),
+          title: 'Select Date',
+          hidePeriodSwitcher: true,
+          onSelect: ({ isoString }) => {
+            const parts = isoString.split('-');
+            selectedYear  = parseInt(parts[0], 10);
+            selectedMonth = parseInt(parts[1], 10) - 1;
+            selectedDay   = parseInt(parts[2], 10);
+            activePeriod  = 'day';
             selectedFilterDate = buildDateISO();
             updateFilterButtons();
             renderSavingsList();
             renderTotal();
-          },
+          }
         });
       });
     }
