@@ -553,6 +553,70 @@ input.input-error {
   color: var(--primary);
 }
 
+.cal-header-selectors {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cal-header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cal-header-btn:hover {
+  background: #eaf5ee;
+  border-color: var(--primary);
+}
+
+.cal-header-btn:active {
+  transform: scale(0.97);
+}
+
+.cal-subview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding: 0 4px;
+}
+
+.cal-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary);
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+.cal-back-btn:hover {
+  background: #eaf5ee;
+  border-color: var(--primary);
+}
+
+.cal-subview-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
 /* ---- CALENDAR GRID (DAY VIEW) ---- */
 .cal-weekdays {
   display: grid;

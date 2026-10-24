@@ -321,19 +321,13 @@ const CustomPicker = (() => {
     const switcher = document.querySelector('.picker-period-segmented');
     if (switcher) switcher.style.display = hidePeriodSwitcher ? 'none' : 'flex';
 
-    setPeriodMode(currentPeriod);
+    switchCalendarView('day');
 
     const modal = document.getElementById('modal-date-picker');
     if (modal) modal.classList.remove('hidden');
   }
 
-  function setPeriodMode(mode) {
-    currentPeriod = mode;
-
-    document.querySelectorAll('.segmented-btn[data-picker-mode]').forEach(b => {
-      b.classList.toggle('active', b.dataset.pickerMode === mode);
-    });
-
+  function switchCalendarView(mode) {
     const dayView   = document.getElementById('picker-day-view');
     const monthView = document.getElementById('picker-month-view');
     const yearView  = document.getElementById('picker-year-view');
@@ -344,13 +338,29 @@ const CustomPicker = (() => {
 
     if (mode === 'day') renderDayGrid();
     if (mode === 'month') renderMonthGrid();
-    if (mode === 'year') renderYearList();
+    if (mode === 'year') {
+      renderYearList();
+      setTimeout(() => {
+        const sel = document.querySelector('.year-item--selected');
+        if (sel) sel.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }, 50);
+    }
+  }
+
+  function setPeriodMode(mode) {
+    switchCalendarView(mode);
   }
 
   function renderDayGrid() {
     const today = getNow();
     const labelEl = document.getElementById('cal-month-year-label');
     if (labelEl) labelEl.textContent = monthNames[browsingMonth] + ' ' + browsingYear;
+
+    const monthBtnText = document.getElementById('cal-header-month-text');
+    if (monthBtnText) monthBtnText.textContent = monthNames[browsingMonth];
+
+    const yearBtnText = document.getElementById('cal-header-year-text');
+    if (yearBtnText) yearBtnText.textContent = '' + browsingYear;
 
     const nextMonthBtn = document.getElementById('cal-next-month');
     if (nextMonthBtn) {
@@ -411,23 +421,20 @@ const CustomPicker = (() => {
   }
 
   function renderMonthGrid() {
-    const labelEl = document.getElementById('cal-year-label-m');
-    if (labelEl) labelEl.textContent = browsingYear;
-
     const grid = document.getElementById('cal-months-grid');
     if (!grid) return;
     grid.innerHTML = '';
+    const today = getNow();
 
     for (let m = 0; m < 12; m++) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'month-cell';
-      btn.textContent = monthShort[m];
+      btn.textContent = monthNames[m];
 
       const isFuture = isFutureMonth(browsingYear, m);
       const isSelected = (
-        selectedDate.getFullYear() === browsingYear &&
-        selectedDate.getMonth() === m
+        browsingMonth === m
       );
 
       if (isSelected) btn.classList.add('month-cell--selected');
@@ -437,9 +444,8 @@ const CustomPicker = (() => {
         btn.disabled = true;
       } else {
         btn.addEventListener('click', () => {
-          selectedDate = new Date(browsingYear, m, 1);
-          renderMonthGrid();
-          applyAndClose();
+          browsingMonth = m;
+          switchCalendarView('day');
         });
       }
 
@@ -451,24 +457,28 @@ const CustomPicker = (() => {
     const list = document.getElementById('cal-years-list');
     if (!list) return;
     list.innerHTML = '';
+    const today = getNow();
+    const currentYear = today.getFullYear();
 
-    for (let y = maxYear; y >= 2000; y--) {
+    for (let y = currentYear; y >= 2000; y--) {
       const item = document.createElement('button');
       item.type = 'button';
       item.className = 'year-item';
-      item.textContent = y;
 
-      const isSelected = selectedDate.getFullYear() === y;
+      const isSelected = (browsingYear === y);
       if (isSelected) {
         item.classList.add('year-item--selected');
         item.innerHTML = `<span>${y}</span><svg class="check-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+      } else {
+        item.textContent = y;
       }
 
       item.addEventListener('click', () => {
-        selectedDate = new Date(y, selectedDate.getMonth(), 1);
-        if (selectedDate > now) selectedDate = new Date(y, maxMonth, 1);
-        renderYearList();
-        applyAndClose();
+        browsingYear = y;
+        if (browsingYear === currentYear && browsingMonth > today.getMonth()) {
+          browsingMonth = today.getMonth();
+        }
+        switchCalendarView('day');
       });
 
       list.appendChild(item);
@@ -716,6 +726,38 @@ const CustomPicker = (() => {
         browsingYear  = selectedDate.getFullYear();
         browsingMonth = selectedDate.getMonth();
         applyAndClose();
+      });
+    }
+
+    // Switch to month view
+    const selectMonthBtn = document.getElementById('cal-btn-select-month');
+    if (selectMonthBtn) {
+      selectMonthBtn.addEventListener('click', () => {
+        switchCalendarView('month');
+      });
+    }
+
+    // Switch to year view
+    const selectYearBtn = document.getElementById('cal-btn-select-year');
+    if (selectYearBtn) {
+      selectYearBtn.addEventListener('click', () => {
+        switchCalendarView('year');
+      });
+    }
+
+    // Back from month view to day view
+    const backFromMonthBtn = document.getElementById('cal-back-from-month');
+    if (backFromMonthBtn) {
+      backFromMonthBtn.addEventListener('click', () => {
+        switchCalendarView('day');
+      });
+    }
+
+    // Back from year view to day view
+    const backFromYearBtn = document.getElementById('cal-back-from-year');
+    if (backFromYearBtn) {
+      backFromYearBtn.addEventListener('click', () => {
+        switchCalendarView('day');
       });
     }
 
