@@ -129,9 +129,10 @@ const DB = {
         localStorage.setItem('sun_admin', JSON.stringify(cloudAdmin));
       }
 
-      // Check if local had new data that wasn't in cloud yet
-      const needsPush = (mergedUsers.length > cloudUsers.length) || 
-                        (mergedTxs.length > cloudTxs.length);
+      // Check if local had data that wasn't in cloud yet
+      const hasLocalUsersMissing = localUsers.some(lu => !cloudUsers.some(cu => (cu.id && cu.id === lu.id) || (cu.email && cu.email.toLowerCase() === (lu.email || '').toLowerCase())));
+      const hasLocalTxsMissing   = localTxs.some(lt => !cloudTxs.some(ct => ct.id === lt.id));
+      const needsPush = hasLocalUsersMissing || hasLocalTxsMissing || (mergedUsers.length > cloudUsers.length) || (mergedTxs.length > cloudTxs.length);
 
       this._isPulling = false;
       this.notifySync('synced');
