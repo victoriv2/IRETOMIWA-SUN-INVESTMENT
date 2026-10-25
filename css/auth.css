@@ -894,6 +894,26 @@
   max-width: 720px;
 }
 
+.tab-bar--admin .tab-btn {
+  min-width: 0;
+  padding: 6px 4px;
+  flex: 1;
+}
+
+@media (max-width: 420px) {
+  .tab-bar--admin {
+    padding: 6px 4px 14px;
+  }
+  .tab-bar--admin .tab-btn {
+    font-size: 10px;
+    gap: 2px;
+  }
+  .tab-bar--admin .tab-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
 .admin-shell .tab-content {
   flex: 1;
   overflow-y: auto;
