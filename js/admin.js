@@ -74,6 +74,7 @@ const AdminApp = (() => {
     // Toggle tab panels
     const tabMap = {
       users: 'admin-tab-users-content',
+      requests: 'admin-tab-requests-content',
       received: 'admin-tab-received-content',
       record: 'admin-tab-record-content',
       payouts: 'admin-tab-payouts-content',
@@ -93,10 +94,12 @@ const AdminApp = (() => {
 
     // Refresh data for active tab
     if (tabName === 'users')    renderUsersTab();
+    if (tabName === 'requests') renderRequestsTab();
     if (tabName === 'received') renderReceivedTab();
     if (tabName === 'record')   setupRecordTab();
     if (tabName === 'payouts')  renderPayoutsTab();
     if (tabName === 'more')     renderMoreTab();
+    updatePendingBadge();
   }
 
   function initTabs() {
@@ -124,6 +127,7 @@ const AdminApp = (() => {
     if (usrEl) usrEl.textContent = users.length;
     if (depEl) depEl.textContent = '₦' + formatAmount(systemTotals.totalDeposited);
     if (payEl) payEl.textContent = '₦' + formatAmount(systemTotals.totalWithdrawn);
+    updatePendingBadge();
 
     // Filter by search query
     const searchInput = document.getElementById('admin-user-search');
@@ -228,11 +232,18 @@ const AdminApp = (() => {
           const badgeText = isDeposit ? 'Deposit' : 'Payout';
           const amtPrefix = isDeposit ? '+₦' : '-₦';
           const amtClass  = isDeposit ? 'amount-cell--deposit' : 'amount-cell--payout';
+          const status    = t.status || 'approved';
+          let statusBadge = '';
+          if (status === 'pending') {
+            statusBadge = ` <span class="status-badge status-badge--pending" style="font-size:10px; margin-left:4px;">Pending</span>`;
+          } else if (status === 'declined') {
+            statusBadge = ` <span class="status-badge status-badge--declined" style="font-size:10px; margin-left:4px;">Declined</span>`;
+          }
 
           return `
             <tr>
               <td>${formatDateTime(t.createdAt)}</td>
-              <td><span class="tx-badge ${badgeClass}">${badgeText}</span></td>
+              <td><span class="tx-badge ${badgeClass}">${badgeText}</span>${statusBadge}</td>
               <td>${escapeHtml(t.category || 'General Savings')}</td>
               <td class="amount-cell ${amtClass}">${amtPrefix}${formatAmount(t.amount)}</td>
               <td>${escapeHtml(t.note || '-')}</td>
@@ -243,6 +254,339 @@ const AdminApp = (() => {
 
     const modal = document.getElementById('modal-user-profile');
     if (modal) modal.classList.remove('hidden');
+  }
+
+  // ============================================
+  // TAB: REQUESTS (CLIENT PAY IN & PAY OUT APPROVALS)
+  // ============================================
+  let reqFilterStatus = 'pending';
+  let activeRequestTxId = null;
+
+  function updatePendingBadge() {
+    const pendingList = DB.getPendingRequests();
+    const count = pendingList.length;
+
+    // Bottom tab bar badge
+    const tabBadge = document.getElementById('admin-pending-badge');
+    if (tabBadge) {
+      if (count > 0) {
+        tabBadge.textContent = count > 99 ? '99+' : count;
+        tabBadge.classList.remove('hidden');
+      } else {
+        tabBadge.classList.add('hidden');
+      }
+    }
+
+    // Users tab summary card counter
+    const cardCounter = document.getElementById('admin-pending-approvals-count');
+    if (cardCounter) {
+      cardCounter.textContent = count;
+    }
+  }
+
+  function renderRequestsTab() {
+    updatePendingBadge();
+
+    const allTx = DB.getAllTransactions();
+    // A request is any transaction that was submitted by a user or has status/review metadata
+    const requestTxs = allTx.filter(t => t.recordedBy === 'user' || t.status === 'pending' || t.status === 'declined' || t.reviewedBy);
+
+    // Summary counts for all pending requests
+    const pendingTxs = allTx.filter(t => (t.status || 'approved') === 'pending');
+    let pendingDepTotal = 0;
+    let pendingPayTotal = 0;
+    pendingTxs.forEach(t => {
+      const amt = parseFloat(t.amount) || 0;
+      if (t.type === 'deposit') pendingDepTotal += amt;
+      else pendingPayTotal += amt;
+    });
+
+    const pendingCountEl = document.getElementById('admin-req-summary-pending');
+    const pendingDepEl   = document.getElementById('admin-req-summary-deposits');
+    const pendingPayEl   = document.getElementById('admin-req-summary-payouts');
+
+    if (pendingCountEl) pendingCountEl.textContent = pendingTxs.length;
+    if (pendingDepEl)   pendingDepEl.textContent   = '₦' + formatAmount(pendingDepTotal);
+    if (pendingPayEl)   pendingPayEl.textContent   = '₦' + formatAmount(pendingPayTotal);
+
+    // Filter pills state
+    document.querySelectorAll('.requests-filter-pill').forEach(pill => {
+      pill.classList.toggle('active', pill.dataset.reqFilter === reqFilterStatus);
+    });
+
+    // Filter by status pill
+    let filtered = requestTxs.filter(t => {
+      const st = t.status || 'approved';
+      if (reqFilterStatus === 'pending')  return st === 'pending';
+      if (reqFilterStatus === 'approved') return st === 'approved';
+      if (reqFilterStatus === 'declined') return st === 'declined';
+      return true; // 'all'
+    });
+
+    // Filter by search input
+    const searchInput = document.getElementById('admin-requests-search');
+    const q = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+    if (q) {
+      filtered = filtered.filter(t => {
+        const u = DB.getUserById(t.userId);
+        const name = u ? `${u.firstName || ''} ${u.lastName || ''}`.toLowerCase() : '';
+        const phone = u ? (u.phone || '').toLowerCase() : '';
+        const email = u ? (u.email || '').toLowerCase() : '';
+        const cat = (t.category || '').toLowerCase();
+        const note = (t.note || '').toLowerCase();
+        return name.includes(q) || phone.includes(q) || email.includes(q) || cat.includes(q) || note.includes(q);
+      });
+    }
+
+    // Sort: newest first
+    filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    const counterLabel = document.getElementById('admin-requests-counter-label');
+    if (counterLabel) {
+      const totalFiltered = filtered.length;
+      if (reqFilterStatus === 'pending') {
+        counterLabel.textContent = q ? `Showing ${totalFiltered} matching pending request${totalFiltered === 1 ? '' : 's'}` : `${totalFiltered} pending request${totalFiltered === 1 ? '' : 's'} awaiting approval`;
+      } else {
+        counterLabel.textContent = `Showing ${totalFiltered} request${totalFiltered === 1 ? '' : 's'}`;
+      }
+    }
+
+    const tbody = document.getElementById('admin-requests-table-body');
+    if (!tbody) return;
+
+    if (filtered.length === 0) {
+      const emptyText = q
+        ? 'No requests match your search.'
+        : (reqFilterStatus === 'pending'
+          ? 'No pending client requests at this time.'
+          : `No ${reqFilterStatus} requests found.`);
+      tbody.innerHTML = `<tr><td colspan="8" class="table-empty">${emptyText}</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(t => {
+      const u = DB.getUserById(t.userId);
+      const fullName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Unknown Client';
+      const phone = u ? u.phone : '-';
+      const userBal = u ? DB.getUserBalance(u.id) : { balance: 0, availableBalance: 0 };
+      const isDeposit = (t.type || 'deposit') === 'deposit';
+      const typeBadge = isDeposit
+        ? '<span class="tx-badge tx-badge--deposit">Pay In</span>'
+        : '<span class="tx-badge tx-badge--payout">Pay Out</span>';
+      const amtClass = isDeposit ? 'amount-cell--deposit' : 'amount-cell--payout';
+      const amtPrefix = isDeposit ? '+₦' : '-₦';
+
+      const status = t.status || 'approved';
+      let statusHtml = '';
+      let actionHtml = '';
+
+      if (status === 'pending') {
+        statusHtml = '<span class="status-badge status-badge--pending">Pending Approval</span>';
+        actionHtml = `
+          <div class="request-actions">
+            <button type="button" class="btn-approve" data-tx-id="${t.id}">Approve</button>
+            <button type="button" class="btn-decline" data-tx-id="${t.id}">Decline</button>
+          </div>
+        `;
+      } else if (status === 'approved') {
+        statusHtml = '<span class="status-badge status-badge--approved">Approved</span>';
+        actionHtml = `<small style="color:var(--color-text-muted); font-size:11.5px;">Reviewed by Admin<br>${formatDateTime(t.reviewedAt)}</small>`;
+      } else if (status === 'declined') {
+        statusHtml = '<span class="status-badge status-badge--declined">Declined</span>';
+        actionHtml = `<small style="color:var(--color-danger); font-size:11.5px;">${t.declineReason ? escapeHtml(t.declineReason) + '<br>' : ''}${formatDateTime(t.reviewedAt)}</small>`;
+      }
+
+      const balDisplay = `₦${formatAmount(userBal.balance)}${!isDeposit && userBal.pendingWithdrawn > 0 ? `<br><small style="color:var(--color-text-muted); font-size:11.5px;">Avail: ₦${formatAmount(userBal.availableBalance)}</small>` : ''}`;
+
+      return `
+        <tr>
+          <td>${formatDateTime(t.createdAt)}</td>
+          <td class="user-name-cell">${escapeHtml(fullName)}</td>
+          <td>${escapeHtml(phone)}</td>
+          <td>${typeBadge}</td>
+          <td class="amount-cell ${amtClass}">${amtPrefix}${formatAmount(t.amount)}</td>
+          <td>
+            <strong>${escapeHtml(t.category || 'General Savings')}</strong>
+            ${t.note ? `<br><small style="color:var(--color-text-muted); font-size:11.5px;">${escapeHtml(t.note)}</small>` : ''}
+          </td>
+          <td class="amount-cell" style="font-weight:700;">${balDisplay}</td>
+          <td>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              ${statusHtml}
+              ${actionHtml}
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    // Bind action buttons
+    tbody.querySelectorAll('.btn-approve').forEach(btn => {
+      btn.addEventListener('click', () => openApproveModal(btn.dataset.txId));
+    });
+
+    tbody.querySelectorAll('.btn-decline').forEach(btn => {
+      btn.addEventListener('click', () => openDeclineModal(btn.dataset.txId));
+    });
+  }
+
+  function openApproveModal(txId) {
+    activeRequestTxId = txId;
+    const allTx = DB.getAllTransactions();
+    const t = allTx.find(x => x.id === txId);
+    if (!t) return;
+
+    const u = DB.getUserById(t.userId);
+    const clientName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Client';
+    const isDeposit = (t.type || 'deposit') === 'deposit';
+    const userBal = u ? DB.getUserBalance(u.id) : { balance: 0, availableBalance: 0 };
+
+    const nameEl  = document.getElementById('approve-client-name');
+    const badgeEl = document.getElementById('approve-type-badge');
+    const amtEl   = document.getElementById('approve-amount');
+    const balEl   = document.getElementById('approve-client-balance');
+    const descEl  = document.getElementById('approve-modal-desc');
+
+    if (nameEl)  nameEl.textContent = `${clientName} (${(u && u.phone) || '-'})`;
+    if (badgeEl) badgeEl.innerHTML = isDeposit ? '<span class="tx-badge tx-badge--deposit">Pay In (Deposit)</span>' : '<span class="tx-badge tx-badge--payout">Pay Out (Withdrawal)</span>';
+    if (amtEl)   amtEl.textContent = '₦' + formatAmount(t.amount);
+    if (balEl)   balEl.textContent = '₦' + formatAmount(userBal.balance);
+    if (descEl) {
+      descEl.textContent = isDeposit
+        ? `Approve ₦${formatAmount(t.amount)} deposit for ${clientName}? This will credit their active savings balance immediately.`
+        : `Approve ₦${formatAmount(t.amount)} payout for ${clientName}? This will disburse physical cash and deduct from their balance.`;
+    }
+
+    const modal = document.getElementById('modal-approve-request');
+    if (modal) modal.classList.remove('hidden');
+  }
+
+  function openDeclineModal(txId) {
+    activeRequestTxId = txId;
+    const allTx = DB.getAllTransactions();
+    const t = allTx.find(x => x.id === txId);
+    if (!t) return;
+
+    const u = DB.getUserById(t.userId);
+    const clientName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Client';
+    const isDeposit = (t.type || 'deposit') === 'deposit';
+
+    const descEl = document.getElementById('decline-modal-desc');
+    if (descEl) {
+      descEl.textContent = `Decline ${isDeposit ? 'Pay In' : 'Pay Out'} request of ₦${formatAmount(t.amount)} for ${clientName}?`;
+    }
+
+    const reasonInput = document.getElementById('decline-reason-input');
+    if (reasonInput) reasonInput.value = '';
+
+    const modal = document.getElementById('modal-decline-request');
+    if (modal) modal.classList.remove('hidden');
+  }
+
+  function initRequestsTab() {
+    // Filter Pills
+    document.querySelectorAll('.requests-filter-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        reqFilterStatus = pill.dataset.reqFilter || 'pending';
+        renderRequestsTab();
+      });
+    });
+
+    // Search Box
+    const searchInput = document.getElementById('admin-requests-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', () => {
+        renderRequestsTab();
+      });
+    }
+
+    // Pending card link in Users tab
+    const pendingCard = document.getElementById('admin-summary-pending-card');
+    if (pendingCard) {
+      pendingCard.addEventListener('click', () => {
+        switchTab('requests');
+      });
+    }
+
+    // Approve Modal Buttons
+    const btnCancelApprove = document.getElementById('btn-cancel-approve-request');
+    const btnConfirmApprove = document.getElementById('btn-confirm-approve-request');
+    const modalApprove = document.getElementById('modal-approve-request');
+
+    if (btnCancelApprove && modalApprove) {
+      btnCancelApprove.addEventListener('click', () => {
+        modalApprove.classList.add('hidden');
+        activeRequestTxId = null;
+      });
+    }
+
+    if (modalApprove) {
+      modalApprove.addEventListener('click', (e) => {
+        if (e.target === modalApprove) {
+          modalApprove.classList.add('hidden');
+          activeRequestTxId = null;
+        }
+      });
+    }
+
+    if (btnConfirmApprove && modalApprove) {
+      btnConfirmApprove.addEventListener('click', () => {
+        if (!activeRequestTxId) return;
+        const res = DB.approveTransaction(activeRequestTxId);
+        modalApprove.classList.add('hidden');
+        activeRequestTxId = null;
+
+        if (res.error) {
+          console.error(res.error);
+        }
+
+        renderRequestsTab();
+        renderUsersTab();
+        renderReceivedTab();
+        renderPayoutsTab();
+        renderMoreTab();
+      });
+    }
+
+    // Decline Modal Buttons
+    const btnCancelDecline = document.getElementById('btn-cancel-decline-request');
+    const btnConfirmDecline = document.getElementById('btn-confirm-decline-request');
+    const modalDecline = document.getElementById('modal-decline-request');
+
+    if (btnCancelDecline && modalDecline) {
+      btnCancelDecline.addEventListener('click', () => {
+        modalDecline.classList.add('hidden');
+        activeRequestTxId = null;
+      });
+    }
+
+    if (modalDecline) {
+      modalDecline.addEventListener('click', (e) => {
+        if (e.target === modalDecline) {
+          modalDecline.classList.add('hidden');
+          activeRequestTxId = null;
+        }
+      });
+    }
+
+    if (btnConfirmDecline && modalDecline) {
+      btnConfirmDecline.addEventListener('click', () => {
+        if (!activeRequestTxId) return;
+        const reasonInput = document.getElementById('decline-reason-input');
+        const reason = reasonInput ? reasonInput.value.trim() : '';
+
+        DB.declineTransaction(activeRequestTxId, reason);
+        modalDecline.classList.add('hidden');
+        activeRequestTxId = null;
+
+        renderRequestsTab();
+        renderUsersTab();
+        renderReceivedTab();
+        renderPayoutsTab();
+        renderMoreTab();
+      });
+    }
   }
 
   // ============================================
@@ -375,7 +719,7 @@ const AdminApp = (() => {
     updateReceivedFilterButtons();
 
     const allTx = DB.getAllTransactions();
-    const deposits = allTx.filter(t => (t.type || 'deposit') === 'deposit');
+    const deposits = allTx.filter(t => (t.type || 'deposit') === 'deposit' && (t.status || 'approved') === 'approved');
     const filtered = deposits.filter(t => {
       if (recPeriod === 'day')   return (t.createdAt || '').slice(0, 10) === buildRecDateISO();
       if (recPeriod === 'month') return (t.createdAt || '').slice(0, 7) === `${recYear}-${pad(recMonth + 1)}`;
@@ -754,7 +1098,7 @@ const AdminApp = (() => {
     updatePayoutsFilterButtons();
 
     const allTx = DB.getAllTransactions();
-    const payouts = allTx.filter(t => t.type === 'payout' || t.type === 'withdrawal');
+    const payouts = allTx.filter(t => (t.type === 'payout' || t.type === 'withdrawal') && (t.status || 'approved') === 'approved');
     const filtered = payouts.filter(t => {
       if (payPeriod === 'day')   return (t.createdAt || '').slice(0, 10) === buildPayDateISO();
       if (payPeriod === 'month') return (t.createdAt || '').slice(0, 7) === `${payYear}-${pad(payMonth + 1)}`;
@@ -1249,6 +1593,84 @@ const AdminApp = (() => {
         });
       });
     }
+
+    // 3. Export Client Requests
+    const btnReqExcel = document.getElementById('btn-admin-export-requests-excel');
+    const btnReqPdf   = document.getElementById('btn-admin-export-requests-pdf');
+
+    if (btnReqExcel) {
+      btnReqExcel.addEventListener('click', () => {
+        const allTx = DB.getAllTransactions();
+        const requestTxs = allTx.filter(t => t.recordedBy === 'user' || t.status === 'pending' || t.status === 'declined' || t.reviewedBy);
+        if (requestTxs.length === 0) return;
+
+        const headers = ['Date & Time', 'Client Name', 'Phone', 'Type', 'Amount (₦)', 'Category', 'Note', 'Status', 'Reviewed Date', 'Decline Reason'];
+        const rows = requestTxs.map(t => {
+          const u = DB.getUserById(t.userId);
+          const fullName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Unknown';
+          const isDeposit = (t.type || 'deposit') === 'deposit';
+          return [
+            formatDateTime(t.createdAt),
+            fullName,
+            (u && u.phone) || '-',
+            isDeposit ? 'Pay In (Deposit)' : 'Pay Out (Withdrawal)',
+            formatAmount(t.amount),
+            t.category || 'General Savings',
+            t.note || '-',
+            (t.status || 'approved').toUpperCase(),
+            t.reviewedAt ? formatDateTime(t.reviewedAt) : '-',
+            t.declineReason || '-',
+          ];
+        });
+
+        Exporter.toExcel({
+          filename: `Sun_Client_Requests_${new Date().toISOString().slice(0, 10)}`,
+          headers,
+          rows,
+        });
+      });
+    }
+
+    if (btnReqPdf) {
+      btnReqPdf.addEventListener('click', () => {
+        const allTx = DB.getAllTransactions();
+        const requestTxs = allTx.filter(t => t.recordedBy === 'user' || t.status === 'pending' || t.status === 'declined' || t.reviewedBy);
+        if (requestTxs.length === 0) return;
+
+        const headers = ['Date', 'Client', 'Phone', 'Type', 'Amount (₦)', 'Category', 'Status'];
+        const rows = requestTxs.map(t => {
+          const u = DB.getUserById(t.userId);
+          const fullName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Unknown';
+          const isDeposit = (t.type || 'deposit') === 'deposit';
+          const st = (t.status || 'approved').toUpperCase();
+          return [
+            formatDateTime(t.createdAt),
+            fullName,
+            (u && u.phone) || '-',
+            isDeposit ? 'Pay In' : 'Pay Out',
+            formatAmount(t.amount),
+            t.category || 'General Savings',
+            st,
+          ];
+        });
+
+        const pendingCount = allTx.filter(t => (t.status || 'approved') === 'pending').length;
+
+        Exporter.toPDF({
+          title: 'Client Pay In & Pay Out Requests',
+          subtitle: 'Official Requests Log',
+          meta: [
+            { label: 'Total Requests', value: requestTxs.length },
+            { label: 'Pending Approvals', value: pendingCount },
+          ],
+          summary: [
+            { label: 'Pending Requests', value: pendingCount },
+          ],
+          headers,
+          rows,
+        });
+      });
+    }
   }
 
   // Generic modal close handler - handled universally by user.js and picker.js
@@ -1262,6 +1684,7 @@ const AdminApp = (() => {
     initPasswordToggles();
     initTabs();
     initUserSearch();
+    initRequestsTab();
     initReceivedPicker();
     initRecordForm();
     initPayoutsPicker();
@@ -1269,6 +1692,7 @@ const AdminApp = (() => {
     initAdminExports();
     initLogout();
     initModalCloseHandlers();
+    updatePendingBadge();
 
     // Ensure admin credentials exist
     DB.getAdmin();
@@ -1293,6 +1717,7 @@ const AdminApp = (() => {
         activeTab = localStorage.getItem('sun_admin_tab') || 'users';
       } catch(e) {}
       switchTab(activeTab);
+      updatePendingBadge();
     },
     initOnce,
     switchTab,

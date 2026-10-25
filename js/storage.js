@@ -117,8 +117,17 @@ const DB = {
         if (t.id) txMap.set(t.id, t);
       });
       cloudTxs.forEach(t => {
-        if (t.id && !txMap.has(t.id)) {
+        if (!t.id) return;
+        if (!txMap.has(t.id)) {
           txMap.set(t.id, t);
+        } else {
+          const localT = txMap.get(t.id);
+          // If cloud has approved/declined or newer review date, prefer the reviewed status
+          if (t.status && t.status !== 'pending' && localT.status === 'pending') {
+            txMap.set(t.id, { ...localT, ...t });
+          } else if (new Date(t.reviewedAt || 0) > new Date(localT.reviewedAt || 0)) {
+            txMap.set(t.id, { ...localT, ...t });
+          }
         }
       });
       const mergedTxs = Array.from(txMap.values());
@@ -131,9 +140,9 @@ const DB = {
       }
 
       // 4. Custom Categories sync if exists
-      if (Array.isArray(remoteData.customCategories)) {
+      if (Array.isArray(record.customCategories)) {
         const localCats = this.getCustomCategories();
-        const mergedCats = Array.from(new Set([...localCats, ...remoteData.customCategories]));
+        const mergedCats = Array.from(new Set([...localCats, ...record.customCategories]));
         localStorage.setItem('sun_custom_categories', JSON.stringify(mergedCats));
       }
 
@@ -317,8 +326,15 @@ const DB = {
   getAllTransactions() {
     return JSON.parse(localStorage.getItem('sun_transactions') || '[]');
   },
-  addTransaction({ userId, type, amount, category, note, recordedBy }) {
+  getPendingRequests() {
     const all = this.getAllTransactions();
+    return all.filter(t => t.status === 'pending');
+  },
+  addTransaction({ userId, type, amount, category, note, recordedBy, status }) {
+    const all = this.getAllTransactions();
+    const isUser = (recordedBy === 'user');
+    const assignedStatus = status || (isUser ? 'pending' : 'approved');
+
     const tx = {
       id: 'tx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
       userId,
@@ -327,6 +343,10 @@ const DB = {
       category: category || 'General Savings',
       note: note || '',
       recordedBy: recordedBy || 'admin',
+      status: assignedStatus, // 'pending' | 'approved' | 'declined'
+      reviewedAt: (assignedStatus === 'approved') ? new Date().toISOString() : null,
+      reviewedBy: (assignedStatus === 'approved') ? (recordedBy || 'admin') : null,
+      declineReason: null,
       createdAt: new Date().toISOString(),
     };
     all.push(tx);
@@ -335,23 +355,84 @@ const DB = {
     return tx;
   },
 
+  approveTransaction(txId) {
+    const all = this.getAllTransactions();
+    const tx = all.find(t => t.id === txId);
+    if (!tx) return { success: false, error: 'Transaction not found.' };
+
+    // If it's a withdrawal, verify user has enough balance
+    if (tx.type === 'withdrawal' || tx.type === 'payout') {
+      const userBal = this.getUserBalance(tx.userId);
+      if (tx.amount > userBal.balance) {
+        return {
+          success: false,
+          error: `Insufficient user balance. Client only has ₦${Number(userBal.balance).toLocaleString('en-NG', { minimumFractionDigits: 2 })} available.`
+        };
+      }
+    }
+
+    tx.status = 'approved';
+    tx.reviewedAt = new Date().toISOString();
+    tx.reviewedBy = 'admin';
+
+    localStorage.setItem('sun_transactions', JSON.stringify(all));
+    this.scheduleCloudPush();
+    return { success: true, tx };
+  },
+
+  declineTransaction(txId, reason = '') {
+    const all = this.getAllTransactions();
+    const tx = all.find(t => t.id === txId);
+    if (!tx) return { success: false, error: 'Transaction not found.' };
+
+    tx.status = 'declined';
+    tx.declineReason = reason ? reason.trim() : '';
+    tx.reviewedAt = new Date().toISOString();
+    tx.reviewedBy = 'admin';
+
+    localStorage.setItem('sun_transactions', JSON.stringify(all));
+    this.scheduleCloudPush();
+    return { success: true, tx };
+  },
+
   // Calculate balance, total deposits, and total withdrawals for a user
   getUserBalance(userId) {
     const txs = this.getTransactions(userId);
     let totalDeposited = 0;
     let totalWithdrawn = 0;
+    let pendingDeposits = 0;
+    let pendingWithdrawn = 0;
+
     txs.forEach(t => {
       const amt = parseFloat(t.amount) || 0;
-      if (t.type === 'withdrawal' || t.type === 'payout') {
-        totalWithdrawn += amt;
-      } else {
-        totalDeposited += amt;
+      const status = t.status || 'approved'; // existing legacy records default to approved
+      const isPayout = (t.type === 'withdrawal' || t.type === 'payout');
+
+      if (status === 'approved') {
+        if (isPayout) {
+          totalWithdrawn += amt;
+        } else {
+          totalDeposited += amt;
+        }
+      } else if (status === 'pending') {
+        if (isPayout) {
+          pendingWithdrawn += amt;
+        } else {
+          pendingDeposits += amt;
+        }
       }
     });
+
+    const balance = Math.max(0, totalDeposited - totalWithdrawn);
+    const availableBalance = Math.max(0, balance - pendingWithdrawn);
+
     return {
       totalDeposited,
       totalWithdrawn,
-      balance: Math.max(0, totalDeposited - totalWithdrawn),
+      balance,
+      availableBalance,
+      pendingDeposits,
+      pendingWithdrawn,
     };
   },
 
@@ -389,19 +470,39 @@ const DB = {
     const users = this.getUsers();
     let totalDeposited = 0;
     let totalWithdrawn = 0;
+    let pendingCount = 0;
+    let pendingDeposits = 0;
+    let pendingPayouts = 0;
+
     all.forEach(t => {
       const amt = parseFloat(t.amount) || 0;
-      if (t.type === 'withdrawal' || t.type === 'payout') {
-        totalWithdrawn += amt;
-      } else {
-        totalDeposited += amt;
+      const status = t.status || 'approved';
+      const isPayout = (t.type === 'withdrawal' || t.type === 'payout');
+
+      if (status === 'approved') {
+        if (isPayout) {
+          totalWithdrawn += amt;
+        } else {
+          totalDeposited += amt;
+        }
+      } else if (status === 'pending') {
+        pendingCount++;
+        if (isPayout) {
+          pendingPayouts += amt;
+        } else {
+          pendingDeposits += amt;
+        }
       }
     });
+
     return {
       totalDeposited,
       totalWithdrawn,
       totalBalance: Math.max(0, totalDeposited - totalWithdrawn),
       userCount: users.length,
+      pendingCount,
+      pendingDeposits,
+      pendingPayouts,
     };
   },
 

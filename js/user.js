@@ -214,9 +214,12 @@ const UserApp = (() => {
       const timeStr = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
       const isPayout = (s.type === 'withdrawal' || s.type === 'payout');
       const note = s.note || (isPayout ? 'Cash payout' : 'Savings deposit');
+      const status = s.status || 'approved';
+      const isPending = (status === 'pending');
+      const isDeclined = (status === 'declined');
 
       return `
-        <div class="savings-item">
+        <div class="savings-item ${isPending ? 'savings-item--pending' : ''}">
           <div class="savings-item-left">
             <div class="savings-item-icon ${isPayout ? 'savings-item-icon--payout' : ''}">
               ${isPayout ? `
@@ -232,16 +235,35 @@ const UserApp = (() => {
               `}
             </div>
             <div>
-              <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+              <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px; flex-wrap:wrap;">
                 <span class="tx-badge ${isPayout ? 'tx-badge--payout' : 'tx-badge--deposit'}">${isPayout ? 'Payout' : 'Deposit'}</span>
+                ${isPending ? `
+                  <span class="status-badge status-badge--pending">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    Pending Approval
+                  </span>
+                ` : isDeclined ? `
+                  <span class="status-badge status-badge--declined" title="${escapeHtml(s.declineReason || 'Declined by Admin')}">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    Declined
+                  </span>
+                ` : `
+                  <span class="status-badge status-badge--approved">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    Approved
+                  </span>
+                `}
                 <span class="savings-item-date">${dateStr} &middot; ${timeStr}</span>
               </div>
-              <p class="savings-item-note">${escapeHtml(note)}</p>
+              <p class="savings-item-note">${escapeHtml(note)} ${isDeclined && s.declineReason ? `<span style="color:#b91c1c; font-size:11.5px; font-weight:600;">(Reason: ${escapeHtml(s.declineReason)})</span>` : ''}</p>
             </div>
           </div>
-          <p class="savings-item-amount ${isPayout ? 'tx-amount--debit' : 'tx-amount--credit'}">
-            ${isPayout ? '-₦' : '+₦'}${formatAmount(s.amount)}
-          </p>
+          <div style="text-align: right;">
+            <p class="savings-item-amount ${isPayout ? 'tx-amount--debit' : 'tx-amount--credit'}" style="${isPending ? 'opacity: 0.75;' : isDeclined ? 'text-decoration: line-through; opacity: 0.5;' : ''}">
+              ${isPayout ? '-₦' : '+₦'}${formatAmount(s.amount)}
+            </p>
+            ${isPending ? `<span style="font-size: 10px; color: #b45309; font-weight: 700; display: block;">Awaiting Admin</span>` : ''}
+          </div>
         </div>`;
     }).join('');
   }
@@ -254,6 +276,23 @@ const UserApp = (() => {
     if (totalEl) totalEl.textContent = '₦' + formatAmount(balance.balance);
     if (depEl)   depEl.textContent   = '₦' + formatAmount(balance.totalDeposited);
     if (wthEl)   wthEl.textContent   = '₦' + formatAmount(balance.totalWithdrawn);
+
+    const pendingNotice = document.getElementById('user-pending-notice');
+    if (pendingNotice) {
+      if (balance.pendingDeposits > 0 || balance.pendingWithdrawn > 0) {
+        const parts = [];
+        if (balance.pendingDeposits > 0) parts.push(`<strong>₦${formatAmount(balance.pendingDeposits)}</strong> Pay In`);
+        if (balance.pendingWithdrawn > 0) parts.push(`<strong>₦${formatAmount(balance.pendingWithdrawn)}</strong> Pay Out`);
+        pendingNotice.innerHTML = `
+          <div class="user-pending-alert">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>You have ${parts.join(' and ')} request(s) waiting for Admin approval.</span>
+          </div>`;
+        pendingNotice.classList.remove('hidden');
+      } else {
+        pendingNotice.classList.add('hidden');
+      }
+    }
   }
 
   function formatAmount(n) {
@@ -330,14 +369,14 @@ const UserApp = (() => {
         btnDeposit.classList.add('active');
         btnPayout.classList.remove('active');
         typeInput.value = 'deposit';
-        if (submitBtn) submitBtn.textContent = 'Record Deposit';
+        if (submitBtn) submitBtn.textContent = 'Submit Pay In Request';
       });
 
       btnPayout.addEventListener('click', () => {
         btnPayout.classList.add('active');
         btnDeposit.classList.remove('active');
         typeInput.value = 'withdrawal';
-        if (submitBtn) submitBtn.textContent = 'Request Payout';
+        if (submitBtn) submitBtn.textContent = 'Submit Pay Out Request';
       });
     }
 
@@ -395,11 +434,18 @@ const UserApp = (() => {
         return;
       }
 
-      // Check balance for withdrawal
+      // Check balance for withdrawal (enforce available balance including pending payouts)
       if (type === 'withdrawal') {
-        const userBal = DB.getUserBalance(currentUserId).balance;
-        if (amount > userBal) {
-          if (errEl) errEl.textContent = `Insufficient balance. Your current savings balance is ₦${formatAmount(userBal)}.`;
+        const userBal = DB.getUserBalance(currentUserId);
+        const avail = (typeof userBal.availableBalance === 'number') ? userBal.availableBalance : userBal.balance;
+        if (amount > avail) {
+          if (errEl) {
+            if (userBal.pendingWithdrawn && userBal.pendingWithdrawn > 0) {
+              errEl.textContent = `Insufficient available balance. You have ₦${formatAmount(avail)} available (₦${formatAmount(userBal.pendingWithdrawn)} pending payout).`;
+            } else {
+              errEl.textContent = `Insufficient balance. Your current savings balance is ₦${formatAmount(userBal.balance)}.`;
+            }
+          }
           amountInput.classList.add('input-error');
           return;
         }
@@ -416,6 +462,7 @@ const UserApp = (() => {
         category,
         note: userNote,
         recordedBy: 'user',
+        status: 'pending',
       });
 
       // Reset form
@@ -423,10 +470,10 @@ const UserApp = (() => {
       if (noteInput) noteInput.value = '';
 
       if (successEl) {
-        const labelText = type === 'withdrawal' ? 'Payout recorded' : 'Savings deposited';
-        successEl.textContent = `₦${formatAmount(amount)} ${labelText} successfully.`;
+        const reqType = type === 'withdrawal' ? 'Pay Out' : 'Pay In';
+        successEl.textContent = `₦${formatAmount(amount)} ${reqType} request submitted! Awaiting Admin approval.`;
         successEl.classList.remove('hidden');
-        setTimeout(() => successEl.classList.add('hidden'), 3500);
+        setTimeout(() => successEl.classList.add('hidden'), 4500);
       }
 
       // Refresh home data in background
