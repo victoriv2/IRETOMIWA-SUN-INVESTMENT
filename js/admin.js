@@ -391,28 +391,28 @@ const AdminApp = (() => {
         `;
       } else if (status === 'approved') {
         statusHtml = '<span class="status-badge status-badge--approved">Approved</span>';
-        actionHtml = `<small style="color:var(--color-text-muted); font-size:11.5px;">Reviewed by Admin<br>${formatDateTime(t.reviewedAt)}</small>`;
+        actionHtml = `<small style="color:var(--color-text-muted); font-size:11.5px; white-space:nowrap;">Reviewed by Admin &bull; ${formatDateTime(t.reviewedAt)}</small>`;
       } else if (status === 'declined') {
         statusHtml = '<span class="status-badge status-badge--declined">Declined</span>';
-        actionHtml = `<small style="color:var(--color-danger); font-size:11.5px;">${t.declineReason ? escapeHtml(t.declineReason) + '<br>' : ''}${formatDateTime(t.reviewedAt)}</small>`;
+        actionHtml = `<small style="color:var(--color-danger); font-size:11.5px; white-space:nowrap;">${t.declineReason ? escapeHtml(t.declineReason) + ' &bull; ' : ''}${formatDateTime(t.reviewedAt)}</small>`;
       }
 
-      const balDisplay = `₦${formatAmount(userBal.balance)}${!isDeposit && userBal.pendingWithdrawn > 0 ? `<br><small style="color:var(--color-text-muted); font-size:11.5px;">Avail: ₦${formatAmount(userBal.availableBalance)}</small>` : ''}`;
+      const balDisplay = `₦${formatAmount(userBal.balance)}${!isDeposit && userBal.pendingWithdrawn > 0 ? ` <small style="color:var(--color-text-muted); font-size:11.5px;">(Avail: ₦${formatAmount(userBal.availableBalance)})</small>` : ''}`;
 
       return `
         <tr>
-          <td>${formatDateTime(t.createdAt)}</td>
-          <td class="user-name-cell">${escapeHtml(fullName)}</td>
-          <td>${escapeHtml(phone)}</td>
-          <td>${typeBadge}</td>
-          <td class="amount-cell ${amtClass}">${amtPrefix}${formatAmount(t.amount)}</td>
-          <td>
+          <td style="white-space:nowrap;">${formatDateTime(t.createdAt)}</td>
+          <td class="user-name-cell" style="white-space:nowrap;">${escapeHtml(fullName)}</td>
+          <td style="white-space:nowrap;">${escapeHtml(phone)}</td>
+          <td style="white-space:nowrap;">${typeBadge}</td>
+          <td class="amount-cell ${amtClass}" style="white-space:nowrap;">${amtPrefix}${formatAmount(t.amount)}</td>
+          <td style="white-space:nowrap;">
             <strong>${escapeHtml(t.category || 'General Savings')}</strong>
-            ${t.note ? `<br><small style="color:var(--color-text-muted); font-size:11.5px;">${escapeHtml(t.note)}</small>` : ''}
+            ${t.note ? `<div style="color:var(--color-text-muted); font-size:11.5px; white-space:nowrap;">${escapeHtml(t.note)}</div>` : ''}
           </td>
-          <td class="amount-cell" style="font-weight:700;">${balDisplay}</td>
-          <td>
-            <div style="display:flex; flex-direction:column; gap:6px;">
+          <td class="amount-cell" style="font-weight:700; white-space:nowrap;">${balDisplay}</td>
+          <td style="white-space:nowrap;">
+            <div class="request-status-action-wrap">
               ${statusHtml}
               ${actionHtml}
             </div>

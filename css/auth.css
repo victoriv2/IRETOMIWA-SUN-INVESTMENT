@@ -426,53 +426,75 @@
   color: #d97706;
 }
 
-/* ---- ADMIN REQUEST ACTIONS ---- */
+/* ---- ADMIN REQUEST ACTIONS & STATUS ---- */
+#admin-requests-table {
+  min-width: 1080px !important;
+}
+
+#admin-requests-table th,
+#admin-requests-table td {
+  white-space: nowrap !important;
+}
+
+.request-status-action-wrap {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  white-space: nowrap !important;
+  flex-wrap: nowrap !important;
+}
+
 .request-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  white-space: nowrap !important;
+  flex-wrap: nowrap !important;
 }
 
 .btn-approve {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  background: var(--primary);
-  color: #ffffff;
-  border: none;
-  border-radius: 7px;
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 7px !important;
+  padding: 6px 12px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  transition: all 0.15s ease !important;
 }
 
 .btn-approve:hover {
-  background: #074720;
+  background: #074720 !important;
 }
 
 .btn-decline {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  background: #ffffff;
-  color: var(--danger);
-  border: 1.5px solid #fca5a5;
-  border-radius: 7px;
-  padding: 5px 10px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  background: #ffffff !important;
+  color: var(--danger) !important;
+  border: 1.5px solid #fca5a5 !important;
+  border-radius: 7px !important;
+  padding: 5px 10px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  transition: all 0.15s ease !important;
 }
 
 .btn-decline:hover {
-  background: #fee2e2;
-  border-color: var(--danger);
+  background: #fee2e2 !important;
+  border-color: var(--danger) !important;
 }
 
 .tab-badge {
