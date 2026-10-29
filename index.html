@@ -19,12 +19,13 @@
 
       var u = localStorage.getItem('sun_session');
       var a = localStorage.getItem('sun_admin_session');
-      var portal = localStorage.getItem('sun_active_portal');
       var hash = window.location.hash || '';
       var params = new URLSearchParams(window.location.search);
       var view = params.get('view');
 
-      var isAdminTarget = (hash.indexOf('admin') !== -1 || view === 'admin' || portal === 'admin');
+      // Main root URL strictly defaults to User Portal.
+      // Admin mode ONLY if explicitly requested via URL hash (#admin, #admin-login) or query (?view=admin)
+      var isAdminTarget = (hash.indexOf('admin') !== -1 || view === 'admin');
 
       if (isAdminTarget) {
         if (a && JSON.parse(a)) {
@@ -41,8 +42,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261029_2" />
-  <link rel="stylesheet" href="css/auth.css?v=20261029_2" />
+  <link rel="stylesheet" href="css/global.css?v=20261029_3" />
+  <link rel="stylesheet" href="css/auth.css?v=20261029_3" />
   <style>
     /* Pre-boot instant session hints to prevent visual flicker before App router executes */
     html.is-user-logged-in #page-login { display: none; }
@@ -2127,13 +2128,13 @@
 
   <!-- Flutterwave v3 Inline Checkout SDK -->
   <script src="https://checkout.flutterwave.com/v3.js"></script>
-  <script src="js/storage.js?v=20261029_2"></script>
-  <script src="js/picker.js?v=20261029_2"></script>
+  <script src="js/storage.js?v=20261029_3"></script>
+  <script src="js/picker.js?v=20261029_3"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261029_2"></script>
-  <script src="js/auth.js?v=20261029_2"></script>
-  <script src="js/user.js?v=20261029_2"></script>
-  <script src="js/admin.js?v=20261029_2"></script>
-  <script src="js/app.js?v=20261029_2"></script>
+  <script src="js/export.js?v=20261029_3"></script>
+  <script src="js/auth.js?v=20261029_3"></script>
+  <script src="js/user.js?v=20261029_3"></script>
+  <script src="js/admin.js?v=20261029_3"></script>
+  <script src="js/app.js?v=20261029_3"></script>
 </body>
 </html>

@@ -205,35 +205,10 @@ const App = (() => {
       }
     }
 
-    // 3. Saved Active Portal priority
-    if (savedPortal === 'admin') {
-      if (adminSession) {
-        navigate('admin');
-        return;
-      } else {
-        navigate('adminLogin');
-        return;
-      }
-    }
-
-    if (savedPortal === 'user') {
-      if (userSession && userSession.userId && DB.getUserById(userSession.userId)) {
-        navigate('user');
-        return;
-      } else {
-        navigate('login');
-        return;
-      }
-    }
-
-    // 4. Default session fallbacks
+    // 3. Root URL (https://iretomiwa-sun-investment.netlify.app/)
+    // ALWAYS targets the User Portal by default!
     if (userSession && userSession.userId && DB.getUserById(userSession.userId)) {
       navigate('user');
-      return;
-    }
-
-    if (adminSession) {
-      navigate('admin');
       return;
     }
 
