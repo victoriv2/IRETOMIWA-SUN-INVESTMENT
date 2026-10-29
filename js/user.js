@@ -339,6 +339,21 @@ const UserApp = (() => {
   }
 
   // ---- More Tab: User Info ----
+  function updateMoreTabBankSummary() {
+    const subEl = document.getElementById('more-user-bank-sub');
+    if (!subEl || !currentUserId) return;
+    const saved = DB.getUserPayoutBank(currentUserId);
+    if (saved && saved.accountNumber && saved.bankName) {
+      subEl.textContent = `${saved.bankName} • ${saved.accountNumber}`;
+      subEl.style.color = 'var(--primary)';
+      subEl.style.fontWeight = '600';
+    } else {
+      subEl.textContent = 'Set payout account for withdrawals';
+      subEl.style.color = 'var(--text-muted)';
+      subEl.style.fontWeight = 'normal';
+    }
+  }
+
   function renderMoreUserInfo() {
     const user = DB.getUserById(currentUserId);
     if (!user) return;
@@ -354,6 +369,7 @@ const UserApp = (() => {
       const i2 = (user.lastName || '').trim().charAt(0);
       initialsEl.textContent = (i1 + i2).toUpperCase() || 'U';
     }
+    updateMoreTabBankSummary();
   }
 
   // ---- Save / Payout Form & Flutterwave Bank Transfer ----
@@ -924,6 +940,182 @@ const UserApp = (() => {
     });
   }
 
+  // ---- User Bank Account Details Modal ----
+  function initUserBankDetailsModal() {
+    const btn        = document.getElementById('btn-user-bank-details');
+    const form       = document.getElementById('user-bank-details-form');
+    const bankSelect = document.getElementById('profile-bank-select');
+    const accNumInp  = document.getElementById('profile-bank-account-number');
+    const bankNameInp= document.getElementById('profile-bank-name');
+    const accNameInp = document.getElementById('profile-bank-account-name');
+    const resCard    = document.getElementById('profile-bank-resolution-card');
+    const resText    = document.getElementById('profile-bank-resolution-text');
+    const resIcon    = document.getElementById('profile-bank-resolution-icon');
+    const errBox     = document.getElementById('user-bank-error');
+    const succBox    = document.getElementById('user-bank-success');
+    const removeBtn  = document.getElementById('btn-remove-user-bank');
+    let resolveDebounce = null;
+
+    function populateCurrentBankDetails() {
+      if (!currentUserId) return;
+      const saved = DB.getUserPayoutBank(currentUserId);
+      if (errBox) errBox.classList.add('hidden');
+      if (succBox) succBox.classList.add('hidden');
+
+      if (saved && saved.accountNumber) {
+        if (bankSelect) bankSelect.value = saved.bankCode || '';
+        if (bankNameInp) bankNameInp.value = saved.bankName || '';
+        if (accNumInp) accNumInp.value = saved.accountNumber || '';
+        if (accNameInp) accNameInp.value = saved.accountName || '';
+
+        if (saved.accountName && resCard && resText && resIcon) {
+          resCard.classList.remove('hidden');
+          resCard.style.cssText = 'margin-top: -4px; margin-bottom: 16px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #f0fdf4; border: 1.5px solid #86efac; color: #166534;';
+          resIcon.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
+          resText.textContent = `Verified: ${saved.accountName}`;
+        }
+        if (removeBtn) removeBtn.classList.remove('hidden');
+      } else {
+        if (bankSelect) bankSelect.value = '';
+        if (bankNameInp) bankNameInp.value = '';
+        if (accNumInp) accNumInp.value = '';
+        if (accNameInp) accNameInp.value = '';
+        if (resCard) resCard.classList.add('hidden');
+        if (removeBtn) removeBtn.classList.add('hidden');
+      }
+    }
+
+    if (btn) {
+      btn.addEventListener('click', () => {
+        populateCurrentBankDetails();
+        openModal('modal-user-bank-details');
+      });
+    }
+
+    async function triggerProfileResolution() {
+      if (!bankSelect || !accNumInp || !resCard || !resText || !resIcon) return;
+      const bankCode = bankSelect.value.trim();
+      const rawNum = accNumInp.value.replace(/\D/g, '').slice(0, 10);
+      accNumInp.value = rawNum;
+
+      if (bankSelect.selectedIndex >= 0 && bankNameInp) {
+        bankNameInp.value = bankSelect.options[bankSelect.selectedIndex].text || '';
+      }
+
+      if (rawNum.length < 10 || !bankCode) {
+        resCard.classList.add('hidden');
+        if (accNameInp) accNameInp.value = '';
+        return;
+      }
+
+      resCard.classList.remove('hidden');
+      resCard.style.cssText = 'margin-top: -4px; margin-bottom: 16px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #fffbeb; border: 1.5px solid #fde68a; color: #92400e;';
+      resIcon.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="animate-spin"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>';
+      resText.textContent = 'Verifying account name via Flutterwave...';
+
+      const res = await DB.resolveFlutterwaveAccount(rawNum, bankCode);
+
+      if (res.success && res.accountName) {
+        resCard.style.cssText = 'margin-top: -4px; margin-bottom: 16px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #f0fdf4; border: 1.5px solid #86efac; color: #166534;';
+        resIcon.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
+        resText.textContent = `Verified: ${res.accountName}`;
+        if (accNameInp) accNameInp.value = res.accountName;
+      } else {
+        resCard.style.cssText = 'margin-top: -4px; margin-bottom: 16px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #fef2f2; border: 1.5px solid #fca5a5; color: #991b1b;';
+        resIcon.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+        resText.textContent = res.error || 'Account could not be verified.';
+        if (accNameInp) accNameInp.value = '';
+      }
+    }
+
+    if (bankSelect) {
+      bankSelect.addEventListener('change', triggerProfileResolution);
+    }
+    if (accNumInp) {
+      accNumInp.addEventListener('input', () => {
+        if (resolveDebounce) clearTimeout(resolveDebounce);
+        resolveDebounce = setTimeout(triggerProfileResolution, 300);
+      });
+    }
+
+    if (form) {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (errBox) errBox.classList.add('hidden');
+        if (succBox) succBox.classList.add('hidden');
+
+        const bankCode = bankSelect ? bankSelect.value.trim() : '';
+        const bName = (bankSelect && bankSelect.selectedIndex >= 0 && bankSelect.options[bankSelect.selectedIndex].text) || '';
+        const rawNum = accNumInp ? accNumInp.value.replace(/\D/g, '').trim() : '';
+        let bAcc = accNameInp ? accNameInp.value.trim() : '';
+
+        if (!bankCode) {
+          if (errBox) {
+            errBox.textContent = 'Please choose your Nigerian bank from the list.';
+            errBox.classList.remove('hidden');
+          }
+          return;
+        }
+
+        if (rawNum.length !== 10) {
+          if (errBox) {
+            errBox.textContent = 'Please enter a valid 10-digit account number.';
+            errBox.classList.remove('hidden');
+          }
+          return;
+        }
+
+        // If not verified yet, resolve now
+        if (!bAcc) {
+          const res = await DB.resolveFlutterwaveAccount(rawNum, bankCode);
+          if (res.success && res.accountName) {
+            bAcc = res.accountName;
+            if (accNameInp) accNameInp.value = bAcc;
+          }
+        }
+
+        const user = DB.getUserById(currentUserId);
+        const resolvedName = bAcc || (user ? `${DB.formatName(user.firstName)} ${DB.formatName(user.lastName)}` : 'Client Account');
+
+        DB.saveUserPayoutBank(currentUserId, {
+          bankCode,
+          bankName: bName,
+          accountNumber: rawNum,
+          accountName: resolvedName,
+        });
+
+        updateMoreTabBankSummary();
+
+        if (succBox) {
+          succBox.textContent = 'Bank details saved successfully!';
+          succBox.classList.remove('hidden');
+        }
+
+        setTimeout(() => {
+          closeModal('modal-user-bank-details');
+        }, 1200);
+      });
+    }
+
+    if (removeBtn) {
+      removeBtn.addEventListener('click', () => {
+        const users = DB.getUsers();
+        const u = users.find(x => x.id === currentUserId);
+        if (u) {
+          delete u.payoutBank;
+          DB.saveUsers(users);
+        }
+        populateCurrentBankDetails();
+        updateMoreTabBankSummary();
+        if (succBox) {
+          succBox.textContent = 'Bank details removed.';
+          succBox.classList.remove('hidden');
+          setTimeout(() => succBox.classList.add('hidden'), 2500);
+        }
+      });
+    }
+  }
+
   // ---- Change Password Modal ----
   function initChangePassword() {
     const btn = document.getElementById('btn-change-password');
@@ -1149,6 +1341,7 @@ const UserApp = (() => {
       initDateFilterGroup();
       initSaveForm();
       initEditProfile();
+      initUserBankDetailsModal();
       initChangePassword();
       initLogout();
       initModalClose();
