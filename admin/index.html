@@ -7,12 +7,6 @@
   <script>
     // Seamlessly forward to unified application root to share database, sessions & data
     try {
-      var u = localStorage.getItem('sun_users');
-      var t = localStorage.getItem('sun_transactions');
-      var a = localStorage.getItem('sun_admin_session');
-      if (u) sessionStorage.setItem('bridge_users', u);
-      if (t) sessionStorage.setItem('bridge_transactions', t);
-      if (a) sessionStorage.setItem('bridge_admin_session', a);
       localStorage.setItem('sun_active_portal', 'admin');
     } catch(e) {}
     window.location.replace('../index.html#admin');

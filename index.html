@@ -10,13 +10,6 @@
   <script>
     // Instant session check on load to prevent login flicker/re-auth prompt
     try {
-      var bu = sessionStorage.getItem('bridge_users');
-      var bt = sessionStorage.getItem('bridge_transactions');
-      var ba = sessionStorage.getItem('bridge_admin_session');
-      if (bu && !localStorage.getItem('sun_users')) localStorage.setItem('sun_users', bu);
-      if (bt && !localStorage.getItem('sun_transactions')) localStorage.setItem('sun_transactions', bt);
-      if (ba && !localStorage.getItem('sun_admin_session')) localStorage.setItem('sun_admin_session', ba);
-
       var u = localStorage.getItem('sun_session');
       var a = localStorage.getItem('sun_admin_session');
       var hash = window.location.hash || '';
@@ -42,7 +35,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261029_FLUSH_V7';
+      var APP_BUILD_VER = '20261029_FLUSH_V8';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -59,8 +52,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261029_clean_v7" />
-  <link rel="stylesheet" href="css/auth.css?v=20261029_clean_v7" />
+  <link rel="stylesheet" href="css/global.css?v=20261029_clean_v8" />
+  <link rel="stylesheet" href="css/auth.css?v=20261029_clean_v8" />
   <style>
     /* Pre-boot instant session hints to prevent visual flicker before App router executes */
     html.is-user-logged-in #page-login { display: none; }
@@ -2147,13 +2140,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261029_clean_v7"></script>
-  <script src="js/picker.js?v=20261029_clean_v7"></script>
+  <script src="js/storage.js?v=20261029_clean_v8"></script>
+  <script src="js/picker.js?v=20261029_clean_v8"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261029_clean_v7"></script>
-  <script src="js/auth.js?v=20261029_clean_v7"></script>
-  <script src="js/user.js?v=20261029_clean_v7"></script>
-  <script src="js/admin.js?v=20261029_clean_v7"></script>
-  <script src="js/app.js?v=20261029_clean_v7"></script>
+  <script src="js/export.js?v=20261029_clean_v8"></script>
+  <script src="js/auth.js?v=20261029_clean_v8"></script>
+  <script src="js/user.js?v=20261029_clean_v8"></script>
+  <script src="js/admin.js?v=20261029_clean_v8"></script>
+  <script src="js/app.js?v=20261029_clean_v8"></script>
 </body>
 </html>

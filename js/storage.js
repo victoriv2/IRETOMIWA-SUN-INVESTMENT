@@ -3,13 +3,13 @@
 // ============================================
 
 // ---- HARD SYSTEM RESET EPOCH ----
-const SYSTEM_RESET_ID = 'RESET_2026_10_29_SUPABASE_PROD_V1';
+const SYSTEM_RESET_ID = 'RESET_2026_10_29_SUPABASE_PROD_V2';
 
 (function enforceSystemReset() {
   try {
     const currentEpoch = localStorage.getItem('sun_system_reset_epoch');
     if (currentEpoch !== SYSTEM_RESET_ID) {
-      // Clear ALL data, user sessions, tabs, and credentials to start 100% fresh with Supabase
+      // Clear ALL local cache, user sessions, tabs, and credentials to start 100% fresh with Supabase
       localStorage.setItem('sun_system_reset_epoch', SYSTEM_RESET_ID);
       localStorage.setItem('sun_users', '[]');
       localStorage.setItem('sun_transactions', '[]');
@@ -21,6 +21,10 @@ const SYSTEM_RESET_ID = 'RESET_2026_10_29_SUPABASE_PROD_V1';
       localStorage.removeItem('sun_admin_session');
       localStorage.removeItem('sun_admin_tab');
       localStorage.removeItem('sun_last_reset_at');
+      localStorage.removeItem('bridge_users');
+      localStorage.removeItem('bridge_transactions');
+      localStorage.removeItem('bridge_admin_session');
+      try { sessionStorage.clear(); } catch(e) {}
       try {
         document.documentElement.classList.remove('is-user-logged-in');
         document.documentElement.classList.remove('is-admin-logged-in');
@@ -153,51 +157,22 @@ const DB = {
         return;
       }
 
-      // Smart merge: Local and Cloud
-      const localUsers = this.getUsers();
-      const localTxs   = this.getAllTransactions();
+      // Authoritative Supabase Database Sync (Single Source of Truth)
+      // Local storage is strictly a read cache; it NEVER pushes or contaminates cloud on pull
+      localStorage.setItem('sun_users', JSON.stringify(cloudUsers));
+      localStorage.setItem('sun_transactions', JSON.stringify(cloudTxs));
 
-      // 1. Merge users
-      const userMap = new Map();
-      localUsers.forEach(u => {
-        const k = u.id || (u.email ? u.email.toLowerCase() : null);
-        if (k) userMap.set(k, u);
-      });
-      cloudUsers.forEach(u => {
-        const k = u.id || (u.email ? u.email.toLowerCase() : null);
-        if (!k) return;
-        if (!userMap.has(k)) {
-          userMap.set(k, u);
-        } else {
-          const existing = userMap.get(k);
-          userMap.set(k, { ...existing, ...u });
-        }
-      });
-      const mergedUsers = Array.from(userMap.values());
-      localStorage.setItem('sun_users', JSON.stringify(mergedUsers));
-
-      // 2. Merge transactions
-      const txMap = new Map();
-      localTxs.forEach(t => {
-        if (t.id) txMap.set(t.id, t);
-      });
-      cloudTxs.forEach(t => {
-        if (!t.id) return;
-        if (!txMap.has(t.id)) {
-          txMap.set(t.id, t);
-        } else {
-          const localT = txMap.get(t.id);
-          // If cloud has approved/declined or newer review date, prefer the reviewed status
-          if (t.status && t.status !== 'pending' && localT.status === 'pending') {
-            txMap.set(t.id, { ...localT, ...t });
-          } else if (new Date(t.reviewedAt || 0) > new Date(localT.reviewedAt || 0)) {
-            txMap.set(t.id, { ...localT, ...t });
+      // Validate active user session against authoritative cloud users
+      const currentSession = this.getSession();
+      if (currentSession && currentSession.userId) {
+        const stillExists = cloudUsers.some(u => u.id === currentSession.userId);
+        if (!stillExists) {
+          this.clearSession();
+          if (window.App && typeof window.App.navigate === 'function') {
+            window.App.navigate('login');
           }
         }
-      });
-      const mergedTxs = Array.from(txMap.values());
-      mergedTxs.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-      localStorage.setItem('sun_transactions', JSON.stringify(mergedTxs));
+      }
 
       // 3. Admin sync if exists
       if (cloudAdmin && cloudAdmin.password) {
@@ -207,38 +182,27 @@ const DB = {
       // 4. Custom Categories sync if exists
       const cloudCats = record.custom_categories || record.customCategories;
       if (Array.isArray(cloudCats)) {
-        const localCats = this.getCustomCategories();
-        const mergedCats = Array.from(new Set([...localCats, ...cloudCats]));
-        localStorage.setItem('sun_custom_categories', JSON.stringify(mergedCats));
+        localStorage.setItem('sun_custom_categories', JSON.stringify(cloudCats));
       }
 
       // 5. Flutterwave config sync
       const cloudFlw = record.flutterwave_config || record.flutterwaveConfig;
       if (cloudFlw && typeof cloudFlw === 'object') {
         const localCfg = this.getFlutterwaveConfig();
-        if (cloudFlw.updatedAt && (!localCfg.updatedAt || cloudFlw.updatedAt > localCfg.updatedAt)) {
+        if (cloudFlw.updatedAt && (!localCfg.updatedAt || cloudFlw.updatedAt >= localCfg.updatedAt)) {
           localStorage.setItem('sun_flutterwave_config', JSON.stringify({ ...localCfg, ...cloudFlw }));
         }
       }
 
-      // Check if local had data that wasn't in cloud yet
-      const hasLocalUsersMissing = localUsers.some(lu => !cloudUsers.some(cu => (cu.id && cu.id === lu.id) || (cu.email && cu.email.toLowerCase() === (lu.email || '').toLowerCase())));
-      const hasLocalTxsMissing   = localTxs.some(lt => !cloudTxs.some(ct => ct.id === lt.id));
-      const needsPush = hasLocalUsersMissing || hasLocalTxsMissing || (mergedUsers.length > cloudUsers.length) || (mergedTxs.length > cloudTxs.length);
-
       this._isPulling = false;
       this.notifySync('synced');
 
-      // Refresh active views
+      // Refresh active views with clean database data
       if (window.UserApp && typeof window.UserApp.refresh === 'function') {
         window.UserApp.refresh();
       }
       if (window.AdminApp && typeof window.AdminApp.refresh === 'function') {
         window.AdminApp.refresh();
-      }
-
-      if (needsPush) {
-        this.scheduleCloudPush();
       }
 
       if (typeof onComplete === 'function') onComplete(true);
@@ -1004,7 +968,5 @@ const DB = {
   },
 };
 
-// Automatically capitalize first/last names and migrate legacy transactions on load
-DB.migrateExistingRecords();
-DB.migrateTransactions();
+// Initialize Authoritative Cloud Sync on boot
 DB.initCloudSync();
