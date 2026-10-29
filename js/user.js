@@ -364,7 +364,14 @@ const UserApp = (() => {
     const fn = DB.formatName(user.firstName || '');
     const ln = DB.formatName(user.lastName || '');
     if (nameEl)  nameEl.textContent  = `${fn} ${ln}`;
-    if (emailEl) emailEl.textContent = user.email || '';
+    if (emailEl) {
+      if (user.email && user.email.trim()) {
+        emailEl.textContent = user.email.trim();
+        emailEl.style.display = '';
+      } else {
+        emailEl.textContent = user.phone || '';
+      }
+    }
     if (initialsEl) {
       const i1 = (user.firstName || '').trim().charAt(0);
       const i2 = (user.lastName || '').trim().charAt(0);
@@ -701,7 +708,7 @@ const UserApp = (() => {
             currency: 'NGN',
             payment_options: 'banktransfer,card,ussd',
             customer: {
-              email: user.email || (user.phone ? `${user.phone}@iretomiwasun.com` : `client_${currentUserId}@iretomiwasun.com`),
+              email: (user.email && user.email.trim()) ? user.email.trim() : 'iretomiwa.sun.investment@gmail.com',
               phone_number: user.phone || '',
               name: `${DB.formatName(user.firstName)} ${DB.formatName(user.lastName)}`.trim() || 'Valued Saver',
             },

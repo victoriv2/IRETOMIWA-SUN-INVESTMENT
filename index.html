@@ -42,8 +42,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261029_5" />
-  <link rel="stylesheet" href="css/auth.css?v=20261029_5" />
+  <link rel="stylesheet" href="css/global.css?v=20261029_6" />
+  <link rel="stylesheet" href="css/auth.css?v=20261029_6" />
   <style>
     /* Pre-boot instant session hints to prevent visual flicker before App router executes */
     html.is-user-logged-in #page-login { display: none; }
@@ -518,7 +518,7 @@
               <span class="more-avatar-initials" id="more-user-initials">DA</span>
             </div>
             <p class="more-user-name" id="more-user-name">User Name</p>
-            <p class="more-user-email" id="more-user-email">user@email.com</p>
+            <p class="more-user-email" id="more-user-email"></p>
           </div>
 
           <div class="more-menu">
@@ -1304,7 +1304,7 @@
               </span>
             </button>
 
-            <button type="button" class="more-menu-item" id="btn-admin-factory-reset" style="border-left: 3px solid #dc2626;">
+            <button type="button" class="more-menu-item" id="btn-admin-factory-reset">
               <span class="more-menu-icon" style="color: #dc2626; background: #fee2e2;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="1 4 1 10 7 10"/>
@@ -1415,8 +1415,8 @@
           </div>
         </div>
         <div class="form-group">
-          <label for="edit-email">Email Address</label>
-          <input type="email" id="edit-email" />
+          <label for="edit-email">Email Address <span style="font-weight: 400; color: var(--text-muted); font-size: 12.5px;">(Optional)</span></label>
+          <input type="email" id="edit-email" placeholder="you@example.com (optional)" />
           <span class="field-error" id="err-edit-email"></span>
         </div>
         <div class="form-group">
@@ -2130,13 +2130,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261029_5"></script>
-  <script src="js/picker.js?v=20261029_5"></script>
+  <script src="js/storage.js?v=20261029_6"></script>
+  <script src="js/picker.js?v=20261029_6"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261029_5"></script>
-  <script src="js/auth.js?v=20261029_5"></script>
-  <script src="js/user.js?v=20261029_5"></script>
-  <script src="js/admin.js?v=20261029_5"></script>
-  <script src="js/app.js?v=20261029_5"></script>
+  <script src="js/export.js?v=20261029_6"></script>
+  <script src="js/auth.js?v=20261029_6"></script>
+  <script src="js/user.js?v=20261029_6"></script>
+  <script src="js/admin.js?v=20261029_6"></script>
+  <script src="js/app.js?v=20261029_6"></script>
 </body>
 </html>
