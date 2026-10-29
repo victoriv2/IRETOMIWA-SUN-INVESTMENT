@@ -461,7 +461,34 @@ input.input-error {
 
 .custom-select-trigger {
   width: 100%;
-  padding: 11px 14px;
+  min-height: 42px;
+  padding: 10px 14px;
+  background: #ffffff;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.custom-select-trigger:focus,
+.custom-select-trigger:hover {
+  border-color: var(--primary);
+}
+
+.custom-select-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
 }
 
 .custom-picker-btn:active,
@@ -1230,8 +1257,9 @@ input.input-error {
 }
 
 .action-sheet-options {
-  max-height: 320px;
+  max-height: min(440px, 60vh);
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .btn-export {

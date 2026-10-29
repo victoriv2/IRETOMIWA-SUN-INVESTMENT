@@ -262,6 +262,7 @@ const UserApp = (() => {
             <p class="savings-item-amount ${isPayout ? 'tx-amount--debit' : 'tx-amount--credit'}" style="${isPending ? 'opacity: 0.75;' : isDeclined ? 'text-decoration: line-through; opacity: 0.5;' : ''}">
               ${isPayout ? '-₦' : '+₦'}${formatAmount(s.amount)}
             </p>
+            ${isPayout && (s.fee || s.netAmount) ? `<span style="font-size: 11px; color: #166534; font-weight: 700; display: block;">Net: ₦${formatAmount(s.netAmount || (s.amount * 0.90))}</span>` : ''}
             ${isPending ? `<span style="font-size: 10px; color: #b45309; font-weight: 700; display: block;">Awaiting Admin</span>` : ''}
           </div>
         </div>`;
@@ -428,6 +429,7 @@ const UserApp = (() => {
         if (submitText) submitText.textContent = 'Request Bank Payout via Flutterwave';
         else if (submitBtn) submitBtn.textContent = 'Request Bank Payout via Flutterwave';
         loadSavedPayoutBank();
+        updateFeeCalculations();
       }
     }
 
@@ -436,6 +438,7 @@ const UserApp = (() => {
       if (!currentUserId) return;
       const saved = DB.getUserPayoutBank(currentUserId);
       const bankSelect = document.getElementById('payout-bank-select');
+      const bankLabel = document.getElementById('payout-bank-label');
       const bankNameInp = document.getElementById('payout-bank-name');
       const accNumInp = document.getElementById('payout-account-number');
       const accNameInp = document.getElementById('payout-account-name');
@@ -445,7 +448,8 @@ const UserApp = (() => {
 
       if (saved && saved.accountNumber) {
         if (bankSelect && saved.bankCode) bankSelect.value = saved.bankCode;
-        if (bankNameInp) bankNameInp.value = saved.bankName || (bankSelect ? (bankSelect.options[bankSelect.selectedIndex] ? bankSelect.options[bankSelect.selectedIndex].text : '') : '');
+        if (bankLabel && saved.bankName) bankLabel.textContent = saved.bankName;
+        if (bankNameInp) bankNameInp.value = saved.bankName || '';
         if (accNumInp) accNumInp.value = saved.accountNumber;
         if (accNameInp) accNameInp.value = saved.accountName || '';
 
@@ -453,20 +457,48 @@ const UserApp = (() => {
           resCard.className = '';
           resCard.style.cssText = 'margin-top: -6px; margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #f0fdf4; border: 1.5px solid #86efac; color: #166534;';
           resIcon.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
-          resText.textContent = `Verified: ${saved.accountName}`;
+          resText.innerHTML = `Verified Bank Account: <strong>${escapeHtml(saved.accountName)}</strong>`;
         }
       }
     }
 
     // Real-time Account Verification Handlers
-    const bankSelectEl = document.getElementById('payout-bank-select');
-    const accNumEl     = document.getElementById('payout-account-number');
-    const accNameEl    = document.getElementById('payout-account-name');
-    const bankNameEl   = document.getElementById('payout-bank-name');
-    const resCardEl    = document.getElementById('payout-resolution-card');
-    const resTextEl    = document.getElementById('payout-resolution-text');
-    const resIconEl    = document.getElementById('payout-resolution-icon');
+    const bankSelectEl   = document.getElementById('payout-bank-select');
+    const payoutBankBtn  = document.getElementById('payout-bank-btn');
+    const payoutBankLbl  = document.getElementById('payout-bank-label');
+    const accNumEl       = document.getElementById('payout-account-number');
+    const accNameEl      = document.getElementById('payout-account-name');
+    const bankNameEl     = document.getElementById('payout-bank-name');
+    const resCardEl      = document.getElementById('payout-resolution-card');
+    const resTextEl      = document.getElementById('payout-resolution-text');
+    const resIconEl      = document.getElementById('payout-resolution-icon');
     let resolveDebounce = null;
+
+    // Custom Modular Picker / Bottom Sheet for Bank Selection
+    if (payoutBankBtn) {
+      payoutBankBtn.addEventListener('click', () => {
+        const bankOptions = DB.getNigerianBanks().map(b => ({
+          label: b.name,
+          value: b.code,
+          sublabel: `Code: ${b.code}`,
+        }));
+        const currentVal = bankSelectEl ? bankSelectEl.value : '';
+
+        CustomPicker.openCustomSelect({
+          title: 'Select Destination Bank',
+          options: bankOptions,
+          selectedValue: currentVal,
+          searchable: true,
+          searchPlaceholder: 'Search 70+ Nigerian Banks...',
+          onSelect: (opt) => {
+            if (bankSelectEl) bankSelectEl.value = opt.value;
+            if (payoutBankLbl) payoutBankLbl.textContent = opt.label;
+            if (bankNameEl) bankNameEl.value = opt.label;
+            triggerAccountResolution();
+          },
+        });
+      });
+    }
 
     async function triggerAccountResolution() {
       if (!bankSelectEl || !accNumEl || !resCardEl || !resTextEl || !resIconEl) return;
@@ -474,13 +506,9 @@ const UserApp = (() => {
       const rawNum = accNumEl.value.replace(/\D/g, '').slice(0, 10);
       accNumEl.value = rawNum;
 
-      if (bankSelectEl.selectedIndex >= 0 && bankNameEl) {
-        bankNameEl.value = bankSelectEl.options[bankSelectEl.selectedIndex].text || '';
-      }
-
       if (rawNum.length < 10 || !bankCode) {
         resCardEl.classList.add('hidden');
-        if (accNameEl) accNameEl.value = '';
+        if (accNameEl && !accNameEl.value) accNameEl.value = '';
         return;
       }
 
@@ -488,26 +516,24 @@ const UserApp = (() => {
       resCardEl.classList.remove('hidden');
       resCardEl.style.cssText = 'margin-top: -6px; margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #fffbeb; border: 1.5px solid #fde68a; color: #92400e;';
       resIconEl.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="animate-spin"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>';
-      resTextEl.textContent = 'Verifying account name via Flutterwave...';
+      resTextEl.textContent = 'Resolving account name with bank...';
 
-      const res = await DB.resolveFlutterwaveAccount(rawNum, bankCode);
+      const res = await DB.resolveFlutterwaveAccount(rawNum, bankCode, currentUserId);
 
       if (res.success && res.accountName) {
         resCardEl.style.cssText = 'margin-top: -6px; margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #f0fdf4; border: 1.5px solid #86efac; color: #166534;';
         resIconEl.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
-        resTextEl.textContent = `Verified: ${res.accountName}`;
+        if (res.source === 'profile') {
+          resTextEl.innerHTML = `Auto-detected Account Name: <strong>${escapeHtml(res.accountName)}</strong> <span style="font-size:11.5px; opacity:0.85;">(from profile)</span>`;
+        } else {
+          resTextEl.innerHTML = `Verified Bank Account: <strong>${escapeHtml(res.accountName)}</strong>`;
+        }
         if (accNameEl) accNameEl.value = res.accountName;
       } else {
         resCardEl.style.cssText = 'margin-top: -6px; margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #fffbeb; border: 1.5px solid #fde68a; color: #92400e;';
         resIconEl.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
-        resTextEl.textContent = 'Could not auto-verify name. You can type your registered account name manually below.';
+        resTextEl.textContent = 'Could not auto-verify name. You can enter your registered account name manually.';
       }
-    }
-
-    if (bankSelectEl) {
-      bankSelectEl.addEventListener('change', () => {
-        triggerAccountResolution();
-      });
     }
 
     if (accNumEl) {
@@ -515,6 +541,36 @@ const UserApp = (() => {
         if (resolveDebounce) clearTimeout(resolveDebounce);
         resolveDebounce = setTimeout(triggerAccountResolution, 300);
       });
+    }
+
+    // 10% Fee Breakdown Real-time Calculator
+    const saveAmtInput = document.getElementById('save-amount');
+    const withGrossEl  = document.getElementById('with-gross-amt');
+    const withFeeEl    = document.getElementById('with-fee-amt');
+    const withNetEl    = document.getElementById('with-net-amt');
+
+    function updateFeeCalculations() {
+      if (!saveAmtInput) return;
+      const gross = parseFloat(saveAmtInput.value) || 0;
+      const fee = Math.round(gross * 0.10 * 100) / 100;
+      const net = Math.max(0, Math.round((gross - fee) * 100) / 100);
+
+      if (withGrossEl) withGrossEl.textContent = `₦${formatAmount(gross)}`;
+      if (withFeeEl)   withFeeEl.textContent   = `-₦${formatAmount(fee)}`;
+      if (withNetEl)   withNetEl.textContent   = `₦${formatAmount(net)}`;
+
+      if (typeInput && typeInput.value === 'withdrawal') {
+        const btnText = submitText || submitBtn;
+        if (btnText) {
+          btnText.textContent = gross > 0
+            ? `Request Bank Payout of ₦${formatAmount(net)} (Net)`
+            : 'Request Bank Payout via Flutterwave';
+        }
+      }
+    }
+
+    if (saveAmtInput) {
+      saveAmtInput.addEventListener('input', updateFeeCalculations);
     }
 
     if (btnDeposit && btnPayout && typeInput) {
@@ -736,7 +792,7 @@ const UserApp = (() => {
       const saveCheck   = document.getElementById('payout-save-bank-checkbox');
 
       const bankCode = bankSelect ? bankSelect.value.trim() : '';
-      const bName    = (bankSelect && bankSelect.selectedIndex >= 0 && bankSelect.options[bankSelect.selectedIndex].text) || (bankNameInp ? bankNameInp.value.trim() : '');
+      const bName    = (bankNameInp && bankNameInp.value.trim()) || (document.getElementById('payout-bank-label') ? document.getElementById('payout-bank-label').textContent.trim() : 'Nigerian Bank');
       const bNum     = accNumInp ? accNumInp.value.trim().replace(/\D/g, '') : '';
       let   bAcc     = accNameInp ? accNameInp.value.trim() : '';
 
@@ -745,7 +801,8 @@ const UserApp = (() => {
           errorEl.textContent = 'Please select your destination bank.';
           errorEl.classList.remove('hidden');
         }
-        if (bankSelect) bankSelect.focus();
+        const bankBtn = document.getElementById('payout-bank-btn');
+        if (bankBtn) bankBtn.focus();
         return;
       }
 
@@ -765,7 +822,7 @@ const UserApp = (() => {
         if (verifyBtn) verifyBtn.textContent = 'Verifying Bank Account...';
         if (submitBtn) submitBtn.disabled = true;
 
-        DB.resolveFlutterwaveAccount(bNum, bankCode).then(resolveRes => {
+        DB.resolveFlutterwaveAccount(bNum, bankCode, currentUserId).then(resolveRes => {
           if (submitBtn) submitBtn.disabled = false;
           if (verifyBtn) verifyBtn.textContent = prevText;
 
@@ -786,6 +843,10 @@ const UserApp = (() => {
       proceedWithPayoutSubmission();
 
       function proceedWithPayoutSubmission() {
+        const feeRate = 0.10;
+        const fee = Math.round(amount * feeRate * 100) / 100;
+        const netAmount = Math.max(0, Math.round((amount - fee) * 100) / 100);
+
         const destinationBank = {
           bankCode: bankCode,
           bankName: bName,
@@ -797,13 +858,17 @@ const UserApp = (() => {
           DB.saveUserPayoutBank(currentUserId, destinationBank);
         }
 
-        const details = `Payout to: ${bName} ${bNum} (${destinationBank.accountName})`.trim();
+        const details = `Payout to: ${bName} ${bNum} (${destinationBank.accountName}) | Net: ₦${formatAmount(netAmount)} (Fee: ₦${formatAmount(fee)})`.trim();
         const destNote = userNote ? `${userNote} | ${details}` : details;
 
         DB.addTransaction({
           userId: currentUserId,
           type: 'withdrawal',
-          amount,
+          amount, // Total deducted from user's savings balance
+          grossAmount: amount,
+          fee: fee,
+          netAmount: netAmount,
+          feeRate: feeRate,
           category,
           note: destNote,
           destinationBank,
@@ -814,11 +879,12 @@ const UserApp = (() => {
         // Reset inputs
         amountInput.value = '';
         if (noteInput) noteInput.value = '';
+        updateFeeCalculations();
 
         if (successEl) {
-          successEl.textContent = `₦${formatAmount(amount)} Pay Out request submitted! Awaiting Admin review and Flutterwave transfer.`;
+          successEl.textContent = `Pay Out request submitted! Gross: ₦${formatAmount(amount)} | 10% Fee: ₦${formatAmount(fee)} | Net Transfer: ₦${formatAmount(netAmount)}. Awaiting Admin approval.`;
           successEl.classList.remove('hidden');
-          setTimeout(() => successEl.classList.add('hidden'), 5000);
+          setTimeout(() => successEl.classList.add('hidden'), 6000);
         }
 
         renderSavingsList();
@@ -944,6 +1010,8 @@ const UserApp = (() => {
     const btn        = document.getElementById('btn-user-bank-details');
     const form       = document.getElementById('user-bank-details-form');
     const bankSelect = document.getElementById('profile-bank-select');
+    const bankBtn    = document.getElementById('profile-bank-btn');
+    const bankLabel  = document.getElementById('profile-bank-label');
     const accNumInp  = document.getElementById('profile-bank-account-number');
     const bankNameInp= document.getElementById('profile-bank-name');
     const accNameInp = document.getElementById('profile-bank-account-name');
@@ -955,6 +1023,32 @@ const UserApp = (() => {
     const removeBtn  = document.getElementById('btn-remove-user-bank');
     let resolveDebounce = null;
 
+    // Custom Modular Picker / Bottom Sheet for Bank Selection
+    if (bankBtn) {
+      bankBtn.addEventListener('click', () => {
+        const bankOptions = DB.getNigerianBanks().map(b => ({
+          label: b.name,
+          value: b.code,
+          sublabel: `Code: ${b.code}`,
+        }));
+        const currentVal = bankSelect ? bankSelect.value : '';
+
+        CustomPicker.openCustomSelect({
+          title: 'Select Your Bank',
+          options: bankOptions,
+          selectedValue: currentVal,
+          searchable: true,
+          searchPlaceholder: 'Search 70+ Nigerian Banks...',
+          onSelect: (opt) => {
+            if (bankSelect) bankSelect.value = opt.value;
+            if (bankLabel) bankLabel.textContent = opt.label;
+            if (bankNameInp) bankNameInp.value = opt.label;
+            triggerProfileResolution();
+          },
+        });
+      });
+    }
+
     function populateCurrentBankDetails() {
       if (!currentUserId) return;
       const saved = DB.getUserPayoutBank(currentUserId);
@@ -963,6 +1057,7 @@ const UserApp = (() => {
 
       if (saved && saved.accountNumber) {
         if (bankSelect) bankSelect.value = saved.bankCode || '';
+        if (bankLabel && saved.bankName) bankLabel.textContent = saved.bankName;
         if (bankNameInp) bankNameInp.value = saved.bankName || '';
         if (accNumInp) accNumInp.value = saved.accountNumber || '';
         if (accNameInp) accNameInp.value = saved.accountName || '';
@@ -971,11 +1066,12 @@ const UserApp = (() => {
           resCard.classList.remove('hidden');
           resCard.style.cssText = 'margin-top: -4px; margin-bottom: 16px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #f0fdf4; border: 1.5px solid #86efac; color: #166534;';
           resIcon.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
-          resText.textContent = `Verified: ${saved.accountName}`;
+          resText.innerHTML = `Verified Bank Account: <strong>${escapeHtml(saved.accountName)}</strong>`;
         }
         if (removeBtn) removeBtn.classList.remove('hidden');
       } else {
         if (bankSelect) bankSelect.value = '';
+        if (bankLabel) bankLabel.textContent = 'Choose Nigerian Bank';
         if (bankNameInp) bankNameInp.value = '';
         if (accNumInp) accNumInp.value = '';
         if (accNameInp) accNameInp.value = '';
@@ -997,38 +1093,35 @@ const UserApp = (() => {
       const rawNum = accNumInp.value.replace(/\D/g, '').slice(0, 10);
       accNumInp.value = rawNum;
 
-      if (bankSelect.selectedIndex >= 0 && bankNameInp) {
-        bankNameInp.value = bankSelect.options[bankSelect.selectedIndex].text || '';
-      }
-
       if (rawNum.length < 10 || !bankCode) {
         resCard.classList.add('hidden');
-        if (accNameInp) accNameInp.value = '';
+        if (accNameInp && !accNameInp.value) accNameInp.value = '';
         return;
       }
 
       resCard.classList.remove('hidden');
       resCard.style.cssText = 'margin-top: -4px; margin-bottom: 16px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #fffbeb; border: 1.5px solid #fde68a; color: #92400e;';
       resIcon.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="animate-spin"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>';
-      resText.textContent = 'Verifying account name via Flutterwave...';
+      resText.textContent = 'Resolving account name with bank...';
 
-      const res = await DB.resolveFlutterwaveAccount(rawNum, bankCode);
+      const res = await DB.resolveFlutterwaveAccount(rawNum, bankCode, currentUserId);
 
       if (res.success && res.accountName) {
         resCard.style.cssText = 'margin-top: -4px; margin-bottom: 16px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #f0fdf4; border: 1.5px solid #86efac; color: #166534;';
         resIcon.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
-        resText.textContent = `Verified: ${res.accountName}`;
+        if (res.source === 'profile') {
+          resText.innerHTML = `Auto-detected Account Name: <strong>${escapeHtml(res.accountName)}</strong> <span style="font-size:11.5px; opacity:0.85;">(from profile)</span>`;
+        } else {
+          resText.innerHTML = `Verified Bank Account: <strong>${escapeHtml(res.accountName)}</strong>`;
+        }
         if (accNameInp) accNameInp.value = res.accountName;
       } else {
         resCard.style.cssText = 'margin-top: -4px; margin-bottom: 16px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #fffbeb; border: 1.5px solid #fde68a; color: #92400e;';
         resIcon.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
-        resText.textContent = 'Could not auto-verify name. You can type your registered account name manually below.';
+        resText.textContent = 'Could not auto-verify name. You can enter your registered account name manually.';
       }
     }
 
-    if (bankSelect) {
-      bankSelect.addEventListener('change', triggerProfileResolution);
-    }
     if (accNumInp) {
       accNumInp.addEventListener('input', () => {
         if (resolveDebounce) clearTimeout(resolveDebounce);
@@ -1043,7 +1136,7 @@ const UserApp = (() => {
         if (succBox) succBox.classList.add('hidden');
 
         const bankCode = bankSelect ? bankSelect.value.trim() : '';
-        const bName = (bankSelect && bankSelect.selectedIndex >= 0 && bankSelect.options[bankSelect.selectedIndex].text) || '';
+        const bName = (bankNameInp && bankNameInp.value.trim()) || (bankLabel ? bankLabel.textContent.trim() : '');
         const rawNum = accNumInp ? accNumInp.value.replace(/\D/g, '').trim() : '';
         let bAcc = accNameInp ? accNameInp.value.trim() : '';
 
@@ -1052,7 +1145,9 @@ const UserApp = (() => {
             errBox.textContent = 'Please choose your Nigerian bank from the list.';
             errBox.classList.remove('hidden');
           }
+          if (bankBtn) bankBtn.focus();
           return;
+        }
         }
 
         if (rawNum.length !== 10) {

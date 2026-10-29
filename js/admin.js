@@ -399,6 +399,12 @@ const AdminApp = (() => {
       }
 
       const balDisplay = `₦${formatAmount(userBal.balance)}${!isDeposit && userBal.pendingWithdrawn > 0 ? ` <small style="color:var(--color-text-muted); font-size:11.5px;">(Avail: ₦${formatAmount(userBal.availableBalance)})</small>` : ''}`;
+      const grossAmt = t.grossAmount || t.amount;
+      const feeAmt = t.fee !== undefined ? t.fee : (grossAmt * 0.10);
+      const netAmt = t.netAmount !== undefined ? t.netAmount : (grossAmt - feeAmt);
+      const feeNote = (!isDeposit && feeAmt > 0)
+        ? `<div style="font-size:11px; color:#15803d; font-weight:700; margin-top:2px;">Net: ₦${formatAmount(netAmt)} <span style="color:#b91c1c; font-weight:600;">(Fee: ₦${formatAmount(feeAmt)})</span></div>`
+        : '';
 
       return `
         <tr>
@@ -406,7 +412,10 @@ const AdminApp = (() => {
           <td class="user-name-cell" style="white-space:nowrap;">${escapeHtml(fullName)}</td>
           <td style="white-space:nowrap;">${escapeHtml(phone)}</td>
           <td style="white-space:nowrap;">${typeBadge}</td>
-          <td class="amount-cell ${amtClass}" style="white-space:nowrap;">${amtPrefix}${formatAmount(t.amount)}</td>
+          <td class="amount-cell ${amtClass}" style="white-space:nowrap;">
+            ${amtPrefix}${formatAmount(t.amount)}
+            ${feeNote}
+          </td>
           <td style="white-space:nowrap;">
             <strong>${escapeHtml(t.category || 'General Savings')}</strong>
             ${t.note ? `<div style="color:var(--color-text-muted); font-size:11.5px; white-space:nowrap;">${escapeHtml(t.note)}</div>` : ''}
@@ -450,12 +459,18 @@ const AdminApp = (() => {
     const descEl  = document.getElementById('approve-modal-desc');
 
     const destBox     = document.getElementById('approve-payout-dest-box');
+    const feeBox      = document.getElementById('approve-fee-breakdown');
+    const grossEl     = document.getElementById('approve-gross-amt');
+    const feeEl       = document.getElementById('approve-fee-amt');
+    const netEl       = document.getElementById('approve-net-amt');
     const bankNameEl  = document.getElementById('approve-bank-name');
     const accNumEl    = document.getElementById('approve-account-number');
     const accNameEl   = document.getElementById('approve-account-name');
     const actionsDep  = document.getElementById('approve-actions-deposit');
     const actionsWith = document.getElementById('approve-actions-withdrawal');
     const flwErrEl    = document.getElementById('approve-flw-error');
+    const btnFlwText  = document.getElementById('btn-approve-flw-text');
+    const btnManualApprove = document.getElementById('btn-confirm-approve-manual');
 
     if (flwErrEl) {
       flwErrEl.textContent = '';
@@ -468,12 +483,26 @@ const AdminApp = (() => {
     if (balEl)   balEl.textContent = '₦' + formatAmount(userBal.balance);
 
     if (isDeposit) {
+      if (feeBox) feeBox.classList.add('hidden');
       if (descEl) descEl.textContent = `Approve ₦${formatAmount(t.amount)} deposit for ${clientName}? This will credit their active savings balance immediately.`;
       if (destBox) destBox.classList.add('hidden');
       if (actionsDep) actionsDep.classList.remove('hidden');
       if (actionsWith) actionsWith.classList.add('hidden');
     } else {
-      // Withdrawal / Pay Out
+      // Withdrawal / Pay Out with 10% Admin Fee
+      const grossAmt = t.grossAmount || t.amount;
+      const feeRate = 0.10;
+      const feeAmt = t.fee !== undefined ? t.fee : Math.round(grossAmt * feeRate * 100) / 100;
+      const netAmt = t.netAmount !== undefined ? t.netAmount : Math.max(0, Math.round((grossAmt - feeAmt) * 100) / 100);
+
+      if (feeBox) feeBox.classList.remove('hidden');
+      if (grossEl) grossEl.textContent = `₦${formatAmount(grossAmt)}`;
+      if (feeEl)   feeEl.textContent   = `-₦${formatAmount(feeAmt)}`;
+      if (netEl)   netEl.textContent   = `₦${formatAmount(netAmt)}`;
+
+      if (btnFlwText) btnFlwText.textContent = `Disburse ₦${formatAmount(netAmt)} via Flutterwave`;
+      if (btnManualApprove) btnManualApprove.textContent = `Record Manual Payout of ₦${formatAmount(netAmt)}`;
+
       const destBank = t.destinationBank;
       if (destBank && (destBank.accountNumber || destBank.bankName)) {
         if (destBox) destBox.classList.remove('hidden');
@@ -485,7 +514,7 @@ const AdminApp = (() => {
       }
 
       if (descEl) {
-        descEl.textContent = `Approve ₦${formatAmount(t.amount)} withdrawal for ${clientName}? Choose automated Flutterwave bank transfer or record manual cash payment.`;
+        descEl.textContent = `Approve withdrawal for ${clientName}? Gross: ₦${formatAmount(grossAmt)} | 10% Admin Fee: ₦${formatAmount(feeAmt)} | Net Payout: ₦${formatAmount(netAmt)}.`;
       }
 
       if (actionsDep) actionsDep.classList.add('hidden');
@@ -600,7 +629,20 @@ const AdminApp = (() => {
     if (btnManualApprove && modalApprove) {
       btnManualApprove.addEventListener('click', () => {
         if (!activeRequestTxId) return;
-        const res = DB.approveTransaction(activeRequestTxId, { reviewedBy: 'admin (manual)' });
+        const allTx = DB.getAllTransactions();
+        const t = allTx.find(x => x.id === activeRequestTxId);
+        const grossAmt = t ? (t.grossAmount || t.amount) : 0;
+        const feeRate = 0.10;
+        const feeAmt = t && t.fee !== undefined ? t.fee : Math.round(grossAmt * feeRate * 100) / 100;
+        const netAmt = t && t.netAmount !== undefined ? t.netAmount : Math.max(0, Math.round((grossAmt - feeAmt) * 100) / 100);
+
+        const res = DB.approveTransaction(activeRequestTxId, {
+          reviewedBy: 'admin (manual)',
+          grossAmount: grossAmt,
+          fee: feeAmt,
+          netAmount: netAmt,
+          feeRate: feeRate,
+        });
         modalApprove.classList.add('hidden');
         activeRequestTxId = null;
 
@@ -631,8 +673,13 @@ const AdminApp = (() => {
           return;
         }
 
+        const grossAmt = t.grossAmount || t.amount;
+        const feeRate = 0.10;
+        const feeAmt = t.fee !== undefined ? t.fee : Math.round(grossAmt * feeRate * 100) / 100;
+        const netAmt = t.netAmount !== undefined ? t.netAmount : Math.max(0, Math.round((grossAmt - feeAmt) * 100) / 100);
+
         const originalText = btnFlwText ? btnFlwText.textContent : 'Disburse via Flutterwave Transfer';
-        if (btnFlwText) btnFlwText.textContent = 'Sending Transfer via Flutterwave...';
+        if (btnFlwText) btnFlwText.textContent = `Sending ₦${formatAmount(netAmt)} via Flutterwave...`;
         btnFlwDisburse.disabled = true;
 
         if (flwErrEl) {
@@ -644,8 +691,8 @@ const AdminApp = (() => {
           const res = await DB.disburseFlutterwaveTransfer({
             accountNumber: destBank.accountNumber,
             bankCode: destBank.bankCode,
-            amount: t.amount,
-            narration: `Payout to ${clientName} - Iretomiwa Sun`,
+            amount: netAmt, // Transfer net payout amount (90%) to client bank
+            narration: `Payout to ${clientName} (Net of 10% admin fee) - Iretomiwa Sun`,
             txId: t.id,
             clientName: clientName,
           });
@@ -656,6 +703,10 @@ const AdminApp = (() => {
               paymentGateway: 'flutterwave',
               flutterwaveTransferId: res.transferId,
               flutterwaveRef: res.reference,
+              grossAmount: grossAmt,
+              fee: feeAmt,
+              netAmount: netAmt,
+              feeRate: feeRate,
             });
 
             modalApprove.classList.add('hidden');
@@ -1267,6 +1318,10 @@ const AdminApp = (() => {
       const isFlw = (t.paymentGateway === 'flutterwave');
       const flwBadge = isFlw ? `<div style="margin-top:3px;"><span style="display:inline-block; font-size:10.5px; font-weight:700; color:#166534; background:#dcfce7; border:1px solid #86efac; border-radius:4px; padding:2px 6px;">Flutterwave Transfer</span></div>` : '';
       const destBankInfo = t.destinationBank ? `<div style="font-size:11.5px; color:var(--text-secondary); margin-top:3px;">${escapeHtml(t.destinationBank.bankName || '')} &bull; <span style="font-family:monospace;">${escapeHtml(t.destinationBank.accountNumber || '')}</span> (${escapeHtml(t.destinationBank.accountName || '')})</div>` : '';
+      const grossAmt = t.grossAmount || t.amount;
+      const feeAmt = t.fee !== undefined ? t.fee : (grossAmt * 0.10);
+      const netAmt = t.netAmount !== undefined ? t.netAmount : (grossAmt - feeAmt);
+      const feeBadge = (feeAmt > 0) ? `<div style="font-size:11px; margin-top:3px; color:#166534; font-weight:700;">Net: ₦${formatAmount(netAmt)} <span style="color:#b91c1c; font-weight:600;">(Fee: ₦${formatAmount(feeAmt)})</span></div>` : '';
 
       return `
         <tr>
@@ -1277,7 +1332,10 @@ const AdminApp = (() => {
             <span class="tx-badge tx-badge--payout">${escapeHtml(t.category || 'General Savings')}</span>
             ${flwBadge}
           </td>
-          <td class="amount-cell amount-cell--payout">-₦${formatAmount(t.amount)}</td>
+          <td class="amount-cell amount-cell--payout">
+            -₦${formatAmount(t.amount)}
+            ${feeBadge}
+          </td>
           <td>
             ${escapeHtml(t.note || '-')}
             ${destBankInfo}
@@ -1360,6 +1418,12 @@ const AdminApp = (() => {
     if (flwModeSel) {
       flwModeSel.value = flwCfg.mode || 'live';
     }
+    const flwModeLbl = document.getElementById('admin-flw-mode-label');
+    if (flwModeLbl) {
+      flwModeLbl.textContent = (flwCfg.mode === 'live')
+        ? 'Live Mode (Real Bank Account Transfers - John Idowu)'
+        : 'Test Mode (Sandbox / Demo Transfers)';
+    }
     if (flwBadge) {
       flwBadge.textContent = (flwCfg.mode === 'live') ? 'Live Mode' : 'Test Mode';
       flwBadge.className = 'status-badge ' + (flwCfg.mode === 'live' ? 'status-badge--approved' : 'status-badge--pending');
@@ -1375,6 +1439,29 @@ const AdminApp = (() => {
     const keyInp = document.getElementById('admin-flw-public-key');
     const secretInp = document.getElementById('admin-flw-secret-key');
     const refreshBtn = document.getElementById('btn-refresh-flw-balance');
+    const flwModeBtn = document.getElementById('admin-flw-mode-btn');
+    const flwModeLbl = document.getElementById('admin-flw-mode-label');
+    const flwModeSel = document.getElementById('admin-flw-mode');
+
+    if (flwModeBtn) {
+      flwModeBtn.addEventListener('click', () => {
+        const modeOptions = [
+          { label: 'Live Mode (Real Bank Account Transfers - John Idowu)', value: 'live' },
+          { label: 'Test Mode (Sandbox / Demo Transfers)', value: 'test' },
+        ];
+        const currentVal = flwModeSel ? flwModeSel.value : 'live';
+
+        CustomPicker.openCustomSelect({
+          title: 'Gateway Environment',
+          options: modeOptions,
+          selectedValue: currentVal,
+          onSelect: (opt) => {
+            if (flwModeSel) flwModeSel.value = opt.value;
+            if (flwModeLbl) flwModeLbl.textContent = opt.label;
+          },
+        });
+      });
+    }
 
     if (keyInp) {
       keyInp.addEventListener('input', () => {

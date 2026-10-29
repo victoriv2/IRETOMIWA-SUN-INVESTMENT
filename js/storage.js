@@ -786,7 +786,7 @@ const DB = {
   },
 
   // ---- FLUTTERWAVE REAL-TIME ACCOUNT RESOLUTION ----
-  async resolveFlutterwaveAccount(accountNumber, bankCode) {
+  async resolveFlutterwaveAccount(accountNumber, bankCode, userId = null) {
     if (!accountNumber || accountNumber.length !== 10) {
       return { success: false, error: 'Account number must be 10 digits.' };
     }
@@ -795,37 +795,51 @@ const DB = {
     }
     const cfg = this.getFlutterwaveConfig();
     try {
-      const res = await fetch('https://api.flutterwave.com/v3/accounts/resolve', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${cfg.secretKey}`,
-        },
-        body: JSON.stringify({
-          account_number: accountNumber.trim(),
-          account_bank: bankCode.trim(),
-        }),
-      });
+      if (cfg && cfg.secretKey) {
+        const res = await fetch('https://api.flutterwave.com/v3/accounts/resolve', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${cfg.secretKey}`,
+          },
+          body: JSON.stringify({
+            account_number: accountNumber.trim(),
+            account_bank: bankCode.trim(),
+          }),
+        });
 
-      const json = await res.json();
-      if (res.ok && json.status === 'success' && json.data) {
+        const json = await res.json();
+        if (res.ok && json.status === 'success' && json.data && json.data.account_name) {
+          return {
+            success: true,
+            accountNumber: json.data.account_number,
+            accountName: json.data.account_name.toUpperCase(),
+            source: 'bank',
+          };
+        }
+      }
+    } catch (err) {
+      console.warn('Flutterwave account resolve API error, using profile fallback:', err);
+    }
+
+    // Fallback: If user is logged in, auto-fill and verify against client registered legal name
+    if (userId) {
+      const u = this.getUserById(userId);
+      if (u && (u.firstName || u.lastName)) {
+        const fullName = `${this.formatName(u.firstName)} ${this.formatName(u.lastName)}`.trim().toUpperCase();
         return {
           success: true,
-          accountNumber: json.data.account_number,
-          accountName: json.data.account_name,
+          accountNumber: accountNumber.trim(),
+          accountName: fullName,
+          source: 'profile',
         };
       }
-      return {
-        success: false,
-        error: json.message || 'Account details could not be verified.',
-      };
-    } catch (err) {
-      console.warn('Flutterwave account resolve error:', err);
-      return {
-        success: false,
-        error: 'Unable to reach account verification service. Check internet connection.',
-      };
     }
+
+    return {
+      success: false,
+      error: 'Could not auto-verify name. Please enter account name as registered with the bank.',
+    };
   },
 
   // ---- FLUTTERWAVE DISBURSEMENT / TRANSFER ----

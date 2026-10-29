@@ -418,84 +418,35 @@
                 </p>
               </div>
 
+              <!-- 10% Admin Fee Breakdown Card -->
+              <div id="withdrawal-fee-breakdown" style="margin-bottom: 16px; padding: 12px 14px; border-radius: 10px; background: #fefce8; border: 1.5px solid #fde047; font-size: 13px;">
+                <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #854d0e; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+                  <span>Withdrawal & Fee Breakdown</span>
+                  <span style="background: #fef08a; color: #713f12; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;">10% Admin Fee</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom: 5px;">
+                  <span style="color: #713f12;">Gross Savings Requested:</span>
+                  <span style="font-weight: 700; color: #1f2937;" id="with-gross-amt">₦0.00</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom: 5px;">
+                  <span style="color: #713f12;">Admin Commission (10%):</span>
+                  <span style="font-weight: 700; color: #dc2626;" id="with-fee-amt">-₦0.00</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; border-top: 1px dashed #ca8a04; padding-top: 6px; margin-top: 4px;">
+                  <span style="font-weight: 800; color: #166534;">Net Credit to Your Bank:</span>
+                  <span style="font-weight: 900; font-size: 15px; color: #166534;" id="with-net-amt">₦0.00</span>
+                </div>
+              </div>
+
               <div class="form-group">
-                <label for="payout-bank-select">Select Destination Bank</label>
-                <select id="payout-bank-select" style="width: 100%; height: 42px; border-radius: 8px; border: 1.5px solid var(--border); background: #ffffff; padding: 0 12px; font-size: 13.5px; font-weight: 600; color: var(--text-primary);">
-                  <option value="">-- Choose Nigerian Bank --</option>
-                  <option value="120001">9 Payment Service Bank (9PSB)</option>
-                  <option value="50001">AB Microfinance Bank</option>
-                  <option value="070010">Abbey Mortgage Bank</option>
-                  <option value="044">Access Bank</option>
-                  <option value="50036">Accion Microfinance Bank</option>
-                  <option value="060003">Alpha Morgan Bank</option>
-                  <option value="090001">ASO Savings and Loans</option>
-                  <option value="060002">Bank of Agriculture (BOA)</option>
-                  <option value="060004">Bank of Industry (BOI)</option>
-                  <option value="50094">Baobab Microfinance Bank</option>
-                  <option value="50823">Branch Microfinance Bank</option>
-                  <option value="070015">Brent Mortgage Bank</option>
-                  <option value="50541">Carbon</option>
-                  <option value="023">Citibank Nigeria</option>
-                  <option value="559">Coronation Merchant Bank</option>
-                  <option value="060005">Development Bank of Nigeria (DBN)</option>
-                  <option value="50163">Dot Microfinance Bank</option>
-                  <option value="050">Ecobank Nigeria</option>
-                  <option value="50126">Eyowo Microfinance Bank</option>
-                  <option value="50645">FairMoney</option>
-                  <option value="560">FBNQuest Merchant Bank</option>
-                  <option value="060006">Federal Mortgage Bank of Nigeria (FMBN)</option>
-                  <option value="070">Fidelity Bank</option>
-                  <option value="011">First Bank of Nigeria</option>
-                  <option value="214">First City Monument Bank (FCMB)</option>
-                  <option value="103">Globus Bank</option>
-                  <option value="100022">Gomoney (Sterling MFB)</option>
-                  <option value="562">Greenwich Merchant Bank</option>
-                  <option value="058">Guaranty Trust Bank (GTBank)</option>
-                  <option value="120002">Hope Payment Service Bank</option>
-                  <option value="070016">Infinity Trust Mortgage Bank</option>
-                  <option value="301">Jaiz Bank</option>
-                  <option value="082">Keystone Bank</option>
-                  <option value="50211">Kuda</option>
-                  <option value="50457">LAPO Microfinance Bank</option>
-                  <option value="070007">LivingTrust Mortgage Bank</option>
-                  <option value="303">Lotus Bank</option>
-                  <option value="50304">Mintyn</option>
-                  <option value="120003">MoMo PSB</option>
-                  <option value="120005">MoneyMaster PSB</option>
-                  <option value="50515">Moniepoint</option>
-                  <option value="060001">Nigerian Export-Import Bank (NEXIM)</option>
-                  <option value="561">Nova Commercial Bank</option>
-                  <option value="50638">NowNow Digital Systems (NowNow MFB)</option>
-                  <option value="50629">NPF Microfinance Bank</option>
-                  <option value="999992">OPay</option>
-                  <option value="107">Optimus Bank</option>
-                  <option value="999991">PalmPay</option>
-                  <option value="104">Parallex Bank</option>
-                  <option value="076">Polaris Bank</option>
-                  <option value="105">PremiumTrust Bank</option>
-                  <option value="101">Providus Bank</option>
-                  <option value="101">ProvidusUnity Bank</option>
-                  <option value="502">Rand Merchant Bank Nigeria (RMB)</option>
-                  <option value="090110">Raven Bank (Raven MFB)</option>
-                  <option value="50767">Renmoney Microfinance Bank</option>
-                  <option value="50280">Rubies Bank</option>
-                  <option value="106">Signature Bank</option>
-                  <option value="120004">SmartCash PSB</option>
-                  <option value="51204">Sparkle</option>
-                  <option value="221">Stanbic IBTC Bank</option>
-                  <option value="068">Standard Chartered Bank Nigeria</option>
-                  <option value="232">Sterling Bank</option>
-                  <option value="51336">Summit Bank</option>
-                  <option value="100">SunTrust Bank</option>
-                  <option value="302">TAJBank</option>
-                  <option value="51337">Tatum Bank</option>
-                  <option value="305">The Alternative Bank</option>
-                  <option value="032">Union Bank</option>
-                  <option value="033">United Bank for Africa (UBA)</option>
-                  <option value="566">VFD Microfinance Bank</option>
-                  <option value="035">Wema Bank</option>
-                  <option value="057">Zenith Bank</option>
-                </select>
+                <label for="payout-bank-btn">Select Destination Bank</label>
+                <button type="button" id="payout-bank-btn" class="custom-select-trigger" style="text-align: left; width: 100%;" aria-label="Select Destination Bank">
+                  <span id="payout-bank-label">Choose Nigerian Bank</span>
+                  <svg class="picker-btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </button>
+                <input type="hidden" id="payout-bank-select" value="" />
                 <input type="hidden" id="payout-bank-name" value="" />
               </div>
 
@@ -1278,11 +1229,14 @@
 
             <form id="admin-flw-config-form" novalidate>
               <div class="form-group" style="margin-bottom:12px;">
-                <label for="admin-flw-mode" style="font-size:12px; font-weight:700;">Gateway Environment</label>
-                <select id="admin-flw-mode" style="width:100%; height:40px; padding:0 12px; border-radius:8px; border:1px solid var(--border); background:#fff; font-size:13px; font-weight:600;">
-                  <option value="live" selected>Live Mode (Real Bank Account Transfers - John Idowu)</option>
-                  <option value="test">Test Mode (Sandbox / Demo Transfers)</option>
-                </select>
+                <label for="admin-flw-mode-btn" style="font-size:12px; font-weight:700;">Gateway Environment</label>
+                <button type="button" id="admin-flw-mode-btn" class="custom-select-trigger" style="text-align: left; width: 100%;" aria-label="Gateway Environment">
+                  <span id="admin-flw-mode-label">Live Mode (Real Bank Account Transfers - John Idowu)</span>
+                  <svg class="picker-btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </button>
+                <input type="hidden" id="admin-flw-mode" value="live" />
               </div>
 
               <div class="form-group" style="margin-bottom:12px;">
@@ -1490,83 +1444,14 @@
 
       <form id="user-bank-details-form" novalidate>
         <div class="form-group" style="margin-bottom: 14px;">
-          <label for="profile-bank-select" style="font-weight: 700; font-size: 12.5px;">Select Your Bank</label>
-          <select id="profile-bank-select" style="width: 100%; height: 42px; border-radius: 8px; border: 1.5px solid var(--border); background: #ffffff; padding: 0 12px; font-size: 13.5px; font-weight: 600; color: var(--text-primary);">
-            <option value="">-- Choose Nigerian Bank --</option>
-            <option value="120001">9 Payment Service Bank (9PSB)</option>
-            <option value="50001">AB Microfinance Bank</option>
-            <option value="070010">Abbey Mortgage Bank</option>
-            <option value="044">Access Bank</option>
-            <option value="50036">Accion Microfinance Bank</option>
-            <option value="060003">Alpha Morgan Bank</option>
-            <option value="090001">ASO Savings and Loans</option>
-            <option value="060002">Bank of Agriculture (BOA)</option>
-            <option value="060004">Bank of Industry (BOI)</option>
-            <option value="50094">Baobab Microfinance Bank</option>
-            <option value="50823">Branch Microfinance Bank</option>
-            <option value="070015">Brent Mortgage Bank</option>
-            <option value="50541">Carbon</option>
-            <option value="023">Citibank Nigeria</option>
-            <option value="559">Coronation Merchant Bank</option>
-            <option value="060005">Development Bank of Nigeria (DBN)</option>
-            <option value="50163">Dot Microfinance Bank</option>
-            <option value="050">Ecobank Nigeria</option>
-            <option value="50126">Eyowo Microfinance Bank</option>
-            <option value="50645">FairMoney</option>
-            <option value="560">FBNQuest Merchant Bank</option>
-            <option value="060006">Federal Mortgage Bank of Nigeria (FMBN)</option>
-            <option value="070">Fidelity Bank</option>
-            <option value="011">First Bank of Nigeria</option>
-            <option value="214">First City Monument Bank (FCMB)</option>
-            <option value="103">Globus Bank</option>
-            <option value="100022">Gomoney (Sterling MFB)</option>
-            <option value="562">Greenwich Merchant Bank</option>
-            <option value="058">Guaranty Trust Bank (GTBank)</option>
-            <option value="120002">Hope Payment Service Bank</option>
-            <option value="070016">Infinity Trust Mortgage Bank</option>
-            <option value="301">Jaiz Bank</option>
-            <option value="082">Keystone Bank</option>
-            <option value="50211">Kuda</option>
-            <option value="50457">LAPO Microfinance Bank</option>
-            <option value="070007">LivingTrust Mortgage Bank</option>
-            <option value="303">Lotus Bank</option>
-            <option value="50304">Mintyn</option>
-            <option value="120003">MoMo PSB</option>
-            <option value="120005">MoneyMaster PSB</option>
-            <option value="50515">Moniepoint</option>
-            <option value="060001">Nigerian Export-Import Bank (NEXIM)</option>
-            <option value="561">Nova Commercial Bank</option>
-            <option value="50638">NowNow Digital Systems (NowNow MFB)</option>
-            <option value="50629">NPF Microfinance Bank</option>
-            <option value="999992">OPay</option>
-            <option value="107">Optimus Bank</option>
-            <option value="999991">PalmPay</option>
-            <option value="104">Parallex Bank</option>
-            <option value="076">Polaris Bank</option>
-            <option value="105">PremiumTrust Bank</option>
-            <option value="101">Providus Bank</option>
-            <option value="101">ProvidusUnity Bank</option>
-            <option value="502">Rand Merchant Bank Nigeria (RMB)</option>
-            <option value="090110">Raven Bank (Raven MFB)</option>
-            <option value="50767">Renmoney Microfinance Bank</option>
-            <option value="50280">Rubies Bank</option>
-            <option value="106">Signature Bank</option>
-            <option value="120004">SmartCash PSB</option>
-            <option value="51204">Sparkle</option>
-            <option value="221">Stanbic IBTC Bank</option>
-            <option value="068">Standard Chartered Bank Nigeria</option>
-            <option value="232">Sterling Bank</option>
-            <option value="51336">Summit Bank</option>
-            <option value="100">SunTrust Bank</option>
-            <option value="302">TAJBank</option>
-            <option value="51337">Tatum Bank</option>
-            <option value="305">The Alternative Bank</option>
-            <option value="032">Union Bank</option>
-            <option value="033">United Bank for Africa (UBA)</option>
-            <option value="566">VFD Microfinance Bank</option>
-            <option value="035">Wema Bank</option>
-            <option value="057">Zenith Bank</option>
-          </select>
+          <label for="profile-bank-btn" style="font-weight: 700; font-size: 12.5px;">Select Your Bank</label>
+          <button type="button" id="profile-bank-btn" class="custom-select-trigger" style="text-align: left; width: 100%;" aria-label="Select Bank">
+            <span id="profile-bank-label">Choose Nigerian Bank</span>
+            <svg class="picker-btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          <input type="hidden" id="profile-bank-select" value="" />
           <input type="hidden" id="profile-bank-name" value="" />
         </div>
 
@@ -2063,6 +1948,22 @@
         <div style="display:flex; justify-content:space-between; border-top: 1px dashed var(--border); padding-top: 6px; margin-top: 6px;">
           <span style="color: var(--text-muted);">Current Available Balance:</span>
           <span style="font-weight: 700;" id="approve-client-balance">-</span>
+        </div>
+
+        <!-- 10% Fee Breakdown for Withdrawals -->
+        <div id="approve-fee-breakdown" class="hidden" style="margin-top: 8px; padding: 8px 10px; border-radius: 6px; background: #fefce8; border: 1px solid #fef08a;">
+          <div style="display:flex; justify-content:space-between; margin-bottom: 4px; font-size: 12px;">
+            <span style="color: #713f12;">Gross Savings Requested:</span>
+            <span style="font-weight: 700; color: #1f2937;" id="approve-gross-amt">-</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom: 4px; font-size: 12px;">
+            <span style="color: #713f12;">Admin Commission (10%):</span>
+            <span style="font-weight: 700; color: #dc2626;" id="approve-fee-amt">-</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; border-top: 1px dashed #ca8a04; padding-top: 4px; margin-top: 4px; font-size: 12.5px;">
+            <span style="color: #166534; font-weight: 800;">Net Transfer to Client:</span>
+            <span style="font-weight: 900; color: #166534;" id="approve-net-amt">-</span>
+          </div>
         </div>
 
         <!-- Destination Bank Details for Withdrawals -->
