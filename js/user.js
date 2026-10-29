@@ -359,6 +359,7 @@ const UserApp = (() => {
     const user = DB.getUserById(currentUserId);
     if (!user) return;
     const nameEl     = document.getElementById('more-user-name');
+    const phoneEl    = document.getElementById('more-user-phone');
     const emailEl    = document.getElementById('more-user-email');
     const initialsEl = document.getElementById('more-user-initials');
     const photoEl    = document.getElementById('more-user-photo');
@@ -367,12 +368,22 @@ const UserApp = (() => {
     const ln = DB.formatName(user.lastName || '');
     if (nameEl)  nameEl.textContent  = `${fn} ${ln}`;
     if (idEl)    idEl.textContent    = user.id || '';
+    if (phoneEl) {
+      if (user.phone && user.phone.trim()) {
+        phoneEl.textContent = user.phone.trim();
+        phoneEl.style.display = 'block';
+      } else {
+        phoneEl.textContent = '';
+        phoneEl.style.display = 'none';
+      }
+    }
     if (emailEl) {
       if (user.email && user.email.trim()) {
         emailEl.textContent = user.email.trim();
-        emailEl.style.display = '';
+        emailEl.style.display = 'block';
       } else {
-        emailEl.textContent = user.phone || '';
+        emailEl.textContent = '';
+        emailEl.style.display = 'none';
       }
     }
     if (photoEl && initialsEl) {
