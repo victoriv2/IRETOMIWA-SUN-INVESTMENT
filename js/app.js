@@ -216,6 +216,15 @@ const App = (() => {
       savedPortal = localStorage.getItem('sun_active_portal');
     } catch(e) {}
 
+    // 0. Flutterwave Payment Return Priority: Always route to user dashboard
+    const isFlwReturn = urlParams.has('tx_ref') || urlParams.has('transaction_id') || urlParams.get('status') === 'successful' || urlParams.get('flw_redirect') === '1';
+    if (isFlwReturn) {
+      if (userSession && userSession.userId && DB.getUserById(userSession.userId)) {
+        navigate('user');
+        return;
+      }
+    }
+
     // 1. Explicit URL Hash priority
     if (currentHash === '#admin') {
       if (adminSession) { navigate('admin'); return; }

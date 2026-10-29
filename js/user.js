@@ -722,17 +722,50 @@ const UserApp = (() => {
           return;
         }
 
+        // Save pending deposit in localStorage before invoking Flutterwave
+        try {
+          localStorage.setItem('sun_pending_deposit', JSON.stringify({
+            userId: currentUserId,
+            amount: amount,
+            category: category,
+            txRef: txRef,
+            userNote: userNote,
+            timestamp: Date.now()
+          }));
+        } catch(e) {}
+
         const originalText = submitText ? submitText.textContent : 'Generate Bank Transfer Account';
         if (submitText) submitText.textContent = 'Generating Bank Transfer Account...';
         if (submitBtn) submitBtn.disabled = true;
 
+        let flwInstance = null;
+
+        function closeFlutterwaveModal() {
+          try {
+            if (flwInstance && typeof flwInstance.close === 'function') {
+              flwInstance.close();
+            }
+          } catch(e) {}
+          try {
+            document.querySelectorAll('iframe[name="checkout"], iframe[src*="flutterwave"], iframe[src*="flw"], #flwpug_embed, .flwpug_embed, .flw-payment-modal').forEach(el => {
+              try { el.remove(); } catch(e) {}
+            });
+            document.querySelectorAll('div[id*="flwpug"], div[class*="flw-payment"], div[style*="2147483647"]').forEach(el => {
+              try { el.remove(); } catch(e) {}
+            });
+            document.body.style.overflow = '';
+          } catch(e) {}
+        }
+
         try {
-          window.FlutterwaveCheckout({
+          const redirectUrl = window.location.origin + window.location.pathname + '?flw_redirect=1';
+          flwInstance = window.FlutterwaveCheckout({
             public_key: flwConfig.publicKey,
             tx_ref: txRef,
             amount: amount,
             currency: 'NGN',
             payment_options: 'banktransfer,card,ussd',
+            redirect_url: redirectUrl,
             customer: {
               email: (user.email && user.email.trim()) ? user.email.trim() : 'iretomiwa.sun.investment@gmail.com',
               phone_number: user.phone || '',
@@ -750,34 +783,48 @@ const UserApp = (() => {
             },
             callback: function (response) {
               if (response && (response.status === 'successful' || response.status === 'completed')) {
-                const newTx = DB.addTransaction({
-                  userId: currentUserId,
-                  type: 'deposit',
-                  amount: amount,
-                  category: category,
-                  note: userNote ? `${userNote} (Flutterwave: ${response.tx_ref || response.transaction_id})` : `Flutterwave Bank Transfer (${response.tx_ref || response.transaction_id})`,
-                  recordedBy: 'user',
-                  status: 'approved',
-                  paymentGateway: 'flutterwave',
-                  flutterwaveRef: response.tx_ref || response.transaction_id || response.flw_ref,
-                  flwId: response.transaction_id || null,
-                });
+                // Immediately close Flutterwave iframe so user is returned to the main app screen
+                closeFlutterwaveModal();
+
+                // Clear pending deposit
+                try { localStorage.removeItem('sun_pending_deposit'); } catch(e) {}
+
+                const txRefCode = response.tx_ref || response.transaction_id || txRef;
+                const existingTxs = DB.getTransactions(currentUserId);
+                const alreadyExists = existingTxs.some(t => t.flutterwaveRef === txRefCode || (response.transaction_id && t.flwId == response.transaction_id));
+
+                if (!alreadyExists) {
+                  DB.addTransaction({
+                    userId: currentUserId,
+                    type: 'deposit',
+                    amount: amount,
+                    category: category,
+                    note: userNote ? `${userNote} (Flutterwave: ${txRefCode})` : `Flutterwave Bank Transfer (${txRefCode})`,
+                    recordedBy: 'user',
+                    status: 'approved',
+                    paymentGateway: 'flutterwave',
+                    flutterwaveRef: txRefCode,
+                    flwId: response.transaction_id || null,
+                  });
+                }
 
                 // Clear inputs
                 amountInput.value = '';
                 if (noteInput) noteInput.value = '';
 
-                // Show receipt modal
+                // REDIRECT TO MAIN DASHBOARD (Home tab)
+                switchTab('home');
+                renderSavingsList();
+                renderTotal();
+
+                // Show confirmation receipt modal on top of main dashboard
                 const updatedBal = DB.getUserBalance(currentUserId).balance;
                 openDepositSuccessModal({
                   amount: amount,
                   category: category,
-                  ref: response.tx_ref || response.transaction_id,
+                  ref: txRefCode,
                   newBalance: updatedBal,
                 });
-
-                renderSavingsList();
-                renderTotal();
               } else {
                 if (errorEl) {
                   errorEl.textContent = 'Payment transfer was not completed. Please try again.';
@@ -786,6 +833,7 @@ const UserApp = (() => {
               }
             },
             onclose: function () {
+              closeFlutterwaveModal();
               if (submitText) submitText.textContent = originalText;
               if (submitBtn) submitBtn.disabled = false;
             }
@@ -1512,6 +1560,84 @@ const UserApp = (() => {
     });
   }
 
+  function checkPendingFlutterwaveRedirect() {
+    let urlParams;
+    try {
+      urlParams = new URLSearchParams(window.location.search);
+    } catch(e) {
+      return;
+    }
+
+    const status = urlParams.get('status');
+    const txRef = urlParams.get('tx_ref');
+    const transactionId = urlParams.get('transaction_id');
+    const isFlw = urlParams.get('flw_redirect') === '1' || status || txRef || transactionId;
+
+    if (!isFlw) return;
+
+    let pending = null;
+    try {
+      const saved = localStorage.getItem('sun_pending_deposit');
+      if (saved) pending = JSON.parse(saved);
+    } catch(e) {}
+
+    const isSuccessful = status === 'successful' || status === 'completed' || (!status && transactionId);
+
+    if (isSuccessful && (pending || txRef)) {
+      const targetUserId = (pending && pending.userId) ? pending.userId : (currentUserId || (DB.getSession() ? DB.getSession().userId : null));
+      if (targetUserId) {
+        currentUserId = targetUserId;
+        const targetTxRef = txRef || (pending ? pending.txRef : null) || ('SUN-DEP-' + targetUserId + '-' + Date.now());
+        const existingTxs = DB.getTransactions(targetUserId);
+        const alreadyRecorded = existingTxs.some(t => t.flutterwaveRef === targetTxRef || (transactionId && t.flwId == transactionId));
+
+        const depositAmount = (pending && pending.amount > 0) ? pending.amount : (parseFloat(urlParams.get('amount')) || 0);
+
+        if (!alreadyRecorded && depositAmount > 0) {
+          DB.addTransaction({
+            userId: targetUserId,
+            type: 'deposit',
+            amount: depositAmount,
+            category: (pending && pending.category) ? pending.category : 'General Savings',
+            note: (pending && pending.userNote) ? `${pending.userNote} (Flutterwave: ${targetTxRef})` : `Flutterwave Bank Transfer (${targetTxRef})`,
+            recordedBy: 'user',
+            status: 'approved',
+            paymentGateway: 'flutterwave',
+            flutterwaveRef: targetTxRef,
+            flwId: transactionId || null,
+          });
+        }
+
+        try { localStorage.removeItem('sun_pending_deposit'); } catch(e) {}
+
+        // Clean URL query params without reloading the page
+        try {
+          window.history.replaceState({}, document.title, window.location.pathname + '#user');
+        } catch(e) {}
+
+        // REDIRECT TO MAIN HOME TAB
+        switchTab('home');
+        renderSavingsList();
+        renderTotal();
+
+        const updatedBal = DB.getUserBalance(targetUserId).balance;
+        openDepositSuccessModal({
+          amount: depositAmount,
+          category: pending ? pending.category : 'General Savings',
+          ref: targetTxRef,
+          newBalance: updatedBal,
+        });
+        return;
+      }
+    }
+
+    // If cancelled or failed
+    try { localStorage.removeItem('sun_pending_deposit'); } catch(e) {}
+    try {
+      window.history.replaceState({}, document.title, window.location.pathname + '#user');
+    } catch(e) {}
+  }
+
   // ---- Public API ----
   return {
     load(userId) {
@@ -1530,6 +1656,8 @@ const UserApp = (() => {
       renderTotal();
       renderMoreUserInfo();
       startClock();
+
+      checkPendingFlutterwaveRedirect();
     },
 
     initOnce() {
@@ -1543,6 +1671,7 @@ const UserApp = (() => {
       initModalClose();
       initUserExports();
       initCopyIdButton();
+      checkPendingFlutterwaveRedirect();
     },
 
     refresh() {
@@ -1555,6 +1684,7 @@ const UserApp = (() => {
       }
     },
 
+    checkPendingFlutterwaveRedirect,
     switchTab,
   };
 })();
