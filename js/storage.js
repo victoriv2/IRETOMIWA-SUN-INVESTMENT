@@ -772,6 +772,51 @@ const DB = {
     ];
   },
 
+  // ---- SECURE FLUTTERWAVE API CALL (WITH NETLIFY CORS PROXY & FALLBACK) ----
+  async fetchFlutterwave(endpoint, options = {}) {
+    const cleanEndpoint = endpoint.replace(/^\/+/, '');
+    const cfg = this.getFlutterwaveConfig();
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${cfg.secretKey}`,
+      ...(options.headers || {})
+    };
+
+    // Candidate routes to prevent browser CORS "Failed to fetch":
+    // 1. Netlify Edge Proxy (/api/flw/...)
+    // 2. Netlify Serverless Function (/.netlify/functions/flw?path=...)
+    // 3. Direct Flutterwave API (fallback)
+    const candidates = [
+      `/api/flw/${cleanEndpoint}`,
+      `/.netlify/functions/flw?path=${encodeURIComponent(cleanEndpoint)}`,
+      `https://api.flutterwave.com/v3/${cleanEndpoint}`
+    ];
+
+    let lastError = null;
+
+    for (const url of candidates) {
+      try {
+        const res = await fetch(url, {
+          ...options,
+          headers
+        });
+
+        // If local 404 on relative proxy route, skip to next candidate
+        if (res.status === 404 && url.startsWith('/')) {
+          continue;
+        }
+
+        const json = await res.json().catch(() => null);
+        return { ok: res.ok, status: res.status, json: json };
+      } catch (err) {
+        lastError = err;
+        continue;
+      }
+    }
+
+    throw lastError || new Error('Network connection error contacting Flutterwave.');
+  },
+
   // ---- FLUTTERWAVE REAL-TIME ACCOUNT RESOLUTION ----
   async resolveFlutterwaveAccount(accountNumber, bankCode, userId = null) {
     if (!accountNumber || accountNumber.length !== 10) {
@@ -783,20 +828,16 @@ const DB = {
     const cfg = this.getFlutterwaveConfig();
     try {
       if (cfg && cfg.secretKey) {
-        const res = await fetch('https://api.flutterwave.com/v3/accounts/resolve', {
+        const response = await this.fetchFlutterwave('accounts/resolve', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${cfg.secretKey}`,
-          },
           body: JSON.stringify({
             account_number: accountNumber.trim(),
             account_bank: bankCode.trim(),
           }),
         });
 
-        const json = await res.json();
-        if (res.ok && json.status === 'success' && json.data && json.data.account_name) {
+        const json = response.json;
+        if (json && json.status === 'success' && json.data && json.data.account_name) {
           return {
             success: true,
             accountNumber: json.data.account_number,
@@ -831,7 +872,6 @@ const DB = {
 
   // ---- FLUTTERWAVE DISBURSEMENT / TRANSFER ----
   async disburseFlutterwaveTransfer({ accountNumber, bankCode, amount, narration, txId, clientName }) {
-    const cfg = this.getFlutterwaveConfig();
     const cleanAmount = parseFloat(amount);
     if (!cleanAmount || cleanAmount <= 0) {
       return { success: false, error: 'Invalid payout amount.' };
@@ -852,17 +892,13 @@ const DB = {
     };
 
     try {
-      const res = await fetch('https://api.flutterwave.com/v3/transfers', {
+      const response = await this.fetchFlutterwave('transfers', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${cfg.secretKey}`,
-        },
         body: JSON.stringify(payload),
       });
 
-      const json = await res.json();
-      if (res.ok && json.status === 'success' && json.data) {
+      const json = response.json;
+      if (json && json.status === 'success' && json.data) {
         return {
           success: true,
           transferId: json.data.id,
@@ -875,7 +911,7 @@ const DB = {
 
       return {
         success: false,
-        error: json.message || 'Transfer disbursement failed on Flutterwave.',
+        error: (json && json.message) ? json.message : (response.status ? `Flutterwave response code ${response.status}` : 'Transfer disbursement failed on Flutterwave.'),
       };
     } catch (err) {
       console.error('Flutterwave transfer error:', err);
@@ -888,16 +924,12 @@ const DB = {
 
   // ---- FLUTTERWAVE WALLET BALANCE ----
   async getFlutterwaveBalance() {
-    const cfg = this.getFlutterwaveConfig();
     try {
-      const res = await fetch('https://api.flutterwave.com/v3/balances/NGN', {
+      const response = await this.fetchFlutterwave('balances/NGN', {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${cfg.secretKey}`,
-        },
       });
-      const json = await res.json();
-      if (res.ok && json.status === 'success' && json.data) {
+      const json = response.json;
+      if (json && json.status === 'success' && json.data) {
         return {
           success: true,
           balance: json.data.available_balance || 0,
@@ -907,12 +939,12 @@ const DB = {
       }
       return {
         success: false,
-        error: json.message || 'Could not fetch Flutterwave wallet balance.',
+        error: (json && json.message) || 'Could not fetch Flutterwave wallet balance.',
       };
     } catch (err) {
       return {
         success: false,
-        error: 'Network error checking wallet balance.',
+        error: err.message || 'Network error fetching wallet balance.',
       };
     }
   },
