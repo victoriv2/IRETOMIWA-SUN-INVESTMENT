@@ -449,14 +449,47 @@ const AdminApp = (() => {
     const balEl   = document.getElementById('approve-client-balance');
     const descEl  = document.getElementById('approve-modal-desc');
 
+    const destBox     = document.getElementById('approve-payout-dest-box');
+    const bankNameEl  = document.getElementById('approve-bank-name');
+    const accNumEl    = document.getElementById('approve-account-number');
+    const accNameEl   = document.getElementById('approve-account-name');
+    const actionsDep  = document.getElementById('approve-actions-deposit');
+    const actionsWith = document.getElementById('approve-actions-withdrawal');
+    const flwErrEl    = document.getElementById('approve-flw-error');
+
+    if (flwErrEl) {
+      flwErrEl.textContent = '';
+      flwErrEl.classList.add('hidden');
+    }
+
     if (nameEl)  nameEl.textContent = `${clientName} (${(u && u.phone) || '-'})`;
     if (badgeEl) badgeEl.innerHTML = isDeposit ? '<span class="tx-badge tx-badge--deposit">Pay In (Deposit)</span>' : '<span class="tx-badge tx-badge--payout">Pay Out (Withdrawal)</span>';
     if (amtEl)   amtEl.textContent = '₦' + formatAmount(t.amount);
     if (balEl)   balEl.textContent = '₦' + formatAmount(userBal.balance);
-    if (descEl) {
-      descEl.textContent = isDeposit
-        ? `Approve ₦${formatAmount(t.amount)} deposit for ${clientName}? This will credit their active savings balance immediately.`
-        : `Approve ₦${formatAmount(t.amount)} payout for ${clientName}? This will disburse physical cash and deduct from their balance.`;
+
+    if (isDeposit) {
+      if (descEl) descEl.textContent = `Approve ₦${formatAmount(t.amount)} deposit for ${clientName}? This will credit their active savings balance immediately.`;
+      if (destBox) destBox.classList.add('hidden');
+      if (actionsDep) actionsDep.classList.remove('hidden');
+      if (actionsWith) actionsWith.classList.add('hidden');
+    } else {
+      // Withdrawal / Pay Out
+      const destBank = t.destinationBank;
+      if (destBank && (destBank.accountNumber || destBank.bankName)) {
+        if (destBox) destBox.classList.remove('hidden');
+        if (bankNameEl) bankNameEl.textContent = destBank.bankName || 'Nigerian Bank';
+        if (accNumEl) accNumEl.textContent = destBank.accountNumber || '-';
+        if (accNameEl) accNameEl.textContent = destBank.accountName || clientName;
+      } else {
+        if (destBox) destBox.classList.add('hidden');
+      }
+
+      if (descEl) {
+        descEl.textContent = `Approve ₦${formatAmount(t.amount)} withdrawal for ${clientName}? Choose automated Flutterwave bank transfer or record manual cash payment.`;
+      }
+
+      if (actionsDep) actionsDep.classList.add('hidden');
+      if (actionsWith) actionsWith.classList.remove('hidden');
     }
 
     const modal = document.getElementById('modal-approve-request');
@@ -510,10 +543,10 @@ const AdminApp = (() => {
       });
     }
 
-    // Approve Modal Buttons
-    const btnCancelApprove = document.getElementById('btn-cancel-approve-request');
+    // Approve Modal Buttons (Standard Deposit / Generic)
+    const btnCancelApprove  = document.getElementById('btn-cancel-approve-request');
     const btnConfirmApprove = document.getElementById('btn-confirm-approve-request');
-    const modalApprove = document.getElementById('modal-approve-request');
+    const modalApprove      = document.getElementById('modal-approve-request');
 
     if (btnCancelApprove && modalApprove) {
       btnCancelApprove.addEventListener('click', () => {
@@ -534,7 +567,7 @@ const AdminApp = (() => {
     if (btnConfirmApprove && modalApprove) {
       btnConfirmApprove.addEventListener('click', () => {
         if (!activeRequestTxId) return;
-        const res = DB.approveTransaction(activeRequestTxId);
+        const res = DB.approveTransaction(activeRequestTxId, { reviewedBy: 'admin' });
         modalApprove.classList.add('hidden');
         activeRequestTxId = null;
 
@@ -548,6 +581,108 @@ const AdminApp = (() => {
         renderPayoutsTab();
         renderMoreTab();
       });
+    }
+
+    // Withdrawal Specific Actions: Automated Flutterwave Disburse vs Manual Approve
+    const btnFlwDisburse = document.getElementById('btn-confirm-approve-flw');
+    const btnFlwText     = document.getElementById('btn-confirm-approve-flw-text');
+    const btnManualApprove = document.getElementById('btn-confirm-approve-manual');
+    const btnCancelWithdrawal = document.getElementById('btn-cancel-approve-withdrawal');
+    const flwErrEl = document.getElementById('approve-flw-error');
+
+    if (btnCancelWithdrawal && modalApprove) {
+      btnCancelWithdrawal.addEventListener('click', () => {
+        modalApprove.classList.add('hidden');
+        activeRequestTxId = null;
+      });
+    }
+
+    if (btnManualApprove && modalApprove) {
+      btnManualApprove.addEventListener('click', () => {
+        if (!activeRequestTxId) return;
+        const res = DB.approveTransaction(activeRequestTxId, { reviewedBy: 'admin (manual)' });
+        modalApprove.classList.add('hidden');
+        activeRequestTxId = null;
+
+        renderRequestsTab();
+        renderUsersTab();
+        renderReceivedTab();
+        renderPayoutsTab();
+        renderMoreTab();
+      });
+    }
+
+    if (btnFlwDisburse && modalApprove) {
+      btnFlwDisburse.addEventListener('click', async () => {
+        if (!activeRequestTxId) return;
+        const allTx = DB.getAllTransactions();
+        const t = allTx.find(x => x.id === activeRequestTxId);
+        if (!t) return;
+
+        const u = DB.getUserById(t.userId);
+        const clientName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Client';
+        const destBank = t.destinationBank || {};
+
+        if (!destBank.accountNumber || !destBank.bankCode) {
+          if (flwErrEl) {
+            flwErrEl.textContent = 'Destination bank code or account number is missing. Please use manual approval.';
+            flwErrEl.classList.remove('hidden');
+          }
+          return;
+        }
+
+        const originalText = btnFlwText ? btnFlwText.textContent : 'Disburse via Flutterwave Transfer';
+        if (btnFlwText) btnFlwText.textContent = 'Sending Transfer via Flutterwave...';
+        btnFlwDisburse.disabled = true;
+
+        if (flwErrEl) {
+          flwErrEl.textContent = '';
+          flwErrEl.classList.add('hidden');
+        }
+
+        try {
+          const res = await DB.disburseFlutterwaveTransfer({
+            accountNumber: destBank.accountNumber,
+            bankCode: destBank.bankCode,
+            amount: t.amount,
+            narration: `Payout to ${clientName} - Iretomiwa Sun`,
+            txId: t.id,
+            clientName: clientName,
+          });
+
+          if (res.success) {
+            DB.approveTransaction(t.id, {
+              reviewedBy: 'admin (flutterwave)',
+              paymentGateway: 'flutterwave',
+              flutterwaveTransferId: res.transferId,
+              flutterwaveRef: res.reference,
+            });
+
+            modalApprove.classList.add('hidden');
+            activeRequestTxId = null;
+
+            renderRequestsTab();
+            renderUsersTab();
+            renderReceivedTab();
+            renderPayoutsTab();
+            renderMoreTab();
+          } else {
+            if (flwErrEl) {
+              flwErrEl.textContent = `Flutterwave Disbursal Failed: ${res.error || 'Transfer failed'}. The client balance remains untouched.`;
+              flwErrEl.classList.remove('hidden');
+            }
+          }
+        } catch (err) {
+          if (flwErrEl) {
+            flwErrEl.textContent = `Transfer error: ${err.message || 'Check network connection'}`;
+            flwErrEl.classList.remove('hidden');
+          }
+        } finally {
+          if (btnFlwText) btnFlwText.textContent = originalText;
+          btnFlwDisburse.disabled = false;
+        }
+      });
+    }
     }
 
     // Decline Modal Buttons
@@ -1129,15 +1264,25 @@ const AdminApp = (() => {
       const user = DB.getUserById(t.userId);
       const userName = user ? (DB.formatName(user.firstName) + ' ' + DB.formatName(user.lastName)) : 'Unknown Client';
       const phone = user ? user.phone : '-';
+      const isFlw = (t.paymentGateway === 'flutterwave');
+      const flwBadge = isFlw ? `<div style="margin-top:3px;"><span style="display:inline-block; font-size:10.5px; font-weight:700; color:#166534; background:#dcfce7; border:1px solid #86efac; border-radius:4px; padding:2px 6px;">Flutterwave Transfer</span></div>` : '';
+      const destBankInfo = t.destinationBank ? `<div style="font-size:11.5px; color:var(--text-secondary); margin-top:3px;">${escapeHtml(t.destinationBank.bankName || '')} &bull; <span style="font-family:monospace;">${escapeHtml(t.destinationBank.accountNumber || '')}</span> (${escapeHtml(t.destinationBank.accountName || '')})</div>` : '';
 
       return `
         <tr>
           <td>${formatDateTime(t.createdAt)}</td>
           <td class="user-name-cell">${escapeHtml(userName)}</td>
           <td>${escapeHtml(phone)}</td>
-          <td><span class="tx-badge tx-badge--payout">${escapeHtml(t.category || 'General Savings')}</span></td>
+          <td>
+            <span class="tx-badge tx-badge--payout">${escapeHtml(t.category || 'General Savings')}</span>
+            ${flwBadge}
+          </td>
           <td class="amount-cell amount-cell--payout">-₦${formatAmount(t.amount)}</td>
-          <td>${escapeHtml(t.note || '-')}</td>
+          <td>
+            ${escapeHtml(t.note || '-')}
+            ${destBankInfo}
+            ${t.flutterwaveRef ? `<div style="font-size:11px; color:var(--text-muted); font-family:monospace; margin-top:2px;">Ref: ${escapeHtml(t.flutterwaveRef)}</div>` : ''}
+          </td>
         </tr>`;
     }).join('');
   }
@@ -1145,6 +1290,41 @@ const AdminApp = (() => {
   // ============================================
   // TAB 5: MORE TAB
   // ============================================
+  let _flwBalanceFetching = false;
+
+  async function fetchAndRenderFlwBalance() {
+    const balEl    = document.getElementById('admin-flw-live-balance');
+    const ledgerEl = document.getElementById('admin-flw-ledger-balance');
+    const refBtn   = document.getElementById('btn-refresh-flw-balance');
+
+    if (!balEl) return;
+    if (_flwBalanceFetching) return;
+    _flwBalanceFetching = true;
+
+    if (refBtn) refBtn.disabled = true;
+    balEl.textContent = 'Checking...';
+
+    try {
+      const res = await DB.getFlutterwaveBalance();
+      if (res.success) {
+        balEl.textContent = '₦' + formatAmount(res.balance);
+        if (ledgerEl) {
+          ledgerEl.textContent = `(Ledger: ₦${formatAmount(res.ledger)})`;
+        }
+      } else {
+        balEl.textContent = '₦0.00';
+        if (ledgerEl) {
+          ledgerEl.textContent = `(${res.error || 'Check credentials'})`;
+        }
+      }
+    } catch (e) {
+      balEl.textContent = '₦0.00';
+    } finally {
+      _flwBalanceFetching = false;
+      if (refBtn) refBtn.disabled = false;
+    }
+  }
+
   function renderMoreTab() {
     const admin = DB.getAdmin();
     const systemTotals = DB.getSystemTotals();
@@ -1166,29 +1346,52 @@ const AdminApp = (() => {
 
     // Populate Flutterwave Configuration fields
     const flwCfg = DB.getFlutterwaveConfig();
-    const flwKeyInp = document.getElementById('admin-flw-public-key');
-    const flwModeSel = document.getElementById('admin-flw-mode');
-    const flwBadge = document.getElementById('admin-flw-status-badge');
+    const flwKeyInp    = document.getElementById('admin-flw-public-key');
+    const flwSecretInp = document.getElementById('admin-flw-secret-key');
+    const flwModeSel   = document.getElementById('admin-flw-mode');
+    const flwBadge     = document.getElementById('admin-flw-status-badge');
 
     if (flwKeyInp && !flwKeyInp.dataset.userEdited) {
       flwKeyInp.value = flwCfg.publicKey || '';
     }
+    if (flwSecretInp && !flwSecretInp.dataset.userEdited) {
+      flwSecretInp.value = flwCfg.secretKey || '';
+    }
     if (flwModeSel) {
-      flwModeSel.value = flwCfg.mode || 'test';
+      flwModeSel.value = flwCfg.mode || 'live';
     }
     if (flwBadge) {
       flwBadge.textContent = (flwCfg.mode === 'live') ? 'Live Mode' : 'Test Mode';
       flwBadge.className = 'status-badge ' + (flwCfg.mode === 'live' ? 'status-badge--approved' : 'status-badge--pending');
     }
+
+    // Fetch live Flutterwave wallet balance
+    fetchAndRenderFlwBalance();
   }
 
   // Flutterwave Admin Settings Form Handler
   function initAdminFlutterwaveSettings() {
     const form = document.getElementById('admin-flw-config-form');
     const keyInp = document.getElementById('admin-flw-public-key');
+    const secretInp = document.getElementById('admin-flw-secret-key');
+    const refreshBtn = document.getElementById('btn-refresh-flw-balance');
+
     if (keyInp) {
       keyInp.addEventListener('input', () => {
         keyInp.dataset.userEdited = 'true';
+      });
+    }
+
+    if (secretInp) {
+      secretInp.addEventListener('input', () => {
+        secretInp.dataset.userEdited = 'true';
+      });
+    }
+
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        fetchAndRenderFlwBalance();
       });
     }
 
@@ -1200,15 +1403,18 @@ const AdminApp = (() => {
       const msgBox  = document.getElementById('admin-flw-msg');
 
       const pubKey = (keyInp ? keyInp.value.trim() : '') || 'FLWPUBK-570758bf49301716d7e0133dce781024-X';
+      const secKey = (secretInp ? secretInp.value.trim() : '') || 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X';
       const mode   = modeSel ? modeSel.value : 'live';
 
       DB.setFlutterwaveConfig({
         publicKey: pubKey,
+        secretKey: secKey,
         mode: mode,
         isEnabled: true,
       });
 
       if (keyInp) delete keyInp.dataset.userEdited;
+      if (secretInp) delete secretInp.dataset.userEdited;
 
       if (msgBox) {
         msgBox.textContent = 'Flutterwave gateway settings saved and synced successfully!';

@@ -1817,3 +1817,19 @@
   border: 1px solid #bfdbfe;
   white-space: nowrap;
 }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+#payout-bank-select:focus,
+#payout-account-number:focus {
+  border-color: var(--primary) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(11, 107, 49, 0.12);
+}

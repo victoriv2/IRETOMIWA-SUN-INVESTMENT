@@ -403,15 +403,103 @@ const UserApp = (() => {
         if (btnPayout) btnPayout.classList.add('active');
         if (btnDeposit) btnDeposit.classList.remove('active');
         if (typeInput) typeInput.value = 'withdrawal';
-        if (titleEl) titleEl.textContent = 'Request Payout';
-        if (subtitleEl) subtitleEl.textContent = 'Submit a withdrawal request to receive cash or bank transfer from Admin';
+        if (titleEl) titleEl.textContent = 'Request Bank Payout';
+        if (subtitleEl) subtitleEl.textContent = 'Enter your Nigerian bank account details to receive your savings payout';
         if (flwCard) flwCard.classList.add('hidden');
         if (flwTrust) flwTrust.classList.add('hidden');
         if (quickAmts) quickAmts.classList.add('hidden');
         if (withDest) withDest.classList.remove('hidden');
-        if (submitText) submitText.textContent = 'Submit Pay Out Request';
-        else if (submitBtn) submitBtn.textContent = 'Submit Pay Out Request';
+        if (submitText) submitText.textContent = 'Request Bank Payout via Flutterwave';
+        else if (submitBtn) submitBtn.textContent = 'Request Bank Payout via Flutterwave';
+        loadSavedPayoutBank();
       }
+    }
+
+    // Auto-load saved user payout bank details
+    function loadSavedPayoutBank() {
+      if (!currentUserId) return;
+      const saved = DB.getUserPayoutBank(currentUserId);
+      const bankSelect = document.getElementById('payout-bank-select');
+      const bankNameInp = document.getElementById('payout-bank-name');
+      const accNumInp = document.getElementById('payout-account-number');
+      const accNameInp = document.getElementById('payout-account-name');
+      const resCard = document.getElementById('payout-resolution-card');
+      const resText = document.getElementById('payout-resolution-text');
+      const resIcon = document.getElementById('payout-resolution-icon');
+
+      if (saved && saved.accountNumber) {
+        if (bankSelect && saved.bankCode) bankSelect.value = saved.bankCode;
+        if (bankNameInp) bankNameInp.value = saved.bankName || (bankSelect ? (bankSelect.options[bankSelect.selectedIndex] ? bankSelect.options[bankSelect.selectedIndex].text : '') : '');
+        if (accNumInp) accNumInp.value = saved.accountNumber;
+        if (accNameInp) accNameInp.value = saved.accountName || '';
+
+        if (saved.accountName && resCard && resText && resIcon) {
+          resCard.className = '';
+          resCard.style.cssText = 'margin-top: -6px; margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #f0fdf4; border: 1.5px solid #86efac; color: #166534;';
+          resIcon.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
+          resText.textContent = `Verified: ${saved.accountName}`;
+        }
+      }
+    }
+
+    // Real-time Account Verification Handlers
+    const bankSelectEl = document.getElementById('payout-bank-select');
+    const accNumEl     = document.getElementById('payout-account-number');
+    const accNameEl    = document.getElementById('payout-account-name');
+    const bankNameEl   = document.getElementById('payout-bank-name');
+    const resCardEl    = document.getElementById('payout-resolution-card');
+    const resTextEl    = document.getElementById('payout-resolution-text');
+    const resIconEl    = document.getElementById('payout-resolution-icon');
+    let resolveDebounce = null;
+
+    async function triggerAccountResolution() {
+      if (!bankSelectEl || !accNumEl || !resCardEl || !resTextEl || !resIconEl) return;
+      const bankCode = bankSelectEl.value.trim();
+      const rawNum = accNumEl.value.replace(/\D/g, '').slice(0, 10);
+      accNumEl.value = rawNum;
+
+      if (bankSelectEl.selectedIndex >= 0 && bankNameEl) {
+        bankNameEl.value = bankSelectEl.options[bankSelectEl.selectedIndex].text || '';
+      }
+
+      if (rawNum.length < 10 || !bankCode) {
+        resCardEl.classList.add('hidden');
+        if (accNameEl) accNameEl.value = '';
+        return;
+      }
+
+      // Show verifying loading state
+      resCardEl.classList.remove('hidden');
+      resCardEl.style.cssText = 'margin-top: -6px; margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #fffbeb; border: 1.5px solid #fde68a; color: #92400e;';
+      resIconEl.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="animate-spin"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>';
+      resTextEl.textContent = 'Verifying account name via Flutterwave...';
+
+      const res = await DB.resolveFlutterwaveAccount(rawNum, bankCode);
+
+      if (res.success && res.accountName) {
+        resCardEl.style.cssText = 'margin-top: -6px; margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #f0fdf4; border: 1.5px solid #86efac; color: #166534;';
+        resIconEl.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
+        resTextEl.textContent = `Verified: ${res.accountName}`;
+        if (accNameEl) accNameEl.value = res.accountName;
+      } else {
+        resCardEl.style.cssText = 'margin-top: -6px; margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #fef2f2; border: 1.5px solid #fca5a5; color: #991b1b;';
+        resIconEl.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+        resTextEl.textContent = res.error || 'Account could not be verified. Please check the details.';
+        if (accNameEl) accNameEl.value = '';
+      }
+    }
+
+    if (bankSelectEl) {
+      bankSelectEl.addEventListener('change', () => {
+        triggerAccountResolution();
+      });
+    }
+
+    if (accNumEl) {
+      accNumEl.addEventListener('input', () => {
+        if (resolveDebounce) clearTimeout(resolveDebounce);
+        resolveDebounce = setTimeout(triggerAccountResolution, 300);
+      });
     }
 
     if (btnDeposit && btnPayout && typeInput) {
@@ -625,46 +713,102 @@ const UserApp = (() => {
         return;
       }
 
-      // Collect optional destination bank details
+      // Collect destination bank details
+      const bankSelect  = document.getElementById('payout-bank-select');
       const bankNameInp = document.getElementById('payout-bank-name');
       const accNumInp   = document.getElementById('payout-account-number');
       const accNameInp  = document.getElementById('payout-account-name');
+      const saveCheck   = document.getElementById('payout-save-bank-checkbox');
 
-      let destNote = userNote;
-      const bName = bankNameInp ? bankNameInp.value.trim() : '';
-      const bNum  = accNumInp ? accNumInp.value.trim() : '';
-      const bAcc  = accNameInp ? accNameInp.value.trim() : '';
+      const bankCode = bankSelect ? bankSelect.value.trim() : '';
+      const bName    = (bankSelect && bankSelect.selectedIndex >= 0 && bankSelect.options[bankSelect.selectedIndex].text) || (bankNameInp ? bankNameInp.value.trim() : '');
+      const bNum     = accNumInp ? accNumInp.value.trim().replace(/\D/g, '') : '';
+      let   bAcc     = accNameInp ? accNameInp.value.trim() : '';
 
-      if (bName || bNum || bAcc) {
-        const details = `Send to: ${bName} ${bNum} (${bAcc})`.trim();
-        destNote = destNote ? `${destNote} | ${details}` : details;
+      if (!bankCode) {
+        if (errorEl) {
+          errorEl.textContent = 'Please select your destination bank.';
+          errorEl.classList.remove('hidden');
+        }
+        if (bankSelect) bankSelect.focus();
+        return;
       }
 
-      DB.addTransaction({
-        userId: currentUserId,
-        type: 'withdrawal',
-        amount,
-        category,
-        note: destNote,
-        recordedBy: 'user',
-        status: 'pending',
-      });
-
-      // Reset form
-      amountInput.value = '';
-      if (noteInput) noteInput.value = '';
-      if (bankNameInp) bankNameInp.value = '';
-      if (accNumInp) accNumInp.value = '';
-      if (accNameInp) accNameInp.value = '';
-
-      if (successEl) {
-        successEl.textContent = `₦${formatAmount(amount)} Pay Out request submitted! Awaiting Admin approval.`;
-        successEl.classList.remove('hidden');
-        setTimeout(() => successEl.classList.add('hidden'), 4500);
+      if (!bNum || bNum.length !== 10) {
+        if (errorEl) {
+          errorEl.textContent = 'Please enter a valid 10-digit Nigerian bank account number.';
+          errorEl.classList.remove('hidden');
+        }
+        if (accNumInp) accNumInp.focus();
+        return;
       }
 
-      renderSavingsList();
-      renderTotal();
+      // If account name is not yet verified, try verifying on submit
+      if (!bAcc) {
+        const verifyBtn = submitText || submitBtn;
+        const prevText = verifyBtn ? verifyBtn.textContent : '';
+        if (verifyBtn) verifyBtn.textContent = 'Verifying Bank Account...';
+        if (submitBtn) submitBtn.disabled = true;
+
+        DB.resolveFlutterwaveAccount(bNum, bankCode).then(resolveRes => {
+          if (submitBtn) submitBtn.disabled = false;
+          if (verifyBtn) verifyBtn.textContent = prevText;
+
+          if (resolveRes.success && resolveRes.accountName) {
+            bAcc = resolveRes.accountName;
+            if (accNameInp) accNameInp.value = bAcc;
+          }
+
+          proceedWithPayoutSubmission();
+        }).catch(() => {
+          if (submitBtn) submitBtn.disabled = false;
+          if (verifyBtn) verifyBtn.textContent = prevText;
+          proceedWithPayoutSubmission();
+        });
+        return;
+      }
+
+      proceedWithPayoutSubmission();
+
+      function proceedWithPayoutSubmission() {
+        const destinationBank = {
+          bankCode: bankCode,
+          bankName: bName,
+          accountNumber: bNum,
+          accountName: bAcc || `${DB.formatName(user.firstName)} ${DB.formatName(user.lastName)}`,
+        };
+
+        if (saveCheck && saveCheck.checked) {
+          DB.saveUserPayoutBank(currentUserId, destinationBank);
+        }
+
+        const details = `Payout to: ${bName} ${bNum} (${destinationBank.accountName})`.trim();
+        const destNote = userNote ? `${userNote} | ${details}` : details;
+
+        DB.addTransaction({
+          userId: currentUserId,
+          type: 'withdrawal',
+          amount,
+          category,
+          note: destNote,
+          destinationBank,
+          recordedBy: 'user',
+          status: 'pending',
+        });
+
+        // Reset inputs
+        amountInput.value = '';
+        if (noteInput) noteInput.value = '';
+
+        if (successEl) {
+          successEl.textContent = `₦${formatAmount(amount)} Pay Out request submitted! Awaiting Admin review and Flutterwave transfer.`;
+          successEl.classList.remove('hidden');
+          setTimeout(() => successEl.classList.add('hidden'), 5000);
+        }
+
+        renderSavingsList();
+        renderTotal();
+      }
     });
   }
 

@@ -406,17 +406,73 @@
 
             <!-- Withdrawal Destination Details (hidden for deposit, visible for withdrawal) -->
             <div id="withdrawal-dest-fields" class="hidden">
-              <div class="form-group">
-                <label for="payout-bank-name">Your Bank Name</label>
-                <input type="text" id="payout-bank-name" placeholder="e.g. OPay, PalmPay, GTBank, Kuda, Zenith" />
+              <div class="flw-transfer-card" style="margin-bottom: 16px; background: #f0fdf4; border: 1.5px solid #86efac;">
+                <div class="flw-transfer-badge" style="background: #dcfce7; color: #166534;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                  <span>Automated Bank Payout</span>
+                </div>
+                <p class="flw-transfer-desc" style="color: #14532d;">
+                  Choose your bank and enter your 10-digit account number. We verify your account name instantly via Flutterwave before processing your withdrawal.
+                </p>
               </div>
+
               <div class="form-group">
-                <label for="payout-account-number">Your 10-Digit Account Number</label>
-                <input type="text" id="payout-account-number" maxlength="10" placeholder="e.g. 0123456789" />
+                <label for="payout-bank-select">Select Destination Bank</label>
+                <select id="payout-bank-select" style="width: 100%; height: 42px; border-radius: 8px; border: 1.5px solid var(--border); background: #ffffff; padding: 0 12px; font-size: 13.5px; font-weight: 600; color: var(--text-primary);">
+                  <option value="">-- Choose Nigerian Bank --</option>
+                  <option value="999992">OPay Digital Services (Paycom)</option>
+                  <option value="999991">PalmPay</option>
+                  <option value="50515">Moniepoint Microfinance Bank</option>
+                  <option value="50211">Kuda Bank</option>
+                  <option value="058">Guaranty Trust Bank (GTBank)</option>
+                  <option value="057">Zenith Bank</option>
+                  <option value="044">Access Bank</option>
+                  <option value="011">First Bank of Nigeria</option>
+                  <option value="033">United Bank for Africa (UBA)</option>
+                  <option value="214">First City Monument Bank (FCMB)</option>
+                  <option value="070">Fidelity Bank</option>
+                  <option value="221">Stanbic IBTC Bank</option>
+                  <option value="035">Wema Bank</option>
+                  <option value="232">Sterling Bank</option>
+                  <option value="032">Union Bank of Nigeria</option>
+                  <option value="076">Polaris Bank</option>
+                  <option value="050">Ecobank Nigeria</option>
+                  <option value="215">Unity Bank</option>
+                  <option value="101">Providus Bank</option>
+                  <option value="301">Jaiz Bank</option>
+                  <option value="100">SunTrust Bank</option>
+                  <option value="302">TAJ Bank</option>
+                  <option value="082">Keystone Bank</option>
+                  <option value="566">VFD Microfinance Bank</option>
+                  <option value="51204">Sparkle Microfinance Bank</option>
+                  <option value="50645">FairMoney Microfinance Bank</option>
+                  <option value="50541">Carbon (One Finance)</option>
+                  <option value="50823">Branch International MFB</option>
+                  <option value="50280">Rubies MFB</option>
+                  <option value="50383">Nomba Financial Services</option>
+                </select>
+                <input type="hidden" id="payout-bank-name" value="" />
               </div>
+
               <div class="form-group">
-                <label for="payout-account-name">Account Name</label>
-                <input type="text" id="payout-account-name" placeholder="Name registered on bank account" />
+                <label for="payout-account-number">10-Digit Account Number</label>
+                <input type="tel" id="payout-account-number" maxlength="10" placeholder="e.g. 0123456789" autocomplete="off" />
+              </div>
+
+              <!-- Live Account Name Resolution Banner -->
+              <div id="payout-resolution-card" class="hidden" style="margin-top: -6px; margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px;">
+                <span id="payout-resolution-icon" style="flex-shrink: 0;"></span>
+                <span id="payout-resolution-text" style="font-weight: 700; line-height: 1.35;"></span>
+              </div>
+              <input type="hidden" id="payout-account-name" value="" />
+
+              <div class="form-group" style="margin-top: 4px; margin-bottom: 14px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-secondary);">
+                  <input type="checkbox" id="payout-save-bank-checkbox" checked style="width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary);" />
+                  Save bank account details for next time
+                </label>
               </div>
             </div>
 
@@ -1127,13 +1183,31 @@
                 <span style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:6px; background:#eff6ff; color:#2563eb;">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                 </span>
-                <strong style="font-size:14.5px; color:var(--text-primary);">Flutterwave Gateway Settings</strong>
+                <strong style="font-size:14.5px; color:var(--text-primary);">Flutterwave Gateway & Payouts</strong>
               </div>
               <span class="status-badge status-badge--approved" id="admin-flw-status-badge">Active</span>
             </div>
             <p style="font-size:12.5px; color:var(--text-muted); line-height:1.45; margin-bottom: 14px;">
-              Configures the payment gateway for generating dedicated bank account numbers when clients deposit savings.
+              Merchant: <strong>John Idowu (Iretomiwa Sun Investment)</strong>. Supports automated bank transfer deposits and instant bank payouts to clients.
             </p>
+
+            <!-- Live Flutterwave Wallet Balance Widget -->
+            <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1.5px solid #86efac; border-radius: 10px; padding: 14px; margin-bottom: 16px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 4px;">
+                <span style="font-size: 11.5px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">Flutterwave NGN Wallet Balance</span>
+                <button type="button" id="btn-refresh-flw-balance" style="display:inline-flex; align-items:center; gap:4px; background:#ffffff; border:1px solid #86efac; color:#15803d; border-radius:6px; padding:4px 8px; font-size:11.5px; font-weight:700; cursor:pointer;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                  Refresh
+                </button>
+              </div>
+              <div style="display:flex; align-items:baseline; gap:6px;">
+                <span style="font-size: 22px; font-weight: 800; color: #14532d;" id="admin-flw-live-balance">Checking...</span>
+                <small style="font-size: 11.5px; color: #166534;" id="admin-flw-ledger-balance"></small>
+              </div>
+              <small style="display:block; margin-top:4px; font-size:11px; color:#15803d;">
+                Available for automated 1-click client withdrawals and bank payouts.
+              </small>
+            </div>
 
             <form id="admin-flw-config-form" novalidate>
               <div class="form-group" style="margin-bottom:12px;">
@@ -1144,11 +1218,16 @@
                 </select>
               </div>
 
-              <div class="form-group" style="margin-bottom:14px;">
+              <div class="form-group" style="margin-bottom:12px;">
                 <label for="admin-flw-public-key" style="font-size:12px; font-weight:700;">Flutterwave Live Public Key</label>
                 <input type="text" id="admin-flw-public-key" placeholder="FLWPUBK-570758bf49301716d7e0133dce781024-X" style="width:100%; height:40px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-family:monospace; font-size:12px;" />
+              </div>
+
+              <div class="form-group" style="margin-bottom:14px;">
+                <label for="admin-flw-secret-key" style="font-size:12px; font-weight:700;">Flutterwave Live Secret Key (for Automated Disbursals)</label>
+                <input type="password" id="admin-flw-secret-key" placeholder="FLWSECK-..." style="width:100%; height:40px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-family:monospace; font-size:12px;" />
                 <small style="display:block; margin-top:4px; font-size:11px; color:var(--text-muted);">
-                  Live V3 Public Key for John Idowu. Bank transfers credit directly to your Flutterwave merchant account.
+                  Live V3 Secret Key. Used by Admin to disburse payouts directly to clients' Nigerian bank accounts.
                 </small>
               </div>
 
@@ -1738,7 +1817,7 @@
 
   <!-- MODAL: ADMIN APPROVE REQUEST CONFIRMATION -->
   <div id="modal-approve-request" class="modal-overlay hidden" style="z-index: 1060;">
-    <div class="modal-card" style="max-width: 420px; text-align: center; padding: 24px;">
+    <div class="modal-card" style="max-width: 440px; text-align: center; padding: 24px;">
       <div style="width: 52px; height: 52px; border-radius: 50%; background: #dcfce7; color: #15803d; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;">
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="20 6 9 17 4 12"/>
@@ -1750,7 +1829,7 @@
       </p>
       
       <!-- Summary Box -->
-      <div style="background: #f8fafc; border: 1.5px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 20px; text-align: left; font-size: 13px;">
+      <div style="background: #f8fafc; border: 1.5px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 16px; text-align: left; font-size: 13px;">
         <div style="display:flex; justify-content:space-between; margin-bottom: 6px;">
           <span style="color: var(--text-muted);">Client:</span>
           <span style="font-weight: 700; color: var(--text-primary);" id="approve-client-name">-</span>
@@ -1767,11 +1846,47 @@
           <span style="color: var(--text-muted);">Current Available Balance:</span>
           <span style="font-weight: 700;" id="approve-client-balance">-</span>
         </div>
+
+        <!-- Destination Bank Details for Withdrawals -->
+        <div id="approve-payout-dest-box" class="hidden" style="margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: #ffffff; border: 1.5px solid #bbf7d0;">
+          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #166534; margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 21h18M3 10h18M5 10v11M19 10v11M9 10v11M15 10v11M12 2L2 7h20L12 2z"/></svg>
+            Destination Bank Account
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom: 4px;">
+            <span style="color: var(--text-muted);">Bank:</span>
+            <span style="font-weight: 700;" id="approve-bank-name">-</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom: 4px;">
+            <span style="color: var(--text-muted);">Account Number:</span>
+            <span style="font-weight: 700; font-family: monospace; font-size: 13.5px;" id="approve-account-number">-</span>
+          </div>
+          <div style="display:flex; justify-content:space-between;">
+            <span style="color: var(--text-muted);">Account Name:</span>
+            <span style="font-weight: 700; color: #15803d;" id="approve-account-name">-</span>
+          </div>
+        </div>
       </div>
 
-      <div style="display: flex; gap: 10px; justify-content: center;">
+      <!-- Error banner if Flutterwave payout fails -->
+      <div id="approve-flw-error" class="form-error hidden" style="margin-bottom: 14px; text-align: left; font-size: 12.5px;"></div>
+
+      <!-- Action buttons for standard / deposits -->
+      <div id="approve-actions-deposit" style="display: flex; gap: 10px; justify-content: center;">
         <button type="button" class="btn-outline" id="btn-cancel-approve-request" style="flex: 1; padding: 11px 16px; font-weight: 600;">Cancel</button>
         <button type="button" class="btn-primary" id="btn-confirm-approve-request" style="flex: 1; padding: 11px 16px; font-weight: 700;">Yes, Approve</button>
+      </div>
+
+      <!-- Action buttons for withdrawals (Flutterwave automated vs Manual) -->
+      <div id="approve-actions-withdrawal" class="hidden" style="display: flex; flex-direction: column; gap: 8px;">
+        <button type="button" class="btn-primary" id="btn-confirm-approve-flw" style="width: 100%; padding: 11px 16px; font-weight: 700; background: #059669; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          <span id="btn-confirm-approve-flw-text">Disburse via Flutterwave Transfer</span>
+        </button>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn-outline" id="btn-cancel-approve-withdrawal" style="flex: 1; padding: 9px 12px; font-weight: 600; font-size: 12.5px;">Cancel</button>
+          <button type="button" class="btn-outline" id="btn-confirm-approve-manual" style="flex: 1.5; padding: 9px 12px; font-weight: 600; font-size: 12.5px;">Approve as Manual / Cash</button>
+        </div>
       </div>
     </div>
   </div>

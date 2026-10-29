@@ -339,7 +339,7 @@ const DB = {
     const all = this.getAllTransactions();
     return all.filter(t => t.status === 'pending');
   },
-  addTransaction({ userId, type, amount, category, note, recordedBy, status, paymentGateway, flutterwaveRef, flwId }) {
+  addTransaction({ userId, type, amount, category, note, recordedBy, status, paymentGateway, flutterwaveRef, flwId, destinationBank }) {
     const all = this.getAllTransactions();
     const isUser = (recordedBy === 'user');
     const assignedStatus = status || (isUser ? 'pending' : 'approved');
@@ -351,6 +351,7 @@ const DB = {
       amount: parseFloat(amount) || 0,
       category: category || 'General Savings',
       note: note || '',
+      destinationBank: destinationBank || null,
       recordedBy: recordedBy || 'admin',
       status: assignedStatus, // 'pending' | 'approved' | 'declined'
       paymentGateway: paymentGateway || null,
@@ -367,7 +368,7 @@ const DB = {
     return tx;
   },
 
-  approveTransaction(txId) {
+  approveTransaction(txId, reviewMeta = {}) {
     const all = this.getAllTransactions();
     const tx = all.find(t => t.id === txId);
     if (!tx) return { success: false, error: 'Transaction not found.' };
@@ -385,7 +386,10 @@ const DB = {
 
     tx.status = 'approved';
     tx.reviewedAt = new Date().toISOString();
-    tx.reviewedBy = 'admin';
+    tx.reviewedBy = reviewMeta.reviewedBy || 'admin';
+    if (reviewMeta.paymentGateway) tx.paymentGateway = reviewMeta.paymentGateway;
+    if (reviewMeta.flutterwaveRef) tx.flutterwaveRef = reviewMeta.flutterwaveRef;
+    if (reviewMeta.flutterwaveTransferId) tx.flutterwaveTransferId = reviewMeta.flutterwaveTransferId;
 
     localStorage.setItem('sun_transactions', JSON.stringify(all));
     this.scheduleCloudPush();
@@ -637,6 +641,193 @@ const DB = {
     localStorage.setItem('sun_flutterwave_config', JSON.stringify(updated));
     this.scheduleCloudPush();
     return updated;
+  },
+
+  // ---- NIGERIAN BANKS LIST ----
+  getNigerianBanks() {
+    return [
+      { code: '999992', name: 'OPay Digital Services (Paycom)' },
+      { code: '999991', name: 'PalmPay' },
+      { code: '50515',  name: 'Moniepoint MFB' },
+      { code: '50211',  name: 'Kuda Bank' },
+      { code: '058',    name: 'Guaranty Trust Bank (GTBank)' },
+      { code: '057',    name: 'Zenith Bank' },
+      { code: '044',    name: 'Access Bank' },
+      { code: '011',    name: 'First Bank of Nigeria' },
+      { code: '033',    name: 'United Bank for Africa (UBA)' },
+      { code: '214',    name: 'First City Monument Bank (FCMB)' },
+      { code: '070',    name: 'Fidelity Bank' },
+      { code: '221',    name: 'Stanbic IBTC Bank' },
+      { code: '035',    name: 'Wema Bank' },
+      { code: '232',    name: 'Sterling Bank' },
+      { code: '032',    name: 'Union Bank of Nigeria' },
+      { code: '076',    name: 'Polaris Bank' },
+      { code: '050',    name: 'Ecobank Nigeria' },
+      { code: '215',    name: 'Unity Bank' },
+      { code: '101',    name: 'Providus Bank' },
+      { code: '301',    name: 'Jaiz Bank' },
+      { code: '100',    name: 'SunTrust Bank' },
+      { code: '302',    name: 'TAJ Bank' },
+      { code: '082',    name: 'Keystone Bank' },
+      { code: '566',    name: 'VFD Microfinance Bank' },
+      { code: '51204',  name: 'Sparkle Microfinance Bank' },
+      { code: '50645',  name: 'FairMoney Microfinance Bank' },
+      { code: '50541',  name: 'Carbon (One Finance)' },
+      { code: '50823',  name: 'Branch International MFB' },
+      { code: '50280',  name: 'Rubies MFB' },
+      { code: '50383',  name: 'Nomba Financial Services' },
+    ];
+  },
+
+  // ---- FLUTTERWAVE REAL-TIME ACCOUNT RESOLUTION ----
+  async resolveFlutterwaveAccount(accountNumber, bankCode) {
+    if (!accountNumber || accountNumber.length !== 10) {
+      return { success: false, error: 'Account number must be 10 digits.' };
+    }
+    if (!bankCode) {
+      return { success: false, error: 'Please select a bank.' };
+    }
+    const cfg = this.getFlutterwaveConfig();
+    try {
+      const res = await fetch('https://api.flutterwave.com/v3/accounts/resolve', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${cfg.secretKey}`,
+        },
+        body: JSON.stringify({
+          account_number: accountNumber.trim(),
+          account_bank: bankCode.trim(),
+        }),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.status === 'success' && json.data) {
+        return {
+          success: true,
+          accountNumber: json.data.account_number,
+          accountName: json.data.account_name,
+        };
+      }
+      return {
+        success: false,
+        error: json.message || 'Account details could not be verified.',
+      };
+    } catch (err) {
+      console.warn('Flutterwave account resolve error:', err);
+      return {
+        success: false,
+        error: 'Unable to reach account verification service. Check internet connection.',
+      };
+    }
+  },
+
+  // ---- FLUTTERWAVE DISBURSEMENT / TRANSFER ----
+  async disburseFlutterwaveTransfer({ accountNumber, bankCode, amount, narration, txId, clientName }) {
+    const cfg = this.getFlutterwaveConfig();
+    const cleanAmount = parseFloat(amount);
+    if (!cleanAmount || cleanAmount <= 0) {
+      return { success: false, error: 'Invalid payout amount.' };
+    }
+    if (!accountNumber || !bankCode) {
+      return { success: false, error: 'Destination bank code and account number are required.' };
+    }
+
+    const reference = 'TXF_' + (txId || Date.now()) + '_' + Math.random().toString(36).slice(2, 7);
+    const payload = {
+      account_bank: bankCode.trim(),
+      account_number: accountNumber.trim(),
+      amount: cleanAmount,
+      narration: narration || `Iretomiwa Sun Investment payout to ${clientName || 'Client'}`,
+      currency: 'NGN',
+      reference: reference,
+      debit_currency: 'NGN',
+    };
+
+    try {
+      const res = await fetch('https://api.flutterwave.com/v3/transfers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${cfg.secretKey}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.status === 'success' && json.data) {
+        return {
+          success: true,
+          transferId: json.data.id,
+          reference: json.data.reference || reference,
+          status: json.data.status,
+          accountName: json.data.full_name,
+          raw: json.data,
+        };
+      }
+
+      return {
+        success: false,
+        error: json.message || 'Transfer disbursement failed on Flutterwave.',
+      };
+    } catch (err) {
+      console.error('Flutterwave transfer error:', err);
+      return {
+        success: false,
+        error: 'Network error communicating with Flutterwave: ' + (err.message || 'Check connection'),
+      };
+    }
+  },
+
+  // ---- FLUTTERWAVE WALLET BALANCE ----
+  async getFlutterwaveBalance() {
+    const cfg = this.getFlutterwaveConfig();
+    try {
+      const res = await fetch('https://api.flutterwave.com/v3/balances/NGN', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${cfg.secretKey}`,
+        },
+      });
+      const json = await res.json();
+      if (res.ok && json.status === 'success' && json.data) {
+        return {
+          success: true,
+          balance: json.data.available_balance || 0,
+          ledger: json.data.ledger_balance || 0,
+          currency: json.data.currency || 'NGN',
+        };
+      }
+      return {
+        success: false,
+        error: json.message || 'Could not fetch Flutterwave wallet balance.',
+      };
+    } catch (err) {
+      return {
+        success: false,
+        error: 'Network error checking wallet balance.',
+      };
+    }
+  },
+
+  // ---- USER PAYOUT BANK PREFERENCES ----
+  saveUserPayoutBank(userId, bankData) {
+    const users = this.getUsers();
+    const user = users.find(u => u.id === userId);
+    if (!user) return false;
+    user.payoutBank = {
+      bankCode: bankData.bankCode || '',
+      bankName: bankData.bankName || '',
+      accountNumber: bankData.accountNumber || '',
+      accountName: bankData.accountName || '',
+      updatedAt: new Date().toISOString(),
+    };
+    this.saveUsers(users);
+    return true;
+  },
+  getUserPayoutBank(userId) {
+    const user = this.getUserById(userId);
+    return (user && user.payoutBank) ? user.payoutBank : null;
   },
 };
 
