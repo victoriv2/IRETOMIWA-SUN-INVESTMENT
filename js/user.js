@@ -498,10 +498,9 @@ const UserApp = (() => {
         resTextEl.textContent = `Verified: ${res.accountName}`;
         if (accNameEl) accNameEl.value = res.accountName;
       } else {
-        resCardEl.style.cssText = 'margin-top: -6px; margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #fef2f2; border: 1.5px solid #fca5a5; color: #991b1b;';
-        resIconEl.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
-        resTextEl.textContent = res.error || 'Account could not be verified. Please check the details.';
-        if (accNameEl) accNameEl.value = '';
+        resCardEl.style.cssText = 'margin-top: -6px; margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #fffbeb; border: 1.5px solid #fde68a; color: #92400e;';
+        resIconEl.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+        resTextEl.textContent = 'Could not auto-verify name. You can type your registered account name manually below.';
       }
     }
 
@@ -1021,10 +1020,9 @@ const UserApp = (() => {
         resText.textContent = `Verified: ${res.accountName}`;
         if (accNameInp) accNameInp.value = res.accountName;
       } else {
-        resCard.style.cssText = 'margin-top: -4px; margin-bottom: 16px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #fef2f2; border: 1.5px solid #fca5a5; color: #991b1b;';
-        resIcon.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
-        resText.textContent = res.error || 'Account could not be verified.';
-        if (accNameInp) accNameInp.value = '';
+        resCard.style.cssText = 'margin-top: -4px; margin-bottom: 16px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #fffbeb; border: 1.5px solid #fde68a; color: #92400e;';
+        resIcon.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+        resText.textContent = 'Could not auto-verify name. You can type your registered account name manually below.';
       }
     }
 
