@@ -10,6 +10,21 @@
   <script>
     // Instant session check on load to prevent login flicker/re-auth prompt
     try {
+      var ACTIVE_EPOCH = 'RESET_IR00001_V2';
+      if (localStorage.getItem('sun_system_reset_epoch') !== ACTIVE_EPOCH) {
+        localStorage.setItem('sun_system_reset_epoch', ACTIVE_EPOCH);
+        localStorage.setItem('sun_users', '[]');
+        localStorage.setItem('sun_transactions', '[]');
+        localStorage.setItem('sun_custom_categories', '[]');
+        localStorage.removeItem('sun_session');
+        localStorage.removeItem('sun_user_session');
+        localStorage.removeItem('sun_active_user');
+        localStorage.removeItem('sun_user_tab');
+        localStorage.removeItem('bridge_users');
+        localStorage.removeItem('bridge_transactions');
+        try { sessionStorage.clear(); } catch(e) {}
+      }
+
       var u = localStorage.getItem('sun_session');
       var a = localStorage.getItem('sun_admin_session');
       var hash = window.location.hash || '';
@@ -35,7 +50,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261029_FLUSH_V8';
+      var APP_BUILD_VER = '20261029_FLUSH_V10';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -52,8 +67,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261029_clean_v9" />
-  <link rel="stylesheet" href="css/auth.css?v=20261029_clean_v9" />
+  <link rel="stylesheet" href="css/global.css?v=20261029_clean_v10" />
+  <link rel="stylesheet" href="css/auth.css?v=20261029_clean_v10" />
   <style>
     /* Pre-boot instant session hints to prevent visual flicker before App router executes */
     html.is-user-logged-in #page-login { display: none; }
@@ -2190,13 +2205,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261029_clean_v9"></script>
-  <script src="js/picker.js?v=20261029_clean_v9"></script>
+  <script src="js/storage.js?v=20261029_clean_v10"></script>
+  <script src="js/picker.js?v=20261029_clean_v10"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261029_clean_v9"></script>
-  <script src="js/auth.js?v=20261029_clean_v9"></script>
-  <script src="js/user.js?v=20261029_clean_v9"></script>
-  <script src="js/admin.js?v=20261029_clean_v9"></script>
-  <script src="js/app.js?v=20261029_clean_v9"></script>
+  <script src="js/export.js?v=20261029_clean_v10"></script>
+  <script src="js/auth.js?v=20261029_clean_v10"></script>
+  <script src="js/user.js?v=20261029_clean_v10"></script>
+  <script src="js/admin.js?v=20261029_clean_v10"></script>
+  <script src="js/app.js?v=20261029_clean_v10"></script>
 </body>
 </html>

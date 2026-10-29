@@ -3,7 +3,7 @@
 // ============================================
 
 // ---- HARD SYSTEM RESET EPOCH ----
-const SYSTEM_RESET_ID = 'RESET_2026_10_29_FACTORY_IR00001';
+const SYSTEM_RESET_ID = 'RESET_IR00001_V2';
 
 (function enforceSystemReset() {
   try {
@@ -39,7 +39,7 @@ const DB = {
     URL: 'https://cmzfqeifdlktavqsoyjt.supabase.co',
     ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtemZxZWlmZGxrdGF2cXNveWp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyODM1NjksImV4cCI6MjEwODg1OTU2OX0.AnWfzXrkNc3kCEy7EfKbeP3A191OKO_B8DK8kfeFdZM',
     TABLE: 'app_sync',
-    SYNC_ID: 'main',
+    SYNC_ID: 'prod_v2',
   },
   _pushTimeout: null,
   _isPulling: false,
