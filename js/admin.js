@@ -160,7 +160,7 @@ const AdminApp = (() => {
       const fullName = DB.formatName(u.firstName) + ' ' + DB.formatName(u.lastName);
       const hasPhoto = Boolean(u.passportPhoto);
       const photoHtml = hasPhoto
-        ? `<img src="${escapeHtml(u.passportPhoto)}" alt="Passport" style="width:38px; height:44px; border-radius:6px; object-fit:cover; border:1px solid #cbd5e1; flex-shrink:0; background:#f1f5f9;" />`
+        ? `<img src="${escapeHtml(u.passportPhoto)}" alt="Passport" class="clickable-image-preview" data-full-image="${escapeHtml(u.passportPhoto)}" style="width:38px; height:44px; border-radius:6px; object-fit:cover; border:1px solid #cbd5e1; flex-shrink:0; background:#f1f5f9; cursor:zoom-in;" title="Click to view full photo" />`
         : `<div style="width:38px; height:44px; border-radius:6px; background:#e2e8f0; color:#475569; font-weight:700; font-size:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">${escapeHtml(((u.firstName||'').charAt(0)+(u.lastName||'').charAt(0)).toUpperCase() || 'U')}</div>`;
 
       return `

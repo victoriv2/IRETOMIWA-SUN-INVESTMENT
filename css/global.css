@@ -410,60 +410,66 @@ input.input-error {
     display: block;
   }
 
-  /* Specific enhancements for Action Sheet / Bank Picker */
+  /* Mobile Bottom Sheet for Bank / Modular Picker */
+  #modal-custom-select {
+    align-items: flex-end !important;
+    justify-content: center !important;
+    padding: 0 !important;
+  }
+
   #modal-custom-select .modal-card--sheet {
     display: flex !important;
     flex-direction: column !important;
-    max-height: 85dvh !important;
-    max-height: 85vh !important;
-    padding: 14px 18px 24px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    border-radius: 20px 20px 0 0 !important;
+    border-bottom: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    height: 75dvh !important;
+    max-height: 75dvh !important;
+    padding: 12px 18px 18px !important;
     box-sizing: border-box !important;
+    overflow: hidden !important;
+    background: #ffffff !important;
+    box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.22) !important;
   }
 
   #modal-custom-select .modal-header {
     flex-shrink: 0 !important;
-    margin-bottom: 10px !important;
+    margin-bottom: 8px !important;
   }
 
   #modal-custom-select .action-sheet-search-wrap {
     flex-shrink: 0 !important;
     padding: 0 0 10px 0 !important;
     width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   #modal-custom-select .action-sheet-options {
     flex: 1 1 auto !important;
-    min-height: 160px !important;
-    max-height: 52dvh !important;
-    max-height: 52vh !important;
+    min-height: 0 !important;
+    max-height: none !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
     width: 100% !important;
-    padding-bottom: 16px !important;
+    padding-bottom: 14px !important;
   }
 
-  /* When mobile search keyboard is active: lift sheet so options are completely visible */
+  /* When mobile search keyboard is active: sheet expands cleanly to top of visible area above keyboard */
   #modal-custom-select.sheet-keyboard-active {
-    align-items: flex-start !important;
-    justify-content: center !important;
-    padding: env(safe-area-inset-top, 8px) 10px 0 10px !important;
+    align-items: flex-end !important;
+    padding: 0 !important;
   }
 
   #modal-custom-select.sheet-keyboard-active .modal-card--sheet {
-    border-radius: 16px !important;
-    max-height: 48dvh !important;
-    max-height: 48vh !important;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35) !important;
-    overflow: hidden !important;
-    display: flex !important;
-    flex-direction: column !important;
-  }
-
-  #modal-custom-select.sheet-keyboard-active .action-sheet-options {
-    flex: 1 1 auto !important;
-    max-height: calc(48dvh - 105px) !important;
-    max-height: calc(48vh - 105px) !important;
-    overflow-y: auto !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    border-radius: 18px 18px 0 0 !important;
+    border-bottom: none !important;
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.3) !important;
   }
 }
 
@@ -1489,4 +1495,100 @@ input.input-error {
     width: 13px !important;
     height: 13px !important;
   }
+}
+
+/* ---- UNIVERSAL FULL-VIEW IMAGE LIGHTBOX ---- */
+.image-lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.image-lightbox-overlay.hidden {
+  display: none !important;
+}
+
+.image-lightbox-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  max-width: 95vw;
+  max-height: 95vh;
+  box-sizing: border-box;
+}
+
+.image-lightbox-wrapper {
+  max-width: 90vw;
+  max-height: 72vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75);
+}
+
+.image-lightbox-img {
+  max-width: 90vw;
+  max-height: 72vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 12px;
+  display: block;
+  user-select: none;
+}
+
+/* Close button placed directly UNDER the image */
+.image-lightbox-close-btn {
+  margin-top: 20px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #111827;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.image-lightbox-close-btn:hover {
+  background: #f1f5f9;
+  transform: scale(1.1);
+}
+
+.image-lightbox-close-btn:active {
+  transform: scale(0.92);
+}
+
+/* Clickable image indicators across user and admin */
+.clickable-image-preview,
+#more-user-photo,
+#vp-photo,
+#passport-preview-img {
+  cursor: zoom-in !important;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.clickable-image-preview:hover,
+#more-user-photo:hover,
+#vp-photo:hover,
+#passport-preview-img:hover {
+  opacity: 0.9;
 }

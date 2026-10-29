@@ -129,6 +129,58 @@ const App = (() => {
     showPage(destination);
   }
 
+  function initImageLightbox() {
+    const modal = document.getElementById('modal-image-lightbox');
+    const imgEl = document.getElementById('image-lightbox-img');
+    const closeBtn = document.getElementById('btn-close-image-lightbox');
+    if (!modal || !imgEl) return;
+
+    window.openImageLightbox = function(src) {
+      if (!src) return;
+      imgEl.src = src;
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    };
+
+    window.closeImageLightbox = function() {
+      modal.classList.add('hidden');
+      imgEl.src = '';
+      document.body.style.overflow = '';
+    };
+
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        window.closeImageLightbox();
+      });
+    }
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal || e.target.classList.contains('image-lightbox-container')) {
+        window.closeImageLightbox();
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+        window.closeImageLightbox();
+      }
+    });
+
+    // Universal delegation for all images on user & admin sides
+    document.addEventListener('click', (e) => {
+      const target = e.target.closest('[data-full-image], .clickable-image-preview, #more-user-photo, #vp-photo, #passport-preview-img');
+      if (!target) return;
+      const src = target.getAttribute('data-full-image') || target.currentSrc || target.src;
+      if (src && !src.includes('logo.png')) {
+        e.preventDefault();
+        e.stopPropagation();
+        window.openImageLightbox(src);
+      }
+    });
+  }
+
   function init() {
     if (!initialized) {
       Auth.init();
@@ -136,6 +188,7 @@ const App = (() => {
       if (window.AdminApp) {
         AdminApp.initOnce(true);
       }
+      initImageLightbox();
 
       // Listen for browser back/forward buttons
       window.addEventListener('hashchange', () => {

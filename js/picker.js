@@ -526,7 +526,10 @@ const CustomPicker = (() => {
         searchWrap.classList.remove('hidden');
         searchInput.value = '';
         searchInput.placeholder = searchPlaceholder;
-        setTimeout(() => searchInput.focus(), 80);
+        // Auto-focus search input only on desktop screens; on mobile, let the user see the sheet first
+        if (window.innerWidth > 600) {
+          setTimeout(() => searchInput.focus(), 80);
+        }
       } else {
         searchWrap.classList.add('hidden');
       }
@@ -793,7 +796,14 @@ const CustomPicker = (() => {
       const modal = document.getElementById(id);
       if (modal) {
         modal.addEventListener('click', (e) => {
-          if (e.target === modal) modal.classList.add('hidden');
+          if (e.target === modal) {
+            modal.classList.add('hidden');
+            if (id === 'modal-custom-select') {
+              modal.classList.remove('sheet-keyboard-active');
+              modal.style.height = '';
+              modal.style.top = '';
+            }
+          }
         });
       }
     });
@@ -801,9 +811,42 @@ const CustomPicker = (() => {
     document.querySelectorAll('.modal-close[data-modal]').forEach(btn => {
       btn.addEventListener('click', () => {
         const target = document.getElementById(btn.dataset.modal);
-        if (target) target.classList.add('hidden');
+        if (target) {
+          target.classList.add('hidden');
+          if (btn.dataset.modal === 'modal-custom-select') {
+            target.classList.remove('sheet-keyboard-active');
+            target.style.height = '';
+            target.style.top = '';
+          }
+        }
       });
     });
+
+    // Mobile Viewport Keyboard Positioning for Bank / Modular Picker
+    const customSelectModal = document.getElementById('modal-custom-select');
+    function updateCustomSelectViewport() {
+      if (!customSelectModal || customSelectModal.classList.contains('hidden')) return;
+      if (window.innerWidth > 600) return;
+      if (window.visualViewport) {
+        const vh = window.visualViewport.height;
+        const offsetTop = window.visualViewport.offsetTop;
+        const totalH = window.innerHeight;
+        if (totalH - vh > 120) {
+          customSelectModal.classList.add('sheet-keyboard-active');
+          customSelectModal.style.height = `${vh}px`;
+          customSelectModal.style.top = `${offsetTop}px`;
+        } else {
+          customSelectModal.classList.remove('sheet-keyboard-active');
+          customSelectModal.style.height = '';
+          customSelectModal.style.top = '';
+        }
+      }
+    }
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateCustomSelectViewport);
+      window.visualViewport.addEventListener('scroll', updateCustomSelectViewport);
+    }
   }
 
   return {
