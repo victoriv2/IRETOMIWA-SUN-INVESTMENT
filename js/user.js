@@ -1148,7 +1148,6 @@ const UserApp = (() => {
           if (bankBtn) bankBtn.focus();
           return;
         }
-        }
 
         if (rawNum.length !== 10) {
           if (errBox) {

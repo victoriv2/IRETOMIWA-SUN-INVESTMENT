@@ -469,7 +469,7 @@ const AdminApp = (() => {
     const actionsDep  = document.getElementById('approve-actions-deposit');
     const actionsWith = document.getElementById('approve-actions-withdrawal');
     const flwErrEl    = document.getElementById('approve-flw-error');
-    const btnFlwText  = document.getElementById('btn-approve-flw-text');
+    const btnFlwText  = document.getElementById('btn-confirm-approve-flw-text') || document.getElementById('btn-approve-flw-text');
     const btnManualApprove = document.getElementById('btn-confirm-approve-manual');
 
     if (flwErrEl) {
@@ -733,7 +733,6 @@ const AdminApp = (() => {
           btnFlwDisburse.disabled = false;
         }
       });
-    }
     }
 
     // Decline Modal Buttons
