@@ -40,6 +40,7 @@ const DB = {
         admin: this.getAdmin(),
         customCategories: this.getCustomCategories(),
         flutterwaveConfig: this.getFlutterwaveConfig(),
+        resetAt: localStorage.getItem('sun_last_reset_at') || null,
         updatedAt: new Date().toISOString(),
       };
 
@@ -88,6 +89,35 @@ const DB = {
       const cloudUsers = Array.isArray(record.users) ? record.users : [];
       const cloudTxs   = Array.isArray(record.transactions) ? record.transactions : [];
       const cloudAdmin = record.admin;
+
+      // Check if a cloud factory reset happened
+      const localResetAt = localStorage.getItem('sun_last_reset_at');
+      const cloudResetAt = record.resetAt;
+      const isNewReset = cloudResetAt && (!localResetAt || new Date(cloudResetAt) > new Date(localResetAt));
+
+      if (isNewReset) {
+        localStorage.setItem('sun_last_reset_at', cloudResetAt);
+        localStorage.setItem('sun_users', JSON.stringify(cloudUsers));
+        localStorage.setItem('sun_transactions', JSON.stringify(cloudTxs));
+        localStorage.setItem('sun_custom_categories', JSON.stringify(record.customCategories || []));
+        localStorage.removeItem('sun_user_session');
+        localStorage.removeItem('sun_active_user');
+
+        if (cloudAdmin && cloudAdmin.password) {
+          localStorage.setItem('sun_admin', JSON.stringify(cloudAdmin));
+        }
+        if (record.flutterwaveConfig && typeof record.flutterwaveConfig === 'object') {
+          localStorage.setItem('sun_flutterwave_config', JSON.stringify(record.flutterwaveConfig));
+        }
+
+        this._isPulling = false;
+        this.notifySync('synced');
+
+        if (window.UserApp && typeof window.UserApp.refresh === 'function') window.UserApp.refresh();
+        if (window.AdminApp && typeof window.AdminApp.refresh === 'function') window.AdminApp.refresh();
+        if (typeof onComplete === 'function') onComplete(true);
+        return;
+      }
 
       // Smart merge: Local and Cloud
       const localUsers = this.getUsers();
@@ -828,6 +858,42 @@ const DB = {
   getUserPayoutBank(userId) {
     const user = this.getUserById(userId);
     return (user && user.payoutBank) ? user.payoutBank : null;
+  },
+
+  // ---- FACTORY RESET SYSTEM ----
+  async factoryReset() {
+    const resetTimestamp = new Date().toISOString();
+    localStorage.setItem('sun_last_reset_at', resetTimestamp);
+    localStorage.setItem('sun_users', '[]');
+    localStorage.setItem('sun_transactions', '[]');
+    localStorage.setItem('sun_custom_categories', '[]');
+    localStorage.removeItem('sun_user_session');
+    localStorage.removeItem('sun_active_user');
+
+    const payload = {
+      users: [],
+      transactions: [],
+      admin: this.getAdmin(),
+      customCategories: [],
+      flutterwaveConfig: this.getFlutterwaveConfig(),
+      resetAt: resetTimestamp,
+      updatedAt: resetTimestamp,
+    };
+
+    try {
+      const res = await fetch(`${this.CLOUD.BASE_URL}/${this.CLOUD.BIN_ID}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Master-Key': this.CLOUD.MASTER_KEY,
+        },
+        body: JSON.stringify(payload),
+      });
+      return res.ok;
+    } catch (e) {
+      console.error('Factory reset error:', e);
+      return false;
+    }
   },
 };
 

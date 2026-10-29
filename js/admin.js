@@ -1540,6 +1540,73 @@ const AdminApp = (() => {
     }
   }
 
+  // Admin Factory Reset System
+  function initAdminFactoryReset() {
+    const openBtn    = document.getElementById('btn-admin-factory-reset');
+    const modal      = document.getElementById('modal-admin-factory-reset');
+    const cancelBtn  = document.getElementById('btn-cancel-factory-reset');
+    const confirmBtn = document.getElementById('btn-confirm-factory-reset');
+    const confirmTxt = document.getElementById('btn-confirm-factory-reset-text');
+    const inputEl    = document.getElementById('admin-reset-confirm-text');
+    const errEl      = document.getElementById('err-admin-reset');
+
+    if (openBtn && modal) {
+      openBtn.addEventListener('click', () => {
+        if (inputEl) inputEl.value = '';
+        if (errEl) errEl.textContent = '';
+        if (confirmBtn) confirmBtn.disabled = false;
+        if (confirmTxt) confirmTxt.textContent = 'Reset Everything';
+        modal.classList.remove('hidden');
+      });
+    }
+
+    if (cancelBtn && modal) {
+      cancelBtn.addEventListener('click', () => {
+        modal.classList.add('hidden');
+      });
+    }
+
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.add('hidden');
+      });
+    }
+
+    if (confirmBtn && modal) {
+      confirmBtn.addEventListener('click', async () => {
+        const val = inputEl ? inputEl.value.trim().toUpperCase() : '';
+        if (val !== 'RESET') {
+          if (errEl) errEl.textContent = 'Please type RESET in capital letters to confirm.';
+          if (inputEl) inputEl.focus();
+          return;
+        }
+
+        if (errEl) errEl.textContent = '';
+        if (confirmTxt) confirmTxt.textContent = 'Resetting System...';
+        confirmBtn.disabled = true;
+
+        try {
+          await DB.factoryReset();
+          modal.classList.add('hidden');
+
+          // Refresh all views
+          renderUsersTab();
+          renderRequestsTab();
+          renderReceivedTab();
+          renderPayoutsTab();
+          renderMoreTab();
+
+          alert('Factory reset complete! All clients and transaction records have been cleared. You are starting fresh.');
+        } catch (e) {
+          if (errEl) errEl.textContent = 'Reset encountered an issue: ' + (e.message || 'Error');
+        } finally {
+          if (confirmTxt) confirmTxt.textContent = 'Reset Everything';
+          confirmBtn.disabled = false;
+        }
+      });
+    }
+  }
+
   // ============================================
   // AUTHENTICATION & LOGIN/LOGOUT
   // ============================================
@@ -1957,6 +2024,7 @@ const AdminApp = (() => {
     initRecordForm();
     initPayoutsPicker();
     initAdminChangePassword();
+    initAdminFactoryReset();
     initAdminFlutterwaveSettings();
     initAdminExports();
     initLogout();
