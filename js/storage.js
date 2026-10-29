@@ -1,6 +1,33 @@
 // ============================================
-// STORAGE.JS - Data Layer (localStorage)
+// STORAGE.JS - Data Layer (localStorage & Cloud Sync)
 // ============================================
+
+// ---- HARD SYSTEM RESET EPOCH ----
+const SYSTEM_RESET_ID = 'RESET_2026_10_29_V3';
+
+(function enforceSystemReset() {
+  try {
+    const currentEpoch = localStorage.getItem('sun_system_reset_epoch');
+    if (currentEpoch !== SYSTEM_RESET_ID) {
+      // Clear ALL data, user sessions, tabs, and credentials to start 100% fresh
+      localStorage.setItem('sun_system_reset_epoch', SYSTEM_RESET_ID);
+      localStorage.setItem('sun_users', '[]');
+      localStorage.setItem('sun_transactions', '[]');
+      localStorage.setItem('sun_custom_categories', '[]');
+      localStorage.removeItem('sun_session');
+      localStorage.removeItem('sun_user_session');
+      localStorage.removeItem('sun_active_user');
+      localStorage.removeItem('sun_user_tab');
+      localStorage.removeItem('sun_admin_session');
+      localStorage.removeItem('sun_admin_tab');
+      localStorage.removeItem('sun_last_reset_at');
+      try {
+        document.documentElement.classList.remove('is-user-logged-in');
+        document.documentElement.classList.remove('is-admin-logged-in');
+      } catch(e) {}
+    }
+  } catch(e) {}
+})();
 
 const DB = {
   // ---- CLOUD CONFIG (jsonbin.io) ----
@@ -40,7 +67,7 @@ const DB = {
         admin: this.getAdmin(),
         customCategories: this.getCustomCategories(),
         flutterwaveConfig: this.getFlutterwaveConfig(),
-        resetAt: localStorage.getItem('sun_last_reset_at') || null,
+        resetId: SYSTEM_RESET_ID,
         updatedAt: new Date().toISOString(),
       };
 
@@ -90,18 +117,19 @@ const DB = {
       const cloudTxs   = Array.isArray(record.transactions) ? record.transactions : [];
       const cloudAdmin = record.admin;
 
-      // Check if a cloud factory reset happened
-      const localResetAt = localStorage.getItem('sun_last_reset_at');
-      const cloudResetAt = record.resetAt;
-      const isNewReset = cloudResetAt && (!localResetAt || new Date(cloudResetAt) > new Date(localResetAt));
+      // Check if cloud has active reset or zero users
+      const cloudResetId = record.resetId;
+      const localEpoch   = localStorage.getItem('sun_system_reset_epoch');
 
-      if (isNewReset) {
-        localStorage.setItem('sun_last_reset_at', cloudResetAt);
-        localStorage.setItem('sun_users', JSON.stringify(cloudUsers));
-        localStorage.setItem('sun_transactions', JSON.stringify(cloudTxs));
-        localStorage.setItem('sun_custom_categories', JSON.stringify(record.customCategories || []));
+      if ((cloudResetId === SYSTEM_RESET_ID || record.isFactoryReset) && cloudUsers.length === 0) {
+        localStorage.setItem('sun_system_reset_epoch', SYSTEM_RESET_ID);
+        localStorage.setItem('sun_users', '[]');
+        localStorage.setItem('sun_transactions', '[]');
+        localStorage.setItem('sun_custom_categories', '[]');
+        localStorage.removeItem('sun_session');
         localStorage.removeItem('sun_user_session');
         localStorage.removeItem('sun_active_user');
+        localStorage.removeItem('sun_user_tab');
 
         if (cloudAdmin && cloudAdmin.password) {
           localStorage.setItem('sun_admin', JSON.stringify(cloudAdmin));
@@ -353,6 +381,11 @@ const DB = {
     try {
       localStorage.removeItem('sun_session');
       localStorage.removeItem('sun_user_tab');
+      localStorage.removeItem('sun_user_session');
+      localStorage.removeItem('sun_active_user');
+      if (typeof document !== 'undefined' && document.documentElement) {
+        document.documentElement.classList.remove('is-user-logged-in');
+      }
     } catch (e) {}
   },
 
@@ -906,12 +939,18 @@ const DB = {
   // ---- FACTORY RESET SYSTEM ----
   async factoryReset() {
     const resetTimestamp = new Date().toISOString();
+    localStorage.setItem('sun_system_reset_epoch', SYSTEM_RESET_ID);
     localStorage.setItem('sun_last_reset_at', resetTimestamp);
     localStorage.setItem('sun_users', '[]');
     localStorage.setItem('sun_transactions', '[]');
     localStorage.setItem('sun_custom_categories', '[]');
+    localStorage.removeItem('sun_session');
     localStorage.removeItem('sun_user_session');
     localStorage.removeItem('sun_active_user');
+    localStorage.removeItem('sun_user_tab');
+    if (typeof document !== 'undefined' && document.documentElement) {
+      document.documentElement.classList.remove('is-user-logged-in');
+    }
 
     const payload = {
       users: [],
@@ -919,8 +958,10 @@ const DB = {
       admin: this.getAdmin(),
       customCategories: [],
       flutterwaveConfig: this.getFlutterwaveConfig(),
+      resetId: SYSTEM_RESET_ID,
       resetAt: resetTimestamp,
       updatedAt: resetTimestamp,
+      isFactoryReset: true
     };
 
     try {
