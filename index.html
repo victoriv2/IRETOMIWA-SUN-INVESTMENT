@@ -67,8 +67,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261029_clean_v16" />
-  <link rel="stylesheet" href="css/auth.css?v=20261029_clean_v16" />
+  <link rel="stylesheet" href="css/global.css?v=20261029_clean_v17" />
+  <link rel="stylesheet" href="css/auth.css?v=20261029_clean_v17" />
   <style>
     /* Pre-boot instant session hints to prevent visual flicker before App router executes */
     html.is-user-logged-in #page-login { display: none; }
@@ -2080,9 +2080,14 @@
             <span style="color: var(--text-muted);">Bank:</span>
             <span style="font-weight: 700;" id="approve-bank-name">-</span>
           </div>
-          <div style="display:flex; justify-content:space-between; margin-bottom: 4px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom: 4px; align-items: center;">
             <span style="color: var(--text-muted);">Account Number:</span>
-            <span style="font-weight: 700; font-family: monospace; font-size: 13.5px;" id="approve-account-number">-</span>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-weight: 700; font-family: monospace; font-size: 14px;" id="approve-account-number">-</span>
+              <button type="button" id="btn-copy-approve-acc" class="btn-copy-id" style="padding: 2px 7px; font-size: 11px;" title="Copy Account Number">
+                <span class="copy-text">Copy</span>
+              </button>
+            </div>
           </div>
           <div style="display:flex; justify-content:space-between;">
             <span style="color: var(--text-muted);">Account Name:</span>
@@ -2092,7 +2097,7 @@
       </div>
 
       <!-- Error banner if Flutterwave payout fails -->
-      <div id="approve-flw-error" class="form-error hidden" style="margin-bottom: 14px; text-align: left; font-size: 12.5px;"></div>
+      <div id="approve-flw-error" class="form-error hidden" style="margin-bottom: 14px; text-align: left; font-size: 12.5px; line-height: 1.45;"></div>
 
       <!-- Action buttons for standard / deposits -->
       <div id="approve-actions-deposit" style="display: flex; gap: 10px; justify-content: center;">
@@ -2108,7 +2113,7 @@
         </button>
         <div style="display: flex; gap: 8px;">
           <button type="button" class="btn-outline" id="btn-cancel-approve-withdrawal" style="flex: 1; padding: 9px 12px; font-weight: 600; font-size: 12.5px;">Cancel</button>
-          <button type="button" class="btn-outline" id="btn-confirm-approve-manual" style="flex: 1.5; padding: 9px 12px; font-weight: 600; font-size: 12.5px;">Approve as Manual / Cash</button>
+          <button type="button" class="btn-outline" id="btn-confirm-approve-manual" style="flex: 1.8; padding: 9px 12px; font-weight: 700; font-size: 12.5px; color: #166534; border-color: #86efac; background: #f0fdf4;">Approve as Bank Transfer / Cash</button>
         </div>
       </div>
     </div>
@@ -2239,13 +2244,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261029_clean_v16"></script>
-  <script src="js/picker.js?v=20261029_clean_v16"></script>
+  <script src="js/storage.js?v=20261029_clean_v17"></script>
+  <script src="js/picker.js?v=20261029_clean_v17"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261029_clean_v16"></script>
-  <script src="js/auth.js?v=20261029_clean_v16"></script>
-  <script src="js/user.js?v=20261029_clean_v16"></script>
-  <script src="js/admin.js?v=20261029_clean_v16"></script>
-  <script src="js/app.js?v=20261029_clean_v16"></script>
+  <script src="js/export.js?v=20261029_clean_v17"></script>
+  <script src="js/auth.js?v=20261029_clean_v17"></script>
+  <script src="js/user.js?v=20261029_clean_v17"></script>
+  <script src="js/admin.js?v=20261029_clean_v17"></script>
+  <script src="js/app.js?v=20261029_clean_v17"></script>
 </body>
 </html>

@@ -746,7 +746,12 @@ const AdminApp = (() => {
             renderMoreTab();
           } else {
             if (flwErrEl) {
-              flwErrEl.textContent = `Flutterwave Disbursal Failed: ${res.error || 'Transfer failed'}. The client balance remains untouched.`;
+              const rawErr = res.error || 'Transfer failed';
+              if (rawErr.toLowerCase().includes('ip whitelist') || rawErr.toLowerCase().includes('ip whitelisting')) {
+                flwErrEl.innerHTML = `<strong>Flutterwave Security Notice:</strong> Flutterwave requires IP Whitelisting on your Flutterwave Dashboard (Settings &gt; Whitelisted IP addresses) for automated API disbursements.<br><br>You can transfer the net payout amount directly to the client's bank account shown above using your bank or OPay app, then click <strong>"Approve as Bank Transfer / Cash"</strong> below.`;
+              } else {
+                flwErrEl.textContent = `Flutterwave Disbursal Failed: ${rawErr}. The client balance remains untouched.`;
+              }
               flwErrEl.classList.remove('hidden');
             }
           }
@@ -2186,6 +2191,28 @@ const AdminApp = (() => {
     });
   }
 
+  function initCopyApproveAccountNumber() {
+    const btn = document.getElementById('btn-copy-approve-acc');
+    const accEl = document.getElementById('approve-account-number');
+    if (!btn || !accEl) return;
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const text = (accEl.textContent || '').trim();
+      if (!text || text === '-') return;
+      copyTextToClipboard(text, () => {
+        const span = btn.querySelector('.copy-text');
+        const origText = span ? span.textContent : 'Copy';
+        btn.classList.add('copied');
+        if (span) span.textContent = 'Copied!';
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          if (span) span.textContent = origText;
+        }, 1800);
+      });
+    });
+  }
+
   // ============================================
   // BOOTSTRAP
   // ============================================
@@ -2205,6 +2232,7 @@ const AdminApp = (() => {
     initLogout();
     initModalCloseHandlers();
     initCopyViewProfileId();
+    initCopyApproveAccountNumber();
     updatePendingBadge();
 
     // Ensure admin credentials exist
