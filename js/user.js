@@ -474,13 +474,12 @@ const UserApp = (() => {
     const resIconEl      = document.getElementById('payout-resolution-icon');
     let resolveDebounce = null;
 
-    // Custom Modular Picker / Bottom Sheet for Bank Selection
+    // Custom Modular Picker / Bottom Sheet for Bank Selection (Bank names only, no code clutter)
     if (payoutBankBtn) {
       payoutBankBtn.addEventListener('click', () => {
         const bankOptions = DB.getNigerianBanks().map(b => ({
           label: b.name,
           value: b.code,
-          sublabel: `Code: ${b.code}`,
         }));
         const currentVal = bankSelectEl ? bankSelectEl.value : '';
 
@@ -508,7 +507,7 @@ const UserApp = (() => {
 
       if (rawNum.length < 10 || !bankCode) {
         resCardEl.classList.add('hidden');
-        if (accNameEl && !accNameEl.value) accNameEl.value = '';
+        if (accNameEl) accNameEl.value = '';
         return;
       }
 
@@ -532,7 +531,8 @@ const UserApp = (() => {
       } else {
         resCardEl.style.cssText = 'margin-top: -6px; margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #fffbeb; border: 1.5px solid #fde68a; color: #92400e;';
         resIconEl.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
-        resTextEl.textContent = 'Could not auto-verify name. You can enter your registered account name manually.';
+        resTextEl.textContent = 'Could not auto-verify name. Please ensure your bank and 10-digit account number are correct.';
+        if (accNameEl) accNameEl.value = '';
       }
     }
 
@@ -1024,13 +1024,12 @@ const UserApp = (() => {
     const removeBtn  = document.getElementById('btn-remove-user-bank');
     let resolveDebounce = null;
 
-    // Custom Modular Picker / Bottom Sheet for Bank Selection
+    // Custom Modular Picker / Bottom Sheet for Bank Selection (Bank names only, no code clutter)
     if (bankBtn) {
       bankBtn.addEventListener('click', () => {
         const bankOptions = DB.getNigerianBanks().map(b => ({
           label: b.name,
           value: b.code,
-          sublabel: `Code: ${b.code}`,
         }));
         const currentVal = bankSelect ? bankSelect.value : '';
 
@@ -1096,7 +1095,7 @@ const UserApp = (() => {
 
       if (rawNum.length < 10 || !bankCode) {
         resCard.classList.add('hidden');
-        if (accNameInp && !accNameInp.value) accNameInp.value = '';
+        if (accNameInp) accNameInp.value = '';
         return;
       }
 
@@ -1119,7 +1118,8 @@ const UserApp = (() => {
       } else {
         resCard.style.cssText = 'margin-top: -4px; margin-bottom: 16px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #fffbeb; border: 1.5px solid #fde68a; color: #92400e;';
         resIcon.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
-        resText.textContent = 'Could not auto-verify name. You can enter your registered account name manually.';
+        resText.textContent = 'Could not auto-verify name. Please ensure your bank and 10-digit account number are correct.';
+        if (accNameInp) accNameInp.value = '';
       }
     }
 
@@ -1160,10 +1160,16 @@ const UserApp = (() => {
 
         // If not verified yet, resolve now
         if (!bAcc) {
-          const res = await DB.resolveFlutterwaveAccount(rawNum, bankCode);
+          const res = await DB.resolveFlutterwaveAccount(rawNum, bankCode, currentUserId);
           if (res.success && res.accountName) {
             bAcc = res.accountName;
             if (accNameInp) accNameInp.value = bAcc;
+          } else {
+            if (errBox) {
+              errBox.textContent = 'Could not verify account with bank. Please check your account number and selected bank.';
+              errBox.classList.remove('hidden');
+            }
+            return;
           }
         }
 

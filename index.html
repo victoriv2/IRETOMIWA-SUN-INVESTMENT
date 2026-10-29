@@ -42,8 +42,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261029_4" />
-  <link rel="stylesheet" href="css/auth.css?v=20261029_4" />
+  <link rel="stylesheet" href="css/global.css?v=20261029_5" />
+  <link rel="stylesheet" href="css/auth.css?v=20261029_5" />
   <style>
     /* Pre-boot instant session hints to prevent visual flicker before App router executes */
     html.is-user-logged-in #page-login { display: none; }
@@ -468,9 +468,9 @@
               <div class="form-group">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 4px;">
                   <label for="payout-account-name" style="margin-bottom:0;">Account Name</label>
-                  <span id="payout-verify-badge" style="font-size: 11.5px; font-weight: 600; color: var(--text-muted);">Auto-verified via bank</span>
+                  <span id="payout-verify-badge" style="font-size: 11.5px; font-weight: 600; color: #166534; background: #dcfce7; padding: 2px 7px; border-radius: 4px;">Auto-fills via bank</span>
                 </div>
-                <input type="text" id="payout-account-name" placeholder="Name registered on bank account" />
+                <input type="text" id="payout-account-name" placeholder="Auto-fills upon entering account number" readonly tabindex="-1" style="background: #f8fafc; cursor: not-allowed; font-weight: 700; color: #0f172a;" />
               </div>
 
               <!-- Live Account Name Resolution Banner -->
@@ -1473,9 +1473,9 @@
         <div class="form-group" style="margin-bottom: 14px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 4px;">
             <label for="profile-bank-account-name" style="font-weight: 700; font-size: 12.5px; margin-bottom:0;">Account Name</label>
-            <span id="profile-bank-verify-badge" style="font-size: 11.5px; font-weight: 600; color: var(--text-muted);">Auto-verified via bank</span>
+            <span id="profile-bank-verify-badge" style="font-size: 11.5px; font-weight: 600; color: #166534; background: #dcfce7; padding: 2px 7px; border-radius: 4px;">Auto-fills via bank</span>
           </div>
-          <input type="text" id="profile-bank-account-name" placeholder="Enter account name as registered on bank" />
+          <input type="text" id="profile-bank-account-name" placeholder="Auto-fills upon entering account number" readonly tabindex="-1" style="background: #f8fafc; cursor: not-allowed; font-weight: 700; color: #0f172a;" />
         </div>
 
         <!-- Live Verification Banner -->
@@ -2130,13 +2130,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261029_4"></script>
-  <script src="js/picker.js?v=20261029_4"></script>
+  <script src="js/storage.js?v=20261029_5"></script>
+  <script src="js/picker.js?v=20261029_5"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261029_4"></script>
-  <script src="js/auth.js?v=20261029_4"></script>
-  <script src="js/user.js?v=20261029_4"></script>
-  <script src="js/admin.js?v=20261029_4"></script>
-  <script src="js/app.js?v=20261029_4"></script>
+  <script src="js/export.js?v=20261029_5"></script>
+  <script src="js/auth.js?v=20261029_5"></script>
+  <script src="js/user.js?v=20261029_5"></script>
+  <script src="js/admin.js?v=20261029_5"></script>
+  <script src="js/app.js?v=20261029_5"></script>
 </body>
 </html>
