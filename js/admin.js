@@ -747,17 +747,59 @@ const AdminApp = (() => {
           } else {
             if (flwErrEl) {
               const rawErr = res.error || 'Transfer failed';
-              if (rawErr.toLowerCase().includes('ip whitelist') || rawErr.toLowerCase().includes('ip whitelisting')) {
-                flwErrEl.innerHTML = `<strong>Flutterwave Security Notice:</strong> Flutterwave requires IP Whitelisting on your Flutterwave Dashboard (Settings &gt; Whitelisted IP addresses) for automated API disbursements.<br><br>You can transfer the net payout amount directly to the client's bank account shown above using your bank or OPay app, then click <strong>"Approve as Bank Transfer / Cash"</strong> below.`;
+              const isBlocked = rawErr.toLowerCase().includes('cannot be processed') ||
+                                rawErr.toLowerCase().includes('account administrator') ||
+                                rawErr.toLowerCase().includes('ip whitelist') ||
+                                rawErr.toLowerCase().includes('ip whitelisting');
+
+              if (isBlocked) {
+                flwErrEl.innerHTML = `
+                  <div style="font-weight: 700; margin-bottom: 4px; color: #991b1b;">Flutterwave API Payouts Restricted</div>
+                  <div style="margin-bottom: 8px; color: #374151;">Flutterwave returned: <em>"${rawErr}"</em>. Your Flutterwave merchant account does not currently permit outbound API bank transfers (requires merchant transfer clearance or funded available balance).</div>
+                  <div style="margin-bottom: 8px; color: #166534; font-weight: 600;">Transfer the net payout using your OPay or bank mobile app, then click below:</div>
+                  <button type="button" id="btn-err-fallback-approve" style="width: 100%; padding: 10px 14px; background: #15803d; color: #ffffff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px;">
+                    Approve as Bank Transfer / Cash Now
+                  </button>
+                `;
+                const errFallbackBtn = document.getElementById('btn-err-fallback-approve');
+                if (errFallbackBtn) {
+                  errFallbackBtn.addEventListener('click', () => {
+                    if (btnManualApprove) btnManualApprove.click();
+                  });
+                }
               } else {
-                flwErrEl.textContent = `Flutterwave Disbursal Failed: ${rawErr}. The client balance remains untouched.`;
+                flwErrEl.innerHTML = `
+                  <div style="font-weight: 700; margin-bottom: 4px; color: #991b1b;">Flutterwave Disbursal Failed: ${rawErr}</div>
+                  <div style="margin-bottom: 8px; color: #374151;">The client balance remains untouched. You can approve manually after sending funds:</div>
+                  <button type="button" id="btn-err-fallback-approve" style="width: 100%; padding: 10px 14px; background: #15803d; color: #ffffff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px;">
+                    Approve as Bank Transfer / Cash Now
+                  </button>
+                `;
+                const errFallbackBtn = document.getElementById('btn-err-fallback-approve');
+                if (errFallbackBtn) {
+                  errFallbackBtn.addEventListener('click', () => {
+                    if (btnManualApprove) btnManualApprove.click();
+                  });
+                }
               }
               flwErrEl.classList.remove('hidden');
             }
           }
         } catch (err) {
           if (flwErrEl) {
-            flwErrEl.textContent = `Transfer error: ${err.message || 'Check network connection'}`;
+            flwErrEl.innerHTML = `
+              <div style="font-weight: 700; margin-bottom: 4px; color: #991b1b;">Transfer Error: ${err.message || 'Check network connection'}</div>
+              <div style="margin-bottom: 8px; color: #374151;">You can disburse manually via your bank or OPay:</div>
+              <button type="button" id="btn-err-catch-fallback-approve" style="width: 100%; padding: 10px 14px; background: #15803d; color: #ffffff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px;">
+                Approve as Bank Transfer / Cash Now
+              </button>
+            `;
+            const errFallbackBtn = document.getElementById('btn-err-catch-fallback-approve');
+            if (errFallbackBtn) {
+              errFallbackBtn.addEventListener('click', () => {
+                if (btnManualApprove) btnManualApprove.click();
+              });
+            }
             flwErrEl.classList.remove('hidden');
           }
         } finally {

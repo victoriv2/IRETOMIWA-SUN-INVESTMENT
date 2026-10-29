@@ -67,8 +67,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261029_clean_v18" />
-  <link rel="stylesheet" href="css/auth.css?v=20261029_clean_v18" />
+  <link rel="stylesheet" href="css/global.css?v=20261029_clean_v19" />
+  <link rel="stylesheet" href="css/auth.css?v=20261029_clean_v19" />
   <style>
     /* Pre-boot instant session hints to prevent visual flicker before App router executes */
     html.is-user-logged-in #page-login { display: none; }
@@ -2106,14 +2106,17 @@
       </div>
 
       <!-- Action buttons for withdrawals (Flutterwave automated vs Manual) -->
-      <div id="approve-actions-withdrawal" class="hidden" style="display: flex; flex-direction: column; gap: 8px;">
-        <button type="button" class="btn-primary" id="btn-confirm-approve-flw" style="width: 100%; padding: 11px 16px; font-weight: 700; background: #059669; display: flex; align-items: center; justify-content: center; gap: 8px;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          <span id="btn-confirm-approve-flw-text">Disburse via Flutterwave Transfer</span>
+      <div id="approve-actions-withdrawal" class="hidden" style="display: flex; flex-direction: column; gap: 10px;">
+        <button type="button" id="btn-confirm-approve-manual" style="width: 100%; padding: 12px 16px; font-weight: 700; background: #15803d; color: #ffffff; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13.5px; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 2px 6px rgba(21, 128, 61, 0.25);">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span>Approve as Bank Transfer / Cash</span>
         </button>
         <div style="display: flex; gap: 8px;">
-          <button type="button" class="btn-outline" id="btn-cancel-approve-withdrawal" style="flex: 1; padding: 9px 12px; font-weight: 600; font-size: 12.5px;">Cancel</button>
-          <button type="button" class="btn-outline" id="btn-confirm-approve-manual" style="flex: 1.8; padding: 9px 12px; font-weight: 700; font-size: 12.5px; color: #166534; border-color: #86efac; background: #f0fdf4;">Approve as Bank Transfer / Cash</button>
+          <button type="button" class="btn-outline" id="btn-cancel-approve-withdrawal" style="flex: 1; padding: 10px 12px; font-weight: 600; font-size: 12.5px;">Cancel</button>
+          <button type="button" class="btn-outline" id="btn-confirm-approve-flw" style="flex: 2; padding: 10px 12px; font-weight: 600; font-size: 12px; color: #065f46; border-color: #a7f3d0; background: #ecfdf5; display: flex; align-items: center; justify-content: center; gap: 6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            <span id="btn-confirm-approve-flw-text">Try Flutterwave Auto-Transfer</span>
+          </button>
         </div>
       </div>
     </div>
@@ -2244,13 +2247,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261029_clean_v18"></script>
-  <script src="js/picker.js?v=20261029_clean_v18"></script>
+  <script src="js/storage.js?v=20261029_clean_v19"></script>
+  <script src="js/picker.js?v=20261029_clean_v19"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261029_clean_v18"></script>
-  <script src="js/auth.js?v=20261029_clean_v18"></script>
-  <script src="js/user.js?v=20261029_clean_v18"></script>
-  <script src="js/admin.js?v=20261029_clean_v18"></script>
-  <script src="js/app.js?v=20261029_clean_v18"></script>
+  <script src="js/export.js?v=20261029_clean_v19"></script>
+  <script src="js/auth.js?v=20261029_clean_v19"></script>
+  <script src="js/user.js?v=20261029_clean_v19"></script>
+  <script src="js/admin.js?v=20261029_clean_v19"></script>
+  <script src="js/app.js?v=20261029_clean_v19"></script>
 </body>
 </html>
