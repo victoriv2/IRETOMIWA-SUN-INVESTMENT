@@ -3,13 +3,13 @@
 // ============================================
 
 // ---- HARD SYSTEM RESET EPOCH ----
-const SYSTEM_RESET_ID = 'RESET_2026_10_29_V3';
+const SYSTEM_RESET_ID = 'RESET_2026_10_29_SUPABASE_PROD_V1';
 
 (function enforceSystemReset() {
   try {
     const currentEpoch = localStorage.getItem('sun_system_reset_epoch');
     if (currentEpoch !== SYSTEM_RESET_ID) {
-      // Clear ALL data, user sessions, tabs, and credentials to start 100% fresh
+      // Clear ALL data, user sessions, tabs, and credentials to start 100% fresh with Supabase
       localStorage.setItem('sun_system_reset_epoch', SYSTEM_RESET_ID);
       localStorage.setItem('sun_users', '[]');
       localStorage.setItem('sun_transactions', '[]');
@@ -30,11 +30,12 @@ const SYSTEM_RESET_ID = 'RESET_2026_10_29_V3';
 })();
 
 const DB = {
-  // ---- CLOUD CONFIG (jsonbin.io) ----
-  CLOUD: {
-    BIN_ID: '6adcc870ffd5d1605388749f',
-    MASTER_KEY: '$2a$10$nnSfeJQZY9FjkKghjfzlPuWFrIe/JV46TLSQbnho77T3kkmx/mMvK',
-    BASE_URL: 'https://api.jsonbin.io/v3/b',
+  // ---- CLOUD CONFIG (Supabase Database & Realtime Sync) ----
+  SUPABASE: {
+    URL: 'https://cmzfqeifdlktavqsoyjt.supabase.co',
+    ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtemZxZWlmZGxrdGF2cXNveWp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyODM1NjksImV4cCI6MjEwODg1OTU2OX0.AnWfzXrkNc3kCEy7EfKbeP3A191OKO_B8DK8kfeFdZM',
+    TABLE: 'app_sync',
+    SYNC_ID: 'main',
   },
   _pushTimeout: null,
   _isPulling: false,
@@ -62,30 +63,33 @@ const DB = {
     try {
       this.notifySync('syncing');
       const payload = {
+        id: this.SUPABASE.SYNC_ID,
         users: this.getUsers(),
         transactions: this.getAllTransactions(),
         admin: this.getAdmin(),
-        customCategories: this.getCustomCategories(),
-        flutterwaveConfig: this.getFlutterwaveConfig(),
-        resetId: SYSTEM_RESET_ID,
-        updatedAt: new Date().toISOString(),
+        custom_categories: this.getCustomCategories(),
+        flutterwave_config: this.getFlutterwaveConfig(),
+        reset_id: SYSTEM_RESET_ID,
+        updated_at: new Date().toISOString(),
       };
 
-      const res = await fetch(`${this.CLOUD.BASE_URL}/${this.CLOUD.BIN_ID}`, {
-        method: 'PUT',
+      const res = await fetch(`${this.SUPABASE.URL}/rest/v1/${this.SUPABASE.TABLE}?on_conflict=id`, {
+        method: 'POST',
         headers: {
+          'apikey': this.SUPABASE.ANON_KEY,
+          'Authorization': `Bearer ${this.SUPABASE.ANON_KEY}`,
           'Content-Type': 'application/json',
-          'X-Master-Key': this.CLOUD.MASTER_KEY,
+          'Prefer': 'resolution=merge-duplicates,return=minimal',
         },
         body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
-        throw new Error(`Sync Push HTTP ${res.status}`);
+        throw new Error(`Supabase Sync Push HTTP ${res.status}`);
       }
       this.notifySync('synced');
     } catch (err) {
-      console.warn('Cloud sync push:', err);
+      console.warn('Supabase sync push:', err);
       this.notifySync('error', err);
     }
   },
@@ -100,26 +104,27 @@ const DB = {
     this.notifySync('syncing');
 
     try {
-      const res = await fetch(`${this.CLOUD.BASE_URL}/${this.CLOUD.BIN_ID}/latest`, {
+      const res = await fetch(`${this.SUPABASE.URL}/rest/v1/${this.SUPABASE.TABLE}?id=eq.${this.SUPABASE.SYNC_ID}&select=*`, {
         method: 'GET',
         headers: {
-          'X-Master-Key': this.CLOUD.MASTER_KEY,
+          'apikey': this.SUPABASE.ANON_KEY,
+          'Authorization': `Bearer ${this.SUPABASE.ANON_KEY}`,
+          'Accept': 'application/json',
         },
       });
 
       if (!res.ok) {
-        throw new Error(`Sync Pull HTTP ${res.status}`);
+        throw new Error(`Supabase Sync Pull HTTP ${res.status}`);
       }
 
-      const json = await res.json();
-      const record = json.record || {};
+      const rows = await res.json();
+      const record = (Array.isArray(rows) && rows[0]) ? rows[0] : (rows || {});
       const cloudUsers = Array.isArray(record.users) ? record.users : [];
       const cloudTxs   = Array.isArray(record.transactions) ? record.transactions : [];
       const cloudAdmin = record.admin;
 
       // Check if cloud has active reset or zero users
-      const cloudResetId = record.resetId;
-      const localEpoch   = localStorage.getItem('sun_system_reset_epoch');
+      const cloudResetId = record.reset_id || record.resetId;
 
       if ((cloudResetId === SYSTEM_RESET_ID || record.isFactoryReset) && cloudUsers.length === 0) {
         localStorage.setItem('sun_system_reset_epoch', SYSTEM_RESET_ID);
@@ -131,11 +136,12 @@ const DB = {
         localStorage.removeItem('sun_active_user');
         localStorage.removeItem('sun_user_tab');
 
+        const activeFlw = record.flutterwave_config || record.flutterwaveConfig;
         if (cloudAdmin && cloudAdmin.password) {
           localStorage.setItem('sun_admin', JSON.stringify(cloudAdmin));
         }
-        if (record.flutterwaveConfig && typeof record.flutterwaveConfig === 'object') {
-          localStorage.setItem('sun_flutterwave_config', JSON.stringify(record.flutterwaveConfig));
+        if (activeFlw && typeof activeFlw === 'object') {
+          localStorage.setItem('sun_flutterwave_config', JSON.stringify(activeFlw));
         }
 
         this._isPulling = false;
@@ -199,17 +205,19 @@ const DB = {
       }
 
       // 4. Custom Categories sync if exists
-      if (Array.isArray(record.customCategories)) {
+      const cloudCats = record.custom_categories || record.customCategories;
+      if (Array.isArray(cloudCats)) {
         const localCats = this.getCustomCategories();
-        const mergedCats = Array.from(new Set([...localCats, ...record.customCategories]));
+        const mergedCats = Array.from(new Set([...localCats, ...cloudCats]));
         localStorage.setItem('sun_custom_categories', JSON.stringify(mergedCats));
       }
 
       // 5. Flutterwave config sync
-      if (record.flutterwaveConfig && typeof record.flutterwaveConfig === 'object') {
+      const cloudFlw = record.flutterwave_config || record.flutterwaveConfig;
+      if (cloudFlw && typeof cloudFlw === 'object') {
         const localCfg = this.getFlutterwaveConfig();
-        if (record.flutterwaveConfig.updatedAt && (!localCfg.updatedAt || record.flutterwaveConfig.updatedAt > localCfg.updatedAt)) {
-          localStorage.setItem('sun_flutterwave_config', JSON.stringify({ ...localCfg, ...record.flutterwaveConfig }));
+        if (cloudFlw.updatedAt && (!localCfg.updatedAt || cloudFlw.updatedAt > localCfg.updatedAt)) {
+          localStorage.setItem('sun_flutterwave_config', JSON.stringify({ ...localCfg, ...cloudFlw }));
         }
       }
 
@@ -967,29 +975,30 @@ const DB = {
     }
 
     const payload = {
+      id: this.SUPABASE.SYNC_ID,
       users: [],
       transactions: [],
       admin: this.getAdmin(),
-      customCategories: [],
-      flutterwaveConfig: this.getFlutterwaveConfig(),
-      resetId: SYSTEM_RESET_ID,
-      resetAt: resetTimestamp,
-      updatedAt: resetTimestamp,
-      isFactoryReset: true
+      custom_categories: [],
+      flutterwave_config: this.getFlutterwaveConfig(),
+      reset_id: SYSTEM_RESET_ID,
+      updated_at: resetTimestamp,
     };
 
     try {
-      const res = await fetch(`${this.CLOUD.BASE_URL}/${this.CLOUD.BIN_ID}`, {
-        method: 'PUT',
+      const res = await fetch(`${this.SUPABASE.URL}/rest/v1/${this.SUPABASE.TABLE}?on_conflict=id`, {
+        method: 'POST',
         headers: {
+          'apikey': this.SUPABASE.ANON_KEY,
+          'Authorization': `Bearer ${this.SUPABASE.ANON_KEY}`,
           'Content-Type': 'application/json',
-          'X-Master-Key': this.CLOUD.MASTER_KEY,
+          'Prefer': 'resolution=merge-duplicates,return=minimal',
         },
         body: JSON.stringify(payload),
       });
       return res.ok;
     } catch (e) {
-      console.error('Factory reset error:', e);
+      console.error('Supabase factory reset error:', e);
       return false;
     }
   },
