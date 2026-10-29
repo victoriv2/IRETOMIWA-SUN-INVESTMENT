@@ -943,7 +943,7 @@ const UserApp = (() => {
         const details = `Payout to: ${bName} ${bNum} (${destinationBank.accountName}) | Net: ₦${formatAmount(netAmount)} (Fee: ₦${formatAmount(fee)})`.trim();
         const destNote = userNote ? `${userNote} | ${details}` : details;
 
-        DB.addTransaction({
+        const newTx = DB.addTransaction({
           userId: currentUserId,
           type: 'withdrawal',
           amount, // Total deducted from user's savings balance
@@ -963,14 +963,66 @@ const UserApp = (() => {
         if (noteInput) noteInput.value = '';
         updateFeeCalculations();
 
-        if (successEl) {
-          successEl.textContent = `Pay Out request submitted! Gross: ₦${formatAmount(amount)} | 10% Fee: ₦${formatAmount(fee)} | Net Transfer: ₦${formatAmount(netAmount)}. Awaiting Admin approval.`;
-          successEl.classList.remove('hidden');
-          setTimeout(() => successEl.classList.add('hidden'), 6000);
-        }
+        // Check if Admin has enabled Auto Cash-out (Instant Payout)
+        const flwCfg = DB.getFlutterwaveConfig();
+        const clientLegalName = user ? `${DB.formatName(user.firstName)} ${DB.formatName(user.lastName)}` : 'Client';
 
-        renderSavingsList();
-        renderTotal();
+        if (flwCfg && flwCfg.autoCashout && destinationBank.accountNumber && destinationBank.bankCode) {
+          if (successEl) {
+            successEl.textContent = `Auto Cash-out initiated... Disbursing ₦${formatAmount(netAmount)} to ${destinationBank.accountNumber} via Flutterwave.`;
+            successEl.classList.remove('hidden');
+          }
+
+          DB.disburseFlutterwaveTransfer({
+            accountNumber: destinationBank.accountNumber,
+            bankCode: destinationBank.bankCode,
+            amount: netAmount,
+            narration: `Payout to ${clientLegalName} - Iretomiwa Sun`,
+            txId: newTx.id,
+            clientName: clientLegalName,
+          }).then(res => {
+            if (res && res.success) {
+              DB.approveTransaction(newTx.id, {
+                reviewedBy: 'system (auto-cashout)',
+                paymentGateway: 'flutterwave',
+                flutterwaveTransferId: res.transferId,
+                flutterwaveRef: res.reference,
+                grossAmount: amount,
+                fee: fee,
+                netAmount: netAmount,
+                feeRate: feeRate,
+              });
+              if (successEl) {
+                successEl.textContent = `Auto Cash-out Successful! ₦${formatAmount(netAmount)} has been disbursed to your ${bName} account.`;
+                successEl.classList.remove('hidden');
+                setTimeout(() => successEl.classList.add('hidden'), 7000);
+              }
+              renderSavingsList();
+              renderTotal();
+            } else {
+              // Flutterwave transfer failed or restricted on account - remains queued for manual admin confirmation
+              if (successEl) {
+                successEl.textContent = `Payout request queued! Gross: ₦${formatAmount(amount)} | Net: ₦${formatAmount(netAmount)}. Awaiting Admin approval.`;
+                successEl.classList.remove('hidden');
+                setTimeout(() => successEl.classList.add('hidden'), 6000);
+              }
+              renderSavingsList();
+              renderTotal();
+            }
+          }).catch(err => {
+            console.warn('Auto cashout background transfer error:', err);
+            renderSavingsList();
+            renderTotal();
+          });
+        } else {
+          if (successEl) {
+            successEl.textContent = `Pay Out request submitted! Gross: ₦${formatAmount(amount)} | 10% Fee: ₦${formatAmount(fee)} | Net Transfer: ₦${formatAmount(netAmount)}. Awaiting Admin approval.`;
+            successEl.classList.remove('hidden');
+            setTimeout(() => successEl.classList.add('hidden'), 6000);
+          }
+          renderSavingsList();
+          renderTotal();
+        }
       }
     });
   }

@@ -1502,6 +1502,11 @@ const AdminApp = (() => {
       flwBadge.className = 'status-badge ' + (flwCfg.mode === 'live' ? 'status-badge--approved' : 'status-badge--pending');
     }
 
+    const flwAutoCashout = document.getElementById('admin-flw-auto-cashout');
+    if (flwAutoCashout) {
+      flwAutoCashout.checked = flwCfg.autoCashout === true;
+    }
+
     // Fetch live Flutterwave wallet balance
     fetchAndRenderFlwBalance();
   }
@@ -1565,12 +1570,15 @@ const AdminApp = (() => {
       const pubKey = (keyInp ? keyInp.value.trim() : '') || 'FLWPUBK-570758bf49301716d7e0133dce781024-X';
       const secKey = (secretInp ? secretInp.value.trim() : '') || 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X';
       const mode   = modeSel ? modeSel.value : 'live';
+      const autoCashoutInp = document.getElementById('admin-flw-auto-cashout');
+      const isAutoCashout = autoCashoutInp ? autoCashoutInp.checked : false;
 
       DB.setFlutterwaveConfig({
         publicKey: pubKey,
         secretKey: secKey,
         mode: mode,
         isEnabled: true,
+        autoCashout: isAutoCashout,
       });
 
       if (keyInp) delete keyInp.dataset.userEdited;

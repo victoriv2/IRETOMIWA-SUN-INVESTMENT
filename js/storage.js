@@ -667,6 +667,7 @@ const DB = {
           mode: parsed.mode || 'live',
           merchantName: 'John Idowu (Iretomiwa Sun Investment)',
           isEnabled: parsed.isEnabled !== false,
+          autoCashout: parsed.autoCashout === true,
           updatedAt: parsed.updatedAt || '2026-10-29T11:20:00.000Z',
         };
       }
@@ -678,6 +679,7 @@ const DB = {
       mode: 'live',
       merchantName: 'John Idowu (Iretomiwa Sun Investment)',
       isEnabled: true,
+      autoCashout: false,
       updatedAt: '2026-10-29T11:20:00.000Z',
     };
   },

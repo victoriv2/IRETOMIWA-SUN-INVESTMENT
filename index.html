@@ -67,8 +67,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261029_clean_v19" />
-  <link rel="stylesheet" href="css/auth.css?v=20261029_clean_v19" />
+  <link rel="stylesheet" href="css/global.css?v=20261029_clean_v20" />
+  <link rel="stylesheet" href="css/auth.css?v=20261029_clean_v20" />
   <style>
     /* Pre-boot instant session hints to prevent visual flicker before App router executes */
     html.is-user-logged-in #page-login { display: none; }
@@ -1342,6 +1342,22 @@
                 </small>
               </div>
 
+              <!-- Instant Auto Cash-out Toggle -->
+              <div style="background: #f8fafc; border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px;">
+                <label style="display: flex; align-items: flex-start; justify-content: space-between; cursor: pointer; gap: 12px; margin: 0;">
+                  <div style="flex: 1;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <strong style="font-size: 13px; color: var(--text-primary);">Auto Cash-out (Instant Payouts)</strong>
+                      <span class="status-badge status-badge--approved" id="admin-flw-auto-cashout-badge" style="font-size: 10px; padding: 2px 6px;">Automated</span>
+                    </div>
+                    <small style="font-size: 11.5px; color: var(--text-muted); display: block; margin-top: 3px; line-height: 1.4;">
+                      When enabled, user savings withdrawal requests will automatically attempt instant Flutterwave bank transfer to the client's account without requiring manual admin approval.
+                    </small>
+                  </div>
+                  <input type="checkbox" id="admin-flw-auto-cashout" style="width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; margin-top: 2px;" />
+                </label>
+              </div>
+
               <div id="admin-flw-msg" class="hidden" style="font-size:12px; padding:8px 12px; border-radius:6px; margin-bottom:12px;"></div>
 
               <div style="display:flex; gap:10px;">
@@ -2247,13 +2263,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261029_clean_v19"></script>
-  <script src="js/picker.js?v=20261029_clean_v19"></script>
+  <script src="js/storage.js?v=20261029_clean_v20"></script>
+  <script src="js/picker.js?v=20261029_clean_v20"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261029_clean_v19"></script>
-  <script src="js/auth.js?v=20261029_clean_v19"></script>
-  <script src="js/user.js?v=20261029_clean_v19"></script>
-  <script src="js/admin.js?v=20261029_clean_v19"></script>
-  <script src="js/app.js?v=20261029_clean_v19"></script>
+  <script src="js/export.js?v=20261029_clean_v20"></script>
+  <script src="js/auth.js?v=20261029_clean_v20"></script>
+  <script src="js/user.js?v=20261029_clean_v20"></script>
+  <script src="js/admin.js?v=20261029_clean_v20"></script>
+  <script src="js/app.js?v=20261029_clean_v20"></script>
 </body>
 </html>
