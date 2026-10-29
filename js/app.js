@@ -11,6 +11,22 @@ const App = (() => {
     adminLogin: 'page-admin-login',
   };
 
+  const hashToDestination = {
+    '#admin':       'admin',
+    '#admin-login': 'adminLogin',
+    '#user':        'user',
+    '#login':       'login',
+    '#signup':      'signup',
+  };
+
+  const destinationToHash = {
+    'admin':      '#admin',
+    'adminLogin': '#admin-login',
+    'user':       '#user',
+    'login':      '#login',
+    'signup':     '#signup',
+  };
+
   let initialized = false;
 
   function showPage(name) {
@@ -21,34 +37,58 @@ const App = (() => {
         el.style.display = 'none';
       }
     });
+
     const target = document.getElementById(pages[name]);
     if (target) {
       target.classList.add('active');
       target.style.display = 'flex';
     }
 
-    if (name === 'user') {
-      try { document.documentElement.classList.add('is-user-logged-in'); } catch(e) {}
-    } else {
-      try { document.documentElement.classList.remove('is-user-logged-in'); } catch(e) {}
-    }
+    try {
+      const htmlEl = document.documentElement;
+      htmlEl.classList.remove('is-user-logged-in', 'is-admin-logged-in', 'is-admin-login', 'is-user-login');
 
-    if (name === 'admin') {
-      try { document.documentElement.classList.add('is-admin-logged-in'); } catch(e) {}
-    } else {
-      try { document.documentElement.classList.remove('is-admin-logged-in'); } catch(e) {}
-    }
+      if (name === 'user') {
+        htmlEl.classList.add('is-user-logged-in');
+      } else if (name === 'admin') {
+        htmlEl.classList.add('is-admin-logged-in');
+      } else if (name === 'adminLogin') {
+        htmlEl.classList.add('is-admin-login');
+      } else {
+        htmlEl.classList.add('is-user-login');
+      }
+    } catch(e) {}
+  }
+
+  function updateUrlState(destination) {
+    const targetHash = destinationToHash[destination] || '#login';
+    const activePortal = (destination === 'admin' || destination === 'adminLogin') ? 'admin' : 'user';
+
+    try {
+      localStorage.setItem('sun_active_portal', activePortal);
+    } catch(e) {}
+
+    try {
+      if (window.history && window.history.replaceState) {
+        // Strip out any stale ?view=admin query params and set clean hash
+        window.history.replaceState(null, '', window.location.pathname + targetHash);
+      } else {
+        window.location.hash = targetHash;
+      }
+    } catch(e) {}
   }
 
   function navigate(destination) {
     if (destination === 'admin') {
       const adminSession = DB.getAdminSession();
       if (adminSession) {
+        updateUrlState('admin');
         showPage('admin');
         if (window.AdminApp) {
           AdminApp.showView('dashboard');
         }
       } else {
+        updateUrlState('adminLogin');
         showPage('adminLogin');
         if (window.AdminApp) {
           AdminApp.showView('login');
@@ -58,6 +98,7 @@ const App = (() => {
     }
 
     if (destination === 'adminLogin') {
+      updateUrlState('adminLogin');
       showPage('adminLogin');
       if (window.AdminApp) {
         AdminApp.showView('login');
@@ -65,16 +106,27 @@ const App = (() => {
       return;
     }
 
-    showPage(destination);
-
     if (destination === 'user') {
       const session = DB.getSession();
       if (session && session.userId) {
-        UserApp.load(session.userId);
-      } else {
-        showPage('login');
+        const user = DB.getUserById(session.userId);
+        if (user) {
+          updateUrlState('user');
+          showPage('user');
+          UserApp.load(session.userId);
+          return;
+        } else {
+          DB.clearSession();
+        }
       }
+      // If user session is not found or invalid, route to login
+      updateUrlState('login');
+      showPage('login');
+      return;
     }
+
+    updateUrlState(destination);
+    showPage(destination);
   }
 
   function init() {
@@ -84,36 +136,103 @@ const App = (() => {
       if (window.AdminApp) {
         AdminApp.initOnce(true);
       }
+
+      // Listen for browser back/forward buttons
+      window.addEventListener('hashchange', () => {
+        const currentHash = window.location.hash;
+        const target = hashToDestination[currentHash];
+        if (target) {
+          navigate(target);
+        }
+      });
+
       initialized = true;
     }
 
     // Seed admin account (ensure it exists)
     DB.getAdmin();
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const viewParam = urlParams.get('view');
+    const currentHash  = window.location.hash;
+    const urlParams    = new URLSearchParams(window.location.search);
+    const viewParam    = urlParams.get('view');
     const adminSession = DB.getAdminSession();
     const userSession  = DB.getSession();
+    let savedPortal    = null;
 
-    // 1. Explicit view parameter
-    if (viewParam === 'admin') {
-      navigate('admin');
+    try {
+      savedPortal = localStorage.getItem('sun_active_portal');
+    } catch(e) {}
+
+    // 1. Explicit URL Hash priority
+    if (currentHash === '#admin') {
+      if (adminSession) { navigate('admin'); return; }
+      else { navigate('adminLogin'); return; }
+    }
+    if (currentHash === '#admin-login') {
+      navigate('adminLogin');
       return;
     }
-
-    // 2. Active user session takes priority on root URL
-    if (userSession && userSession.userId) {
-      const user = DB.getUserById(userSession.userId);
-      if (user) {
+    if (currentHash === '#user') {
+      if (userSession && userSession.userId && DB.getUserById(userSession.userId)) {
         navigate('user');
         return;
       } else {
-        DB.clearSession();
+        navigate('login');
+        return;
+      }
+    }
+    if (currentHash === '#signup') {
+      navigate('signup');
+      return;
+    }
+    if (currentHash === '#login') {
+      navigate('login');
+      return;
+    }
+
+    // 2. Explicit query param priority (e.g. from admin/index.html forwarding)
+    if (viewParam === 'admin') {
+      if (adminSession) { navigate('admin'); return; }
+      else { navigate('adminLogin'); return; }
+    }
+    if (viewParam === 'user') {
+      if (userSession && userSession.userId && DB.getUserById(userSession.userId)) {
+        navigate('user');
+        return;
+      } else {
+        navigate('login');
+        return;
       }
     }
 
-    // 3. Active admin session on root URL
-    if (adminSession && urlParams.get('preview') !== 'user') {
+    // 3. Saved Active Portal priority
+    if (savedPortal === 'admin') {
+      if (adminSession) {
+        navigate('admin');
+        return;
+      } else {
+        navigate('adminLogin');
+        return;
+      }
+    }
+
+    if (savedPortal === 'user') {
+      if (userSession && userSession.userId && DB.getUserById(userSession.userId)) {
+        navigate('user');
+        return;
+      } else {
+        navigate('login');
+        return;
+      }
+    }
+
+    // 4. Default session fallbacks
+    if (userSession && userSession.userId && DB.getUserById(userSession.userId)) {
+      navigate('user');
+      return;
+    }
+
+    if (adminSession) {
       navigate('admin');
       return;
     }

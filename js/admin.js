@@ -2159,23 +2159,6 @@ const AdminApp = (() => {
     }
   }
 
-  // Pre-boot instant session check to eliminate any login screen flicker
-  try {
-    const session = DB.getAdminSession();
-    if (session) {
-      const loginEl = document.getElementById('page-admin-login');
-      const dashEl  = document.getElementById('page-admin');
-      if (loginEl) {
-        loginEl.classList.remove('active');
-        loginEl.style.display = 'none';
-      }
-      if (dashEl) {
-        dashEl.classList.add('active');
-        dashEl.style.display = 'flex';
-      }
-    }
-  } catch(e) {}
-
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', bootAdmin);
   } else {

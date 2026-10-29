@@ -586,6 +586,7 @@ const UserApp = (() => {
         const add = parseFloat(pill.dataset.amt) || 0;
         const current = parseFloat(amtInput.value) || 0;
         amtInput.value = (current + add).toFixed(2);
+        updateFeeCalculations();
       });
     });
 

@@ -84,7 +84,7 @@ const CustomPicker = (() => {
     if (!modal || !grid) return;
 
     grid.innerHTML = '';
-    const todayDate = now.getDate();
+    const todayDate = getNow().getDate();
     const activeDay = selectedDay || todayDate;
 
     // Quick Today Button
@@ -134,7 +134,7 @@ const CustomPicker = (() => {
     if (!modal || !grid) return;
 
     grid.innerHTML = '';
-    const currentMonthIdx = now.getMonth();
+    const currentMonthIdx = getNow().getMonth();
     const activeMonth = (typeof selectedMonth === 'number') ? selectedMonth : currentMonthIdx;
 
     monthNames.forEach((name, idx) => {
@@ -173,7 +173,7 @@ const CustomPicker = (() => {
     if (!modal || !grid) return;
 
     grid.innerHTML = '';
-    const currentYearNum = now.getFullYear();
+    const currentYearNum = getNow().getFullYear();
     const activeYear = selectedYear || currentYearNum;
 
     for (let y = currentYearNum; y >= 2000; y--) {
@@ -811,7 +811,11 @@ const CustomPicker = (() => {
   };
 })();
 
-// Auto-init on DOM ready
-document.addEventListener('DOMContentLoaded', () => {
+// Auto-init on DOM ready or immediately if loaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    CustomPicker.init();
+  });
+} else {
   CustomPicker.init();
-});
+}
