@@ -2124,6 +2124,68 @@ const AdminApp = (() => {
   // Generic modal close handler - handled universally by user.js and picker.js
   function initModalCloseHandlers() {}
 
+  function copyTextToClipboard(text, onSuccess, onError) {
+    if (!text) return;
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(onSuccess).catch(() => {
+        fallbackCopy(text, onSuccess, onError);
+      });
+    } else {
+      fallbackCopy(text, onSuccess, onError);
+    }
+  }
+
+  function fallbackCopy(text, onSuccess, onError) {
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.top = '0';
+      textArea.style.left = '0';
+      textArea.style.width = '2em';
+      textArea.style.height = '2em';
+      textArea.style.padding = '0';
+      textArea.style.border = 'none';
+      textArea.style.outline = 'none';
+      textArea.style.boxShadow = 'none';
+      textArea.style.background = 'transparent';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      if (successful) {
+        if (onSuccess) onSuccess();
+      } else {
+        if (onError) onError();
+      }
+    } catch (err) {
+      if (onError) onError();
+    }
+  }
+
+  function initCopyViewProfileId() {
+    const btn = document.getElementById('btn-copy-vp-id');
+    const idEl = document.getElementById('vp-client-id');
+    if (!btn || !idEl) return;
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const text = (idEl.textContent || '').trim();
+      if (!text || text === '-') return;
+      copyTextToClipboard(text, () => {
+        const span = btn.querySelector('.copy-text');
+        const origText = span ? span.textContent : 'Copy';
+        btn.classList.add('copied');
+        if (span) span.textContent = 'Copied!';
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          if (span) span.textContent = origText;
+        }, 1800);
+      });
+    });
+  }
+
   // ============================================
   // BOOTSTRAP
   // ============================================
@@ -2142,6 +2204,7 @@ const AdminApp = (() => {
     initAdminExports();
     initLogout();
     initModalCloseHandlers();
+    initCopyViewProfileId();
     updatePendingBadge();
 
     // Ensure admin credentials exist

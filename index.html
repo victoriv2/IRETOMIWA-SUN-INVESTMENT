@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -67,8 +67,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261029_clean_v10" />
-  <link rel="stylesheet" href="css/auth.css?v=20261029_clean_v10" />
+  <link rel="stylesheet" href="css/global.css?v=20261029_clean_v12" />
+  <link rel="stylesheet" href="css/auth.css?v=20261029_clean_v12" />
   <style>
     /* Pre-boot instant session hints to prevent visual flicker before App router executes */
     html.is-user-logged-in #page-login { display: none; }
@@ -585,8 +585,17 @@
               <img id="more-user-photo" src="" alt="Passport Photo" style="display: none; width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" />
             </div>
             <p class="more-user-name" id="more-user-name">User Name</p>
-            <div style="margin-top: 3px; margin-bottom: 4px;">
-              <span id="more-user-id" style="font-size: 11.5px; font-weight: 800; color: #1e40af; background: #dbeafe; padding: 2px 9px; border-radius: 6px; letter-spacing: 0.5px;">ir00001</span>
+            <!-- Large Prominent Client ID with One-Tap Copy Button -->
+            <div class="user-id-badge-container">
+              <span class="user-id-prefix">ID:</span>
+              <span id="more-user-id" class="user-id-value">ir00001</span>
+              <button type="button" id="btn-copy-user-id" class="btn-copy-id" title="Copy Client ID">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                <span class="copy-text">Copy</span>
+              </button>
             </div>
             <p class="more-user-email" id="more-user-email"></p>
           </div>
@@ -1650,7 +1659,16 @@
         <div class="profile-fields">
           <div class="profile-field">
             <span class="profile-field-label">Client ID</span>
-            <span class="profile-field-value" id="vp-client-id" style="font-weight: 800; color: #1e40af; background: #dbeafe; padding: 2px 8px; border-radius: 6px; display: inline-block; letter-spacing: 0.5px;"></span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="profile-field-value user-id-value" id="vp-client-id" style="font-size: 15px; font-weight: 800; color: #1e40af; background: #dbeafe; padding: 3px 10px; border-radius: 6px; letter-spacing: 0.8px; font-family: monospace;"></span>
+              <button type="button" id="btn-copy-vp-id" class="btn-copy-id" title="Copy Client ID">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                <span class="copy-text">Copy</span>
+              </button>
+            </div>
           </div>
           <div class="profile-field">
             <span class="profile-field-label">Full Name</span>
@@ -2205,13 +2223,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261029_clean_v10"></script>
-  <script src="js/picker.js?v=20261029_clean_v10"></script>
+  <script src="js/storage.js?v=20261029_clean_v12"></script>
+  <script src="js/picker.js?v=20261029_clean_v12"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261029_clean_v10"></script>
-  <script src="js/auth.js?v=20261029_clean_v10"></script>
-  <script src="js/user.js?v=20261029_clean_v10"></script>
-  <script src="js/admin.js?v=20261029_clean_v10"></script>
-  <script src="js/app.js?v=20261029_clean_v10"></script>
+  <script src="js/export.js?v=20261029_clean_v12"></script>
+  <script src="js/auth.js?v=20261029_clean_v12"></script>
+  <script src="js/user.js?v=20261029_clean_v12"></script>
+  <script src="js/admin.js?v=20261029_clean_v12"></script>
+  <script src="js/app.js?v=20261029_clean_v12"></script>
 </body>
 </html>

@@ -409,6 +409,62 @@ input.input-error {
   .sheet-handle {
     display: block;
   }
+
+  /* Specific enhancements for Action Sheet / Bank Picker */
+  #modal-custom-select .modal-card--sheet {
+    display: flex !important;
+    flex-direction: column !important;
+    max-height: 85dvh !important;
+    max-height: 85vh !important;
+    padding: 14px 18px 24px !important;
+    box-sizing: border-box !important;
+  }
+
+  #modal-custom-select .modal-header {
+    flex-shrink: 0 !important;
+    margin-bottom: 10px !important;
+  }
+
+  #modal-custom-select .action-sheet-search-wrap {
+    flex-shrink: 0 !important;
+    padding: 0 0 10px 0 !important;
+    width: 100% !important;
+  }
+
+  #modal-custom-select .action-sheet-options {
+    flex: 1 1 auto !important;
+    min-height: 160px !important;
+    max-height: 52dvh !important;
+    max-height: 52vh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    width: 100% !important;
+    padding-bottom: 16px !important;
+  }
+
+  /* When mobile search keyboard is active: lift sheet so options are completely visible */
+  #modal-custom-select.sheet-keyboard-active {
+    align-items: flex-start !important;
+    justify-content: center !important;
+    padding: env(safe-area-inset-top, 8px) 10px 0 10px !important;
+  }
+
+  #modal-custom-select.sheet-keyboard-active .modal-card--sheet {
+    border-radius: 16px !important;
+    max-height: 48dvh !important;
+    max-height: 48vh !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35) !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  #modal-custom-select.sheet-keyboard-active .action-sheet-options {
+    flex: 1 1 auto !important;
+    max-height: calc(48dvh - 105px) !important;
+    max-height: calc(48vh - 105px) !important;
+    overflow-y: auto !important;
+  }
 }
 
 .modal-header {

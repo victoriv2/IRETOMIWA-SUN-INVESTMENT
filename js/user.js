@@ -1437,6 +1437,70 @@ const UserApp = (() => {
     }
   }
 
+  function copyTextToClipboard(text, onSuccess, onError) {
+    if (!text) return;
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(onSuccess).catch(() => {
+        fallbackCopy(text, onSuccess, onError);
+      });
+    } else {
+      fallbackCopy(text, onSuccess, onError);
+    }
+  }
+
+  function fallbackCopy(text, onSuccess, onError) {
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.top = '0';
+      textArea.style.left = '0';
+      textArea.style.width = '2em';
+      textArea.style.height = '2em';
+      textArea.style.padding = '0';
+      textArea.style.border = 'none';
+      textArea.style.outline = 'none';
+      textArea.style.boxShadow = 'none';
+      textArea.style.background = 'transparent';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      if (successful) {
+        if (onSuccess) onSuccess();
+      } else {
+        if (onError) onError();
+      }
+    } catch (err) {
+      if (onError) onError();
+    }
+  }
+
+  function initCopyIdButton() {
+    const btnCopy = document.getElementById('btn-copy-user-id');
+    const idEl = document.getElementById('more-user-id');
+    if (!btnCopy || !idEl) return;
+
+    btnCopy.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const text = (idEl.textContent || '').trim();
+      if (!text) return;
+
+      copyTextToClipboard(text, () => {
+        const copyTextSpan = btnCopy.querySelector('.copy-text');
+        const origText = copyTextSpan ? copyTextSpan.textContent : 'Copy';
+        btnCopy.classList.add('copied');
+        if (copyTextSpan) copyTextSpan.textContent = 'Copied!';
+        setTimeout(() => {
+          btnCopy.classList.remove('copied');
+          if (copyTextSpan) copyTextSpan.textContent = origText;
+        }, 1800);
+      });
+    });
+  }
+
   // ---- Public API ----
   return {
     load(userId) {
@@ -1467,6 +1531,7 @@ const UserApp = (() => {
       initLogout();
       initModalClose();
       initUserExports();
+      initCopyIdButton();
     },
 
     refresh() {

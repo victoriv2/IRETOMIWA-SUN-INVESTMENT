@@ -547,6 +547,7 @@ const CustomPicker = (() => {
     // 3. Render List
     function renderItems(filterQuery = '') {
       container.innerHTML = '';
+      container.scrollTop = 0;
       const q = filterQuery.trim().toLowerCase();
 
       const filtered = allOptions.filter(opt => {
@@ -595,6 +596,7 @@ const CustomPicker = (() => {
           // If the remove button was clicked, do not select
           if (e.target.closest('.btn-remove-custom')) return;
           if (onSelect) onSelect(opt);
+          modal.classList.remove('sheet-keyboard-active');
           modal.classList.add('hidden');
         });
 
@@ -648,10 +650,22 @@ const CustomPicker = (() => {
 
     renderItems('');
 
-    // Bind Search Input
+    // Bind Search Input & Mobile Keyboard Handling
     if (searchInput) {
       searchInput.oninput = () => {
         renderItems(searchInput.value);
+      };
+      searchInput.onfocus = () => {
+        if (window.innerWidth <= 600) {
+          modal.classList.add('sheet-keyboard-active');
+        }
+      };
+      searchInput.onblur = () => {
+        setTimeout(() => {
+          if (!modal.classList.contains('hidden')) {
+            modal.classList.remove('sheet-keyboard-active');
+          }
+        }, 300);
       };
     }
 
