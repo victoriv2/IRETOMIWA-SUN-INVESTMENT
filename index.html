@@ -1139,16 +1139,16 @@
               <div class="form-group" style="margin-bottom:12px;">
                 <label for="admin-flw-mode" style="font-size:12px; font-weight:700;">Gateway Environment</label>
                 <select id="admin-flw-mode" style="width:100%; height:40px; padding:0 12px; border-radius:8px; border:1px solid var(--border); background:#fff; font-size:13px; font-weight:600;">
+                  <option value="live" selected>Live Mode (Real Bank Account Transfers - John Idowu)</option>
                   <option value="test">Test Mode (Sandbox / Demo Transfers)</option>
-                  <option value="live">Live Mode (Real Bank Account Transfers)</option>
                 </select>
               </div>
 
               <div class="form-group" style="margin-bottom:14px;">
-                <label for="admin-flw-public-key" style="font-size:12px; font-weight:700;">Flutterwave Public Key</label>
-                <input type="text" id="admin-flw-public-key" placeholder="FLWPUBK_TEST-... or FLWPUBK-..." style="width:100%; height:40px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-family:monospace; font-size:12px;" />
+                <label for="admin-flw-public-key" style="font-size:12px; font-weight:700;">Flutterwave Live Public Key</label>
+                <input type="text" id="admin-flw-public-key" placeholder="FLWPUBK-570758bf49301716d7e0133dce781024-X" style="width:100%; height:40px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-family:monospace; font-size:12px;" />
                 <small style="display:block; margin-top:4px; font-size:11px; color:var(--text-muted);">
-                  Found in your Flutterwave Dashboard &gt; Settings &gt; API Keys.
+                  Live V3 Public Key for John Idowu. Bank transfers credit directly to your Flutterwave merchant account.
                 </small>
               </div>
 

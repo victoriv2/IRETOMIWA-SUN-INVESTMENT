@@ -607,18 +607,24 @@ const DB = {
       if (raw) {
         const parsed = JSON.parse(raw);
         return {
-          publicKey: parsed.publicKey || 'FLWPUBK_TEST-SANDBOXDEMOKEY-X',
-          mode: parsed.mode || 'test',
+          publicKey: parsed.publicKey || 'FLWPUBK-570758bf49301716d7e0133dce781024-X',
+          secretKey: parsed.secretKey || 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X',
+          encryptionKey: parsed.encryptionKey || 'fc044b9b11bc9d09633290a0',
+          mode: parsed.mode || 'live',
+          merchantName: 'John Idowu (Iretomiwa Sun Investment)',
           isEnabled: parsed.isEnabled !== false,
-          updatedAt: parsed.updatedAt || null,
+          updatedAt: parsed.updatedAt || '2026-10-29T11:20:00.000Z',
         };
       }
     } catch(e) {}
     return {
-      publicKey: 'FLWPUBK_TEST-SANDBOXDEMOKEY-X',
-      mode: 'test',
+      publicKey: 'FLWPUBK-570758bf49301716d7e0133dce781024-X',
+      secretKey: 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X',
+      encryptionKey: 'fc044b9b11bc9d09633290a0',
+      mode: 'live',
+      merchantName: 'John Idowu (Iretomiwa Sun Investment)',
       isEnabled: true,
-      updatedAt: null,
+      updatedAt: '2026-10-29T11:20:00.000Z',
     };
   },
   setFlutterwaveConfig(cfg) {

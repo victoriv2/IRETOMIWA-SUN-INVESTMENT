@@ -1199,8 +1199,8 @@ const AdminApp = (() => {
       const modeSel = document.getElementById('admin-flw-mode');
       const msgBox  = document.getElementById('admin-flw-msg');
 
-      const pubKey = (keyInp ? keyInp.value.trim() : '') || 'FLWPUBK_TEST-SANDBOXDEMOKEY-X';
-      const mode   = modeSel ? modeSel.value : 'test';
+      const pubKey = (keyInp ? keyInp.value.trim() : '') || 'FLWPUBK-570758bf49301716d7e0133dce781024-X';
+      const mode   = modeSel ? modeSel.value : 'live';
 
       DB.setFlutterwaveConfig({
         publicKey: pubKey,
