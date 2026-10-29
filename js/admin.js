@@ -390,8 +390,9 @@ const AdminApp = (() => {
           </div>
         `;
       } else if (status === 'approved') {
-        statusHtml = '<span class="status-badge status-badge--approved">Approved</span>';
-        actionHtml = `<small style="color:var(--color-text-muted); font-size:11.5px; white-space:nowrap;">Reviewed by Admin &bull; ${formatDateTime(t.reviewedAt)}</small>`;
+        const isFlw = t.paymentGateway === 'flutterwave';
+        statusHtml = `<span class="status-badge status-badge--approved">${isFlw ? 'Paid &bull; Flutterwave' : 'Approved'}</span>`;
+        actionHtml = `<small style="color:var(--color-text-muted); font-size:11.5px; white-space:nowrap;">${isFlw ? 'Transfer Verified' : 'Reviewed by Admin'} &bull; ${formatDateTime(t.reviewedAt)}</small>`;
       } else if (status === 'declined') {
         statusHtml = '<span class="status-badge status-badge--declined">Declined</span>';
         actionHtml = `<small style="color:var(--color-danger); font-size:11.5px; white-space:nowrap;">${t.declineReason ? escapeHtml(t.declineReason) + ' &bull; ' : ''}${formatDateTime(t.reviewedAt)}</small>`;
@@ -752,7 +753,10 @@ const AdminApp = (() => {
           <td>${formatDateTime(t.createdAt)}</td>
           <td class="user-name-cell">${escapeHtml(userName)}</td>
           <td>${escapeHtml(phone)}</td>
-          <td><span class="tx-badge tx-badge--deposit">${escapeHtml(t.category || 'General Savings')}</span></td>
+          <td>
+            <span class="tx-badge tx-badge--deposit">${escapeHtml(t.category || 'General Savings')}</span>
+            ${t.paymentGateway === 'flutterwave' ? ` <span class="badge-flw">Flutterwave</span>` : ''}
+          </td>
           <td class="amount-cell amount-cell--deposit">+₦${formatAmount(t.amount)}</td>
           <td>${escapeHtml(t.note || '-')}</td>
         </tr>`;
@@ -1159,6 +1163,64 @@ const AdminApp = (() => {
     if (bEl) bEl.textContent = '₦' + formatAmount(systemTotals.totalBalance);
     if (dEl) dEl.textContent = '₦' + formatAmount(systemTotals.totalDeposited);
     if (pEl) pEl.textContent = '₦' + formatAmount(systemTotals.totalWithdrawn);
+
+    // Populate Flutterwave Configuration fields
+    const flwCfg = DB.getFlutterwaveConfig();
+    const flwKeyInp = document.getElementById('admin-flw-public-key');
+    const flwModeSel = document.getElementById('admin-flw-mode');
+    const flwBadge = document.getElementById('admin-flw-status-badge');
+
+    if (flwKeyInp && !flwKeyInp.dataset.userEdited) {
+      flwKeyInp.value = flwCfg.publicKey || '';
+    }
+    if (flwModeSel) {
+      flwModeSel.value = flwCfg.mode || 'test';
+    }
+    if (flwBadge) {
+      flwBadge.textContent = (flwCfg.mode === 'live') ? 'Live Mode' : 'Test Mode';
+      flwBadge.className = 'status-badge ' + (flwCfg.mode === 'live' ? 'status-badge--approved' : 'status-badge--pending');
+    }
+  }
+
+  // Flutterwave Admin Settings Form Handler
+  function initAdminFlutterwaveSettings() {
+    const form = document.getElementById('admin-flw-config-form');
+    const keyInp = document.getElementById('admin-flw-public-key');
+    if (keyInp) {
+      keyInp.addEventListener('input', () => {
+        keyInp.dataset.userEdited = 'true';
+      });
+    }
+
+    if (!form) return;
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const modeSel = document.getElementById('admin-flw-mode');
+      const msgBox  = document.getElementById('admin-flw-msg');
+
+      const pubKey = (keyInp ? keyInp.value.trim() : '') || 'FLWPUBK_TEST-SANDBOXDEMOKEY-X';
+      const mode   = modeSel ? modeSel.value : 'test';
+
+      DB.setFlutterwaveConfig({
+        publicKey: pubKey,
+        mode: mode,
+        isEnabled: true,
+      });
+
+      if (keyInp) delete keyInp.dataset.userEdited;
+
+      if (msgBox) {
+        msgBox.textContent = 'Flutterwave gateway settings saved and synced successfully!';
+        msgBox.style.background = '#dcfce7';
+        msgBox.style.color = '#15803d';
+        msgBox.style.border = '1px solid #bbf7d0';
+        msgBox.classList.remove('hidden');
+        setTimeout(() => msgBox.classList.add('hidden'), 3500);
+      }
+
+      renderMoreTab();
+    });
   }
 
   // Admin Change Password Modal
@@ -1689,6 +1751,7 @@ const AdminApp = (() => {
     initRecordForm();
     initPayoutsPicker();
     initAdminChangePassword();
+    initAdminFlutterwaveSettings();
     initAdminExports();
     initLogout();
     initModalCloseHandlers();

@@ -356,27 +356,87 @@ const UserApp = (() => {
     }
   }
 
-  // ---- Save / Payout Form & Custom Select Action Sheet ----
+  // ---- Save / Payout Form & Flutterwave Bank Transfer ----
+  function openDepositSuccessModal({ amount, category, ref, newBalance }) {
+    const amtEl = document.getElementById('succ-deposit-amount');
+    const catEl = document.getElementById('succ-deposit-category');
+    const refEl = document.getElementById('succ-deposit-ref');
+    const balEl = document.getElementById('succ-deposit-balance');
+    const modal = document.getElementById('modal-deposit-success');
+
+    if (amtEl) amtEl.textContent = '+₦' + formatAmount(amount);
+    if (catEl) catEl.textContent = category || 'General Savings';
+    if (refEl) refEl.textContent = ref || '-';
+    if (balEl) balEl.textContent = '₦' + formatAmount(newBalance);
+
+    if (modal) modal.classList.remove('hidden');
+  }
+
   function initSaveForm() {
     // Type toggle buttons (Deposit vs Payout)
-    const btnDeposit = document.getElementById('btn-type-deposit');
-    const btnPayout  = document.getElementById('btn-type-payout');
-    const typeInput  = document.getElementById('save-type');
-    const submitBtn  = document.getElementById('save-submit-btn');
+    const btnDeposit  = document.getElementById('btn-type-deposit');
+    const btnPayout   = document.getElementById('btn-type-payout');
+    const typeInput   = document.getElementById('save-type');
+    const submitBtn   = document.getElementById('save-submit-btn');
+    const submitText  = document.getElementById('save-submit-btn-text');
+    const titleEl     = document.getElementById('save-page-title');
+    const subtitleEl  = document.getElementById('save-page-subtitle');
+    const flwCard     = document.getElementById('deposit-flw-card');
+    const flwTrust    = document.getElementById('save-flw-trust');
+    const quickAmts   = document.getElementById('save-quick-amounts');
+    const withDest    = document.getElementById('withdrawal-dest-fields');
+
+    function setFormMode(mode) {
+      if (mode === 'deposit') {
+        if (btnDeposit) btnDeposit.classList.add('active');
+        if (btnPayout) btnPayout.classList.remove('active');
+        if (typeInput) typeInput.value = 'deposit';
+        if (titleEl) titleEl.textContent = 'Save Money';
+        if (subtitleEl) subtitleEl.textContent = 'Transfer money directly to your savings via Flutterwave Bank Transfer';
+        if (flwCard) flwCard.classList.remove('hidden');
+        if (flwTrust) flwTrust.classList.remove('hidden');
+        if (quickAmts) quickAmts.classList.remove('hidden');
+        if (withDest) withDest.classList.add('hidden');
+        if (submitText) submitText.textContent = 'Generate Bank Transfer Account';
+        else if (submitBtn) submitBtn.textContent = 'Generate Bank Transfer Account';
+      } else {
+        if (btnPayout) btnPayout.classList.add('active');
+        if (btnDeposit) btnDeposit.classList.remove('active');
+        if (typeInput) typeInput.value = 'withdrawal';
+        if (titleEl) titleEl.textContent = 'Request Payout';
+        if (subtitleEl) subtitleEl.textContent = 'Submit a withdrawal request to receive cash or bank transfer from Admin';
+        if (flwCard) flwCard.classList.add('hidden');
+        if (flwTrust) flwTrust.classList.add('hidden');
+        if (quickAmts) quickAmts.classList.add('hidden');
+        if (withDest) withDest.classList.remove('hidden');
+        if (submitText) submitText.textContent = 'Submit Pay Out Request';
+        else if (submitBtn) submitBtn.textContent = 'Submit Pay Out Request';
+      }
+    }
 
     if (btnDeposit && btnPayout && typeInput) {
-      btnDeposit.addEventListener('click', () => {
-        btnDeposit.classList.add('active');
-        btnPayout.classList.remove('active');
-        typeInput.value = 'deposit';
-        if (submitBtn) submitBtn.textContent = 'Submit Pay In Request';
-      });
+      btnDeposit.addEventListener('click', () => setFormMode('deposit'));
+      btnPayout.addEventListener('click', () => setFormMode('withdrawal'));
+    }
 
-      btnPayout.addEventListener('click', () => {
-        btnPayout.classList.add('active');
-        btnDeposit.classList.remove('active');
-        typeInput.value = 'withdrawal';
-        if (submitBtn) submitBtn.textContent = 'Submit Pay Out Request';
+    // Quick amount pills
+    document.querySelectorAll('.quick-amt-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        const amtInput = document.getElementById('save-amount');
+        if (!amtInput) return;
+        const add = parseFloat(pill.dataset.amt) || 0;
+        const current = parseFloat(amtInput.value) || 0;
+        amtInput.value = (current + add).toFixed(2);
+      });
+    });
+
+    // Close deposit success modal
+    const closeSuccBtn = document.getElementById('btn-close-deposit-success');
+    const modalSucc    = document.getElementById('modal-deposit-success');
+    if (closeSuccBtn && modalSucc) {
+      closeSuccBtn.addEventListener('click', () => {
+        modalSucc.classList.add('hidden');
+        switchTab('home');
       });
     }
 
@@ -434,33 +494,158 @@ const UserApp = (() => {
         return;
       }
 
-      // Check balance for withdrawal (enforce available balance including pending payouts)
-      if (type === 'withdrawal') {
-        const userBal = DB.getUserBalance(currentUserId);
-        const avail = (typeof userBal.availableBalance === 'number') ? userBal.availableBalance : userBal.balance;
-        if (amount > avail) {
-          if (errEl) {
-            if (userBal.pendingWithdrawn && userBal.pendingWithdrawn > 0) {
-              errEl.textContent = `Insufficient available balance. You have ₦${formatAmount(avail)} available (₦${formatAmount(userBal.pendingWithdrawn)} pending payout).`;
-            } else {
-              errEl.textContent = `Insufficient balance. Your current savings balance is ₦${formatAmount(userBal.balance)}.`;
-            }
-          }
-          amountInput.classList.add('input-error');
-          return;
-        }
-      }
-
       amountInput.classList.remove('input-error');
       const category = catInput ? catInput.value : 'General Savings';
       const userNote = noteInput ? noteInput.value.trim() : '';
+      const user = DB.getUserById(currentUserId);
+      if (!user) return;
+
+      // ---- 1. DEPOSIT: FLUTTERWAVE BANK TRANSFER ----
+      if (type === 'deposit') {
+        const flwConfig = DB.getFlutterwaveConfig();
+        const txRef = 'SUN-DEP-' + currentUserId + '-' + Date.now();
+
+        // Check if Flutterwave checkout script is available
+        if (typeof window.FlutterwaveCheckout !== 'function') {
+          // Graceful fallback to manual deposit request if script blocked
+          DB.addTransaction({
+            userId: currentUserId,
+            type: 'deposit',
+            amount,
+            category,
+            note: userNote ? `${userNote} (Manual Request)` : 'Manual Cash Deposit Request',
+            recordedBy: 'user',
+            status: 'pending',
+          });
+          amountInput.value = '';
+          if (noteInput) noteInput.value = '';
+          if (successEl) {
+            successEl.textContent = `₦${formatAmount(amount)} deposit request submitted for Admin verification.`;
+            successEl.classList.remove('hidden');
+            setTimeout(() => successEl.classList.add('hidden'), 4500);
+          }
+          renderSavingsList();
+          renderTotal();
+          return;
+        }
+
+        const originalText = submitText ? submitText.textContent : 'Generate Bank Transfer Account';
+        if (submitText) submitText.textContent = 'Generating Bank Transfer Account...';
+        if (submitBtn) submitBtn.disabled = true;
+
+        try {
+          window.FlutterwaveCheckout({
+            public_key: flwConfig.publicKey,
+            tx_ref: txRef,
+            amount: amount,
+            currency: 'NGN',
+            payment_options: 'banktransfer,card,ussd',
+            customer: {
+              email: user.email || (user.phone ? `${user.phone}@iretomiwasun.com` : `client_${currentUserId}@iretomiwasun.com`),
+              phone_number: user.phone || '',
+              name: `${DB.formatName(user.firstName)} ${DB.formatName(user.lastName)}`.trim() || 'Valued Saver',
+            },
+            customizations: {
+              title: 'Iretomiwa Sun Investment',
+              description: `Savings Deposit - ${category}`,
+              logo: window.location.origin + '/assets/logo.png',
+            },
+            meta: {
+              userId: currentUserId,
+              category: category,
+              userPhone: user.phone || '',
+            },
+            callback: function (response) {
+              if (response && (response.status === 'successful' || response.status === 'completed')) {
+                const newTx = DB.addTransaction({
+                  userId: currentUserId,
+                  type: 'deposit',
+                  amount: amount,
+                  category: category,
+                  note: userNote ? `${userNote} (Flutterwave: ${response.tx_ref || response.transaction_id})` : `Flutterwave Bank Transfer (${response.tx_ref || response.transaction_id})`,
+                  recordedBy: 'user',
+                  status: 'approved',
+                  paymentGateway: 'flutterwave',
+                  flutterwaveRef: response.tx_ref || response.transaction_id || response.flw_ref,
+                  flwId: response.transaction_id || null,
+                });
+
+                // Clear inputs
+                amountInput.value = '';
+                if (noteInput) noteInput.value = '';
+
+                // Show receipt modal
+                const updatedBal = DB.getUserBalance(currentUserId).balance;
+                openDepositSuccessModal({
+                  amount: amount,
+                  category: category,
+                  ref: response.tx_ref || response.transaction_id,
+                  newBalance: updatedBal,
+                });
+
+                renderSavingsList();
+                renderTotal();
+              } else {
+                if (errorEl) {
+                  errorEl.textContent = 'Payment transfer was not completed. Please try again.';
+                  errorEl.classList.remove('hidden');
+                }
+              }
+            },
+            onclose: function () {
+              if (submitText) submitText.textContent = originalText;
+              if (submitBtn) submitBtn.disabled = false;
+            }
+          });
+        } catch (err) {
+          console.error('Flutterwave initiation error:', err);
+          if (errorEl) {
+            errorEl.textContent = 'Could not open Flutterwave transfer: ' + (err.message || 'Error occurred');
+            errorEl.classList.remove('hidden');
+          }
+        } finally {
+          if (submitText) submitText.textContent = originalText;
+          if (submitBtn) submitBtn.disabled = false;
+        }
+        return;
+      }
+
+      // ---- 2. PAYOUT (WITHDRAWAL) ----
+      const userBal = DB.getUserBalance(currentUserId);
+      const avail = (typeof userBal.availableBalance === 'number') ? userBal.availableBalance : userBal.balance;
+      if (amount > avail) {
+        if (errEl) {
+          if (userBal.pendingWithdrawn && userBal.pendingWithdrawn > 0) {
+            errEl.textContent = `Insufficient available balance. You have ₦${formatAmount(avail)} available (₦${formatAmount(userBal.pendingWithdrawn)} pending payout).`;
+          } else {
+            errEl.textContent = `Insufficient balance. Your current savings balance is ₦${formatAmount(userBal.balance)}.`;
+          }
+        }
+        amountInput.classList.add('input-error');
+        return;
+      }
+
+      // Collect optional destination bank details
+      const bankNameInp = document.getElementById('payout-bank-name');
+      const accNumInp   = document.getElementById('payout-account-number');
+      const accNameInp  = document.getElementById('payout-account-name');
+
+      let destNote = userNote;
+      const bName = bankNameInp ? bankNameInp.value.trim() : '';
+      const bNum  = accNumInp ? accNumInp.value.trim() : '';
+      const bAcc  = accNameInp ? accNameInp.value.trim() : '';
+
+      if (bName || bNum || bAcc) {
+        const details = `Send to: ${bName} ${bNum} (${bAcc})`.trim();
+        destNote = destNote ? `${destNote} | ${details}` : details;
+      }
 
       DB.addTransaction({
         userId: currentUserId,
-        type,
+        type: 'withdrawal',
         amount,
         category,
-        note: userNote,
+        note: destNote,
         recordedBy: 'user',
         status: 'pending',
       });
@@ -468,15 +653,16 @@ const UserApp = (() => {
       // Reset form
       amountInput.value = '';
       if (noteInput) noteInput.value = '';
+      if (bankNameInp) bankNameInp.value = '';
+      if (accNumInp) accNumInp.value = '';
+      if (accNameInp) accNameInp.value = '';
 
       if (successEl) {
-        const reqType = type === 'withdrawal' ? 'Pay Out' : 'Pay In';
-        successEl.textContent = `₦${formatAmount(amount)} ${reqType} request submitted! Awaiting Admin approval.`;
+        successEl.textContent = `₦${formatAmount(amount)} Pay Out request submitted! Awaiting Admin approval.`;
         successEl.classList.remove('hidden');
         setTimeout(() => successEl.classList.add('hidden'), 4500);
       }
 
-      // Refresh home data in background
       renderSavingsList();
       renderTotal();
     });

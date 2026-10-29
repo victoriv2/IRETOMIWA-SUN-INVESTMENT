@@ -340,8 +340,8 @@
       <!-- Record Save / Payout Tab -->
       <div class="tab-content hidden" id="tab-save-content">
         <div class="save-container">
-          <h2 class="save-title">Request Transaction</h2>
-          <p class="save-subtitle">Submit a Pay In (deposit) or Pay Out (withdrawal) request for Admin approval</p>
+          <h2 class="save-title" id="save-page-title">Save Money</h2>
+          <p class="save-subtitle" id="save-page-subtitle">Transfer money directly to your savings via Flutterwave Bank Transfer</p>
           
           <form id="save-form" novalidate>
             <!-- Transaction Type -->
@@ -363,11 +363,36 @@
             </div>
             <input type="hidden" id="save-type" value="deposit" />
 
+            <!-- Flutterwave Bank Transfer Info Banner -->
+            <div class="flw-transfer-card" id="deposit-flw-card">
+              <div class="flw-transfer-badge">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 21h18M3 10h18M5 10v11M19 10v11M9 10v11M15 10v11M12 2L2 7h20L12 2z"/>
+                </svg>
+                <span>Automated Bank Transfer</span>
+              </div>
+              <p class="flw-transfer-desc">
+                When you proceed, Flutterwave will generate a dedicated Nigerian bank account number for your transfer. Make the transfer from any bank app, and your savings will credit automatically!
+              </p>
+            </div>
+
+            <!-- Amount Input -->
             <div class="form-group">
               <label for="save-amount">Amount (₦)</label>
               <input type="number" id="save-amount" placeholder="0.00" min="0" step="0.01" />
               <span class="field-error" id="err-save-amount"></span>
             </div>
+
+            <!-- Quick Amount Pills -->
+            <div class="quick-amounts-grid" id="save-quick-amounts">
+              <button type="button" class="quick-amt-pill" data-amt="500">+₦500</button>
+              <button type="button" class="quick-amt-pill" data-amt="1000">+₦1,000</button>
+              <button type="button" class="quick-amt-pill" data-amt="2000">+₦2,000</button>
+              <button type="button" class="quick-amt-pill" data-amt="5000">+₦5,000</button>
+              <button type="button" class="quick-amt-pill" data-amt="10000">+₦10,000</button>
+              <button type="button" class="quick-amt-pill" data-amt="20000">+₦20,000</button>
+            </div>
+
             <div class="form-group">
               <label>Savings Category</label>
               <button type="button" class="custom-select-trigger" id="save-category-btn" aria-label="Select Savings Category">
@@ -378,13 +403,42 @@
               </button>
               <input type="hidden" id="save-category" value="General Savings" />
             </div>
+
+            <!-- Withdrawal Destination Details (hidden for deposit, visible for withdrawal) -->
+            <div id="withdrawal-dest-fields" class="hidden">
+              <div class="form-group">
+                <label for="payout-bank-name">Your Bank Name</label>
+                <input type="text" id="payout-bank-name" placeholder="e.g. OPay, PalmPay, GTBank, Kuda, Zenith" />
+              </div>
+              <div class="form-group">
+                <label for="payout-account-number">Your 10-Digit Account Number</label>
+                <input type="text" id="payout-account-number" maxlength="10" placeholder="e.g. 0123456789" />
+              </div>
+              <div class="form-group">
+                <label for="payout-account-name">Account Name</label>
+                <input type="text" id="payout-account-name" placeholder="Name registered on bank account" />
+              </div>
+            </div>
+
             <div class="form-group">
               <label for="save-note">Note / Remarks (optional)</label>
               <input type="text" id="save-note" placeholder="Add a note..." />
             </div>
+
             <div id="save-error" class="form-error hidden"></div>
             <div id="save-success" class="form-success hidden"></div>
-            <button type="submit" class="btn-primary btn-full" id="save-submit-btn">Submit Pay In Request</button>
+
+            <button type="submit" class="btn-primary btn-full" id="save-submit-btn">
+              <span id="save-submit-btn-text">Generate Bank Transfer Account</span>
+            </button>
+
+            <!-- Flutterwave trust badge -->
+            <div class="flw-trust-footer" id="save-flw-trust">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+              <span>Secured by Flutterwave Bank Transfer Gateway</span>
+            </div>
           </form>
         </div>
       </div>
@@ -1066,6 +1120,48 @@
             </div>
           </div>
 
+          <!-- Flutterwave Gateway Configuration Card -->
+          <div class="admin-card" style="margin-top: 18px; text-align: left; background: var(--bg-card); border: 1.5px solid var(--border); border-radius: 12px; padding: 18px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:6px; background:#eff6ff; color:#2563eb;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </span>
+                <strong style="font-size:14.5px; color:var(--text-primary);">Flutterwave Gateway Settings</strong>
+              </div>
+              <span class="status-badge status-badge--approved" id="admin-flw-status-badge">Active</span>
+            </div>
+            <p style="font-size:12.5px; color:var(--text-muted); line-height:1.45; margin-bottom: 14px;">
+              Configures the payment gateway for generating dedicated bank account numbers when clients deposit savings.
+            </p>
+
+            <form id="admin-flw-config-form" novalidate>
+              <div class="form-group" style="margin-bottom:12px;">
+                <label for="admin-flw-mode" style="font-size:12px; font-weight:700;">Gateway Environment</label>
+                <select id="admin-flw-mode" style="width:100%; height:40px; padding:0 12px; border-radius:8px; border:1px solid var(--border); background:#fff; font-size:13px; font-weight:600;">
+                  <option value="test">Test Mode (Sandbox / Demo Transfers)</option>
+                  <option value="live">Live Mode (Real Bank Account Transfers)</option>
+                </select>
+              </div>
+
+              <div class="form-group" style="margin-bottom:14px;">
+                <label for="admin-flw-public-key" style="font-size:12px; font-weight:700;">Flutterwave Public Key</label>
+                <input type="text" id="admin-flw-public-key" placeholder="FLWPUBK_TEST-... or FLWPUBK-..." style="width:100%; height:40px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-family:monospace; font-size:12px;" />
+                <small style="display:block; margin-top:4px; font-size:11px; color:var(--text-muted);">
+                  Found in your Flutterwave Dashboard &gt; Settings &gt; API Keys.
+                </small>
+              </div>
+
+              <div id="admin-flw-msg" class="hidden" style="font-size:12px; padding:8px 12px; border-radius:6px; margin-bottom:12px;"></div>
+
+              <div style="display:flex; gap:10px;">
+                <button type="submit" class="btn-primary" id="btn-save-flw-config" style="padding:9px 16px; font-size:12.5px; font-weight:700;">
+                  Save Settings
+                </button>
+              </div>
+            </form>
+          </div>
+
           <!-- Menu Options -->
           <div class="more-menu">
             <button class="more-menu-item" id="btn-admin-change-pw">
@@ -1706,6 +1802,51 @@
     </div>
   </div>
 
+  <!-- MODAL: DEPOSIT SUCCESS CONFIRMATION -->
+  <div id="modal-deposit-success" class="modal-overlay hidden" style="z-index: 1060;">
+    <div class="modal-card" style="max-width: 420px; text-align: center; padding: 26px 22px;">
+      <div style="width: 58px; height: 58px; border-radius: 50%; background: #dcfce7; color: #15803d; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+      <h3 style="font-size: 20px; font-weight: 800; color: #111827; margin-bottom: 6px;">Deposit Successful!</h3>
+      <p style="font-size: 13.5px; color: #4b5563; margin-bottom: 18px; line-height: 1.45;">
+        Your transfer has been verified and added to your savings.
+      </p>
+
+      <!-- Receipt summary box -->
+      <div style="background: #f8fafc; border: 1.5px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 20px; text-align: left; font-size: 13px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom: 7px;">
+          <span style="color: var(--text-muted);">Amount Saved:</span>
+          <span style="font-weight: 800; font-size: 16px; color: var(--primary);" id="succ-deposit-amount">+₦0.00</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom: 7px;">
+          <span style="color: var(--text-muted);">Category / Purpose:</span>
+          <span style="font-weight: 700; color: var(--text-primary);" id="succ-deposit-category">-</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom: 7px;">
+          <span style="color: var(--text-muted);">Method:</span>
+          <span style="font-weight: 700; color: #0284c7;">Flutterwave Bank Transfer</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom: 7px;">
+          <span style="color: var(--text-muted);">Reference:</span>
+          <span style="font-family: monospace; font-size: 11.5px; color: var(--text-secondary);" id="succ-deposit-ref">-</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; border-top: 1px dashed var(--border); padding-top: 7px; margin-top: 7px;">
+          <span style="color: var(--text-muted);">New Available Balance:</span>
+          <span style="font-weight: 800; color: var(--text-primary); font-size: 14.5px;" id="succ-deposit-balance">₦0.00</span>
+        </div>
+      </div>
+
+      <button type="button" class="btn-primary btn-full" id="btn-close-deposit-success" style="padding: 12px 18px; font-weight: 700;">
+        View My Savings
+      </button>
+    </div>
+  </div>
+
+  <!-- Flutterwave v3 Inline Checkout SDK -->
+  <script src="https://checkout.flutterwave.com/v3.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/picker.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>

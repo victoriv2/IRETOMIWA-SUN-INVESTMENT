@@ -39,6 +39,7 @@ const DB = {
         transactions: this.getAllTransactions(),
         admin: this.getAdmin(),
         customCategories: this.getCustomCategories(),
+        flutterwaveConfig: this.getFlutterwaveConfig(),
         updatedAt: new Date().toISOString(),
       };
 
@@ -144,6 +145,14 @@ const DB = {
         const localCats = this.getCustomCategories();
         const mergedCats = Array.from(new Set([...localCats, ...record.customCategories]));
         localStorage.setItem('sun_custom_categories', JSON.stringify(mergedCats));
+      }
+
+      // 5. Flutterwave config sync
+      if (record.flutterwaveConfig && typeof record.flutterwaveConfig === 'object') {
+        const localCfg = this.getFlutterwaveConfig();
+        if (record.flutterwaveConfig.updatedAt && (!localCfg.updatedAt || record.flutterwaveConfig.updatedAt > localCfg.updatedAt)) {
+          localStorage.setItem('sun_flutterwave_config', JSON.stringify({ ...localCfg, ...record.flutterwaveConfig }));
+        }
       }
 
       // Check if local had data that wasn't in cloud yet
@@ -330,7 +339,7 @@ const DB = {
     const all = this.getAllTransactions();
     return all.filter(t => t.status === 'pending');
   },
-  addTransaction({ userId, type, amount, category, note, recordedBy, status }) {
+  addTransaction({ userId, type, amount, category, note, recordedBy, status, paymentGateway, flutterwaveRef, flwId }) {
     const all = this.getAllTransactions();
     const isUser = (recordedBy === 'user');
     const assignedStatus = status || (isUser ? 'pending' : 'approved');
@@ -344,8 +353,11 @@ const DB = {
       note: note || '',
       recordedBy: recordedBy || 'admin',
       status: assignedStatus, // 'pending' | 'approved' | 'declined'
+      paymentGateway: paymentGateway || null,
+      flutterwaveRef: flutterwaveRef || null,
+      flwId: flwId || null,
       reviewedAt: (assignedStatus === 'approved') ? new Date().toISOString() : null,
-      reviewedBy: (assignedStatus === 'approved') ? (recordedBy || 'admin') : null,
+      reviewedBy: (assignedStatus === 'approved') ? (paymentGateway ? 'flutterwave' : (recordedBy || 'admin')) : null,
       declineReason: null,
       createdAt: new Date().toISOString(),
     };
@@ -586,6 +598,39 @@ const DB = {
       localStorage.removeItem('sun_admin_session');
       localStorage.removeItem('sun_admin_tab');
     } catch (e) {}
+  },
+
+  // ---- FLUTTERWAVE GATEWAY CONFIG ----
+  getFlutterwaveConfig() {
+    try {
+      const raw = localStorage.getItem('sun_flutterwave_config');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          publicKey: parsed.publicKey || 'FLWPUBK_TEST-SANDBOXDEMOKEY-X',
+          mode: parsed.mode || 'test',
+          isEnabled: parsed.isEnabled !== false,
+          updatedAt: parsed.updatedAt || null,
+        };
+      }
+    } catch(e) {}
+    return {
+      publicKey: 'FLWPUBK_TEST-SANDBOXDEMOKEY-X',
+      mode: 'test',
+      isEnabled: true,
+      updatedAt: null,
+    };
+  },
+  setFlutterwaveConfig(cfg) {
+    const current = this.getFlutterwaveConfig();
+    const updated = {
+      ...current,
+      ...cfg,
+      updatedAt: new Date().toISOString(),
+    };
+    localStorage.setItem('sun_flutterwave_config', JSON.stringify(updated));
+    this.scheduleCloudPush();
+    return updated;
   },
 };
 

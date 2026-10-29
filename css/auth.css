@@ -1726,3 +1726,94 @@
   border-color: #dc2626 !important;
   color: #dc2626 !important;
 }
+
+/* ---- FLUTTERWAVE PAYMENT GATEWAY STYLES ---- */
+.flw-transfer-card {
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.flw-transfer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  letter-spacing: 0.2px;
+}
+
+.flw-transfer-badge svg {
+  color: #15803d;
+}
+
+.flw-transfer-desc {
+  font-size: 12.5px;
+  color: #166534;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.quick-amounts-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: -6px;
+  margin-bottom: 16px;
+}
+
+.quick-amt-pill {
+  padding: 8px 6px;
+  background: #f8fafc;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.quick-amt-pill:hover,
+.quick-amt-pill:focus {
+  background: #eaf4ed;
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.flw-trust-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.flw-trust-footer svg {
+  color: #16a34a;
+}
+
+.badge-flw {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  white-space: nowrap;
+}
