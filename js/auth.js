@@ -130,12 +130,137 @@ const Auth = (() => {
       }
     });
 
+    // ---- PASSPORT PHOTOGRAPH COMPRESSOR (Strictly <= 100 KB) ----
+    function compressPassportImage(file) {
+      return new Promise((resolve, reject) => {
+        if (!file) return reject(new Error('No file selected.'));
+        if (!file.type || !file.type.startsWith('image/')) {
+          return reject(new Error('Selected file is not an image format.'));
+        }
+
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('Unable to read selected image.'));
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onerror = () => reject(new Error('Corrupted or invalid image file.'));
+          img.onload = () => {
+            try {
+              let width = img.width;
+              let height = img.height;
+              const maxDim = 500;
+              if (width > maxDim || height > maxDim) {
+                if (width > height) {
+                  height = Math.round((height * maxDim) / width);
+                  width = maxDim;
+                } else {
+                  width = Math.round((width * maxDim) / height);
+                  height = maxDim;
+                }
+              }
+
+              const canvas = document.createElement('canvas');
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, width, height);
+              ctx.drawImage(img, 0, 0, width, height);
+
+              let quality = 0.85;
+              let dataUrl = canvas.toDataURL('image/jpeg', quality);
+              let sizeBytes = Math.round((dataUrl.length - 23) * 0.75);
+
+              while (sizeBytes > 95 * 1024 && quality > 0.2) {
+                quality -= 0.1;
+                dataUrl = canvas.toDataURL('image/jpeg', quality);
+                sizeBytes = Math.round((dataUrl.length - 23) * 0.75);
+              }
+
+              if (sizeBytes > 98 * 1024) {
+                canvas.width = Math.round(width * 0.75);
+                canvas.height = Math.round(height * 0.75);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                dataUrl = canvas.toDataURL('image/jpeg', 0.65);
+                sizeBytes = Math.round((dataUrl.length - 23) * 0.75);
+              }
+
+              resolve({
+                dataUrl: dataUrl,
+                sizeKB: Math.max(1, Math.round(sizeBytes / 1024)),
+              });
+            } catch (err) {
+              reject(err);
+            }
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    let selectedPassportDataUrl = '';
+    const passportInput  = document.getElementById('signup-passport');
+    const passportBox    = document.getElementById('passport-preview-box');
+    const passportBtn    = document.getElementById('btn-browse-passport');
+    const passportImg    = document.getElementById('passport-preview-img');
+    const passportHolder = document.getElementById('passport-placeholder');
+    const passportBadge  = document.getElementById('passport-status-badge');
+    const passportErr    = document.getElementById('err-passport');
+
+    function openPassportPicker() {
+      if (passportInput) passportInput.click();
+    }
+    if (passportBox) passportBox.addEventListener('click', openPassportPicker);
+    if (passportBtn) passportBtn.addEventListener('click', openPassportPicker);
+
+    if (passportInput) {
+      passportInput.addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+
+        if (passportErr) passportErr.textContent = '';
+        if (passportBadge) {
+          passportBadge.textContent = 'Compressing...';
+          passportBadge.style.color = '#0284c7';
+          passportBadge.style.background = '#e0f2fe';
+        }
+
+        try {
+          const compressed = await compressPassportImage(file);
+          selectedPassportDataUrl = compressed.dataUrl;
+
+          if (passportImg) {
+            passportImg.src = compressed.dataUrl;
+            passportImg.style.display = 'block';
+          }
+          if (passportHolder) {
+            passportHolder.style.display = 'none';
+          }
+          if (passportBadge) {
+            passportBadge.textContent = `✓ ${compressed.sizeKB} KB (Compressed)`;
+            passportBadge.style.color = '#166534';
+            passportBadge.style.background = '#dcfce7';
+          }
+        } catch (err) {
+          selectedPassportDataUrl = '';
+          if (passportErr) passportErr.textContent = 'Could not process photo: ' + (err.message || 'Choose another image.');
+          if (passportBadge) {
+            passportBadge.textContent = 'Upload failed';
+            passportBadge.style.color = '#dc2626';
+            passportBadge.style.background = '#fee2e2';
+          }
+        }
+      });
+    }
+
     const form = document.getElementById('signup-form');
     if (!form) return;
 
     form.addEventListener('submit', (e) => {
       e.preventDefault();
-      clearErrors('err-firstname', 'err-lastname', 'err-email', 'err-phone', 'err-password', 'err-confirm');
+      clearErrors('err-firstname', 'err-lastname', 'err-email', 'err-phone', 'err-password', 'err-confirm', 'err-passport');
       showFormError('signup-error', '');
 
       const fnInput   = document.getElementById('signup-firstname');
@@ -151,6 +276,12 @@ const Auth = (() => {
       const confirm   = document.getElementById('signup-confirm').value;
 
       let valid = true;
+
+      // Compulsory Passport Photograph
+      if (!selectedPassportDataUrl) {
+        setError('err-passport', 'Passport photograph is compulsory. Please select a clear portrait image.');
+        valid = false;
+      }
 
       // First Name
       if (!firstName) {
@@ -214,7 +345,7 @@ const Auth = (() => {
 
       if (!valid) return;
 
-      const user = DB.createUser({ firstName, lastName, email, phone, password });
+      const user = DB.createUser({ firstName, lastName, email, phone, password, passportPhoto: selectedPassportDataUrl });
       DB.setSession({ userId: user.id });
       App.navigate('user');
     });

@@ -135,10 +135,11 @@ const AdminApp = (() => {
 
     const filteredUsers = users.filter(u => {
       if (!q) return true;
+      const id = (u.id || '').toLowerCase();
       const fullName = `${u.firstName || ''} ${u.lastName || ''}`.toLowerCase();
       const phone = (u.phone || '').toLowerCase();
       const email = (u.email || '').toLowerCase();
-      return fullName.includes(q) || phone.includes(q) || email.includes(q);
+      return id.includes(q) || fullName.includes(q) || phone.includes(q) || email.includes(q);
     });
 
     const counterLabel = document.getElementById('admin-users-counter-label');
@@ -157,12 +158,26 @@ const AdminApp = (() => {
     tbody.innerHTML = filteredUsers.map(u => {
       const userBalances = DB.getUserBalance(u.id);
       const fullName = DB.formatName(u.firstName) + ' ' + DB.formatName(u.lastName);
+      const hasPhoto = Boolean(u.passportPhoto);
+      const photoHtml = hasPhoto
+        ? `<img src="${escapeHtml(u.passportPhoto)}" alt="Passport" style="width:38px; height:44px; border-radius:6px; object-fit:cover; border:1px solid #cbd5e1; flex-shrink:0; background:#f1f5f9;" />`
+        : `<div style="width:38px; height:44px; border-radius:6px; background:#e2e8f0; color:#475569; font-weight:700; font-size:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">${escapeHtml(((u.firstName||'').charAt(0)+(u.lastName||'').charAt(0)).toUpperCase() || 'U')}</div>`;
 
       return `
         <tr>
-          <td class="user-name-cell">${escapeHtml(fullName)}</td>
+          <td>
+            <div style="display:flex; align-items:center; gap:10px;">
+              ${photoHtml}
+              <div>
+                <div style="font-weight:700; color:#0f172a;">${escapeHtml(fullName)}</div>
+                <div style="margin-top:2px;">
+                  <span style="font-size:11px; font-weight:800; color:#1e40af; background:#dbeafe; padding:1px 6px; border-radius:4px; letter-spacing:0.3px;">${escapeHtml(u.id || '')}</span>
+                </div>
+              </div>
+            </div>
+          </td>
           <td>${escapeHtml(u.phone)}</td>
-          <td>${escapeHtml(u.email)}</td>
+          <td>${escapeHtml(u.email || '-')}</td>
           <td class="amount-cell amount-cell--deposit">₦${formatAmount(userBalances.totalDeposited)}</td>
           <td class="amount-cell amount-cell--payout">₦${formatAmount(userBalances.totalWithdrawn)}</td>
           <td class="amount-cell" style="font-size:15px; font-weight:800;">₦${formatAmount(userBalances.balance)}</td>
@@ -198,26 +213,38 @@ const AdminApp = (() => {
       ? new Date(user.joinedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
       : '-';
 
-    const fnEl = document.getElementById('vp-fullname');
-    const emEl = document.getElementById('vp-email');
-    const phEl = document.getElementById('vp-phone');
-    const depEl = document.getElementById('vp-deposited');
-    const wthEl = document.getElementById('vp-withdrawn');
-    const balEl = document.getElementById('vp-balance');
-    const jnEl = document.getElementById('vp-joined');
+    const idEl   = document.getElementById('vp-client-id');
+    const photoEl= document.getElementById('vp-photo');
+    const fnEl   = document.getElementById('vp-fullname');
+    const emEl   = document.getElementById('vp-email');
+    const phEl   = document.getElementById('vp-phone');
+    const depEl  = document.getElementById('vp-deposited');
+    const wthEl  = document.getElementById('vp-withdrawn');
+    const balEl  = document.getElementById('vp-balance');
+    const jnEl   = document.getElementById('vp-joined');
     const initEl = document.getElementById('vp-initials');
 
+    if (idEl) idEl.textContent = user.id || '-';
     if (fnEl) fnEl.textContent = DB.formatName(user.firstName) + ' ' + DB.formatName(user.lastName);
-    if (emEl) emEl.textContent = user.email;
+    if (emEl) emEl.textContent = user.email || 'None';
     if (phEl) phEl.textContent = user.phone;
     if (depEl) depEl.textContent = '₦' + formatAmount(userBal.totalDeposited);
     if (wthEl) wthEl.textContent = '₦' + formatAmount(userBal.totalWithdrawn);
     if (balEl) balEl.textContent = '₦' + formatAmount(userBal.balance);
     if (jnEl) jnEl.textContent = joined;
-    if (initEl) {
-      const i1 = (user.firstName || '').trim().charAt(0);
-      const i2 = (user.lastName || '').trim().charAt(0);
-      initEl.textContent = (i1 + i2).toUpperCase() || 'U';
+
+    if (photoEl && initEl) {
+      if (user.passportPhoto) {
+        photoEl.src = user.passportPhoto;
+        photoEl.style.display = 'block';
+        initEl.style.display = 'none';
+      } else {
+        photoEl.style.display = 'none';
+        initEl.style.display = 'flex';
+        const i1 = (user.firstName || '').trim().charAt(0);
+        const i2 = (user.lastName || '').trim().charAt(0);
+        initEl.textContent = (i1 + i2).toUpperCase() || 'U';
+      }
     }
 
     // Render client ledger table

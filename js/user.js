@@ -361,9 +361,12 @@ const UserApp = (() => {
     const nameEl     = document.getElementById('more-user-name');
     const emailEl    = document.getElementById('more-user-email');
     const initialsEl = document.getElementById('more-user-initials');
+    const photoEl    = document.getElementById('more-user-photo');
+    const idEl       = document.getElementById('more-user-id');
     const fn = DB.formatName(user.firstName || '');
     const ln = DB.formatName(user.lastName || '');
     if (nameEl)  nameEl.textContent  = `${fn} ${ln}`;
+    if (idEl)    idEl.textContent    = user.id || '';
     if (emailEl) {
       if (user.email && user.email.trim()) {
         emailEl.textContent = user.email.trim();
@@ -372,7 +375,19 @@ const UserApp = (() => {
         emailEl.textContent = user.phone || '';
       }
     }
-    if (initialsEl) {
+    if (photoEl && initialsEl) {
+      if (user.passportPhoto) {
+        photoEl.src = user.passportPhoto;
+        photoEl.style.display = 'block';
+        initialsEl.style.display = 'none';
+      } else {
+        photoEl.style.display = 'none';
+        initialsEl.style.display = 'flex';
+        const i1 = (user.firstName || '').trim().charAt(0);
+        const i2 = (user.lastName || '').trim().charAt(0);
+        initialsEl.textContent = (i1 + i2).toUpperCase() || 'U';
+      }
+    } else if (initialsEl) {
       const i1 = (user.firstName || '').trim().charAt(0);
       const i2 = (user.lastName || '').trim().charAt(0);
       initialsEl.textContent = (i1 + i2).toUpperCase() || 'U';

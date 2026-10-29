@@ -52,8 +52,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261029_clean_v8" />
-  <link rel="stylesheet" href="css/auth.css?v=20261029_clean_v8" />
+  <link rel="stylesheet" href="css/global.css?v=20261029_clean_v9" />
+  <link rel="stylesheet" href="css/auth.css?v=20261029_clean_v9" />
   <style>
     /* Pre-boot instant session hints to prevent visual flicker before App router executes */
     html.is-user-logged-in #page-login { display: none; }
@@ -79,8 +79,8 @@
 
         <form id="login-form" novalidate>
           <div class="form-group">
-            <label for="login-identifier">Email Address or Phone Number</label>
-            <input type="text" id="login-identifier" placeholder="e.g. you@example.com or 08012345678" autocomplete="username" />
+            <label for="login-identifier">Email, Phone Number or Client ID (e.g. ir00001)</label>
+            <input type="text" id="login-identifier" placeholder="e.g. ir00001, 08012345678 or email" autocomplete="username" />
             <span class="field-error" id="err-login-identifier"></span>
           </div>
 
@@ -119,6 +119,47 @@
         <p class="auth-subtitle">Join Iretomiwa Sun Enterprise today</p>
 
         <form id="signup-form" novalidate>
+          <!-- Compulsory Passport Photograph Field (Auto-compressed <= 100KB) -->
+          <div class="form-group" style="margin-bottom: 18px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <label for="signup-passport" style="font-weight: 700; font-size: 13px; margin-bottom: 0;">
+                Passport Photograph <span style="color: #dc2626;">*</span>
+              </label>
+              <span id="passport-status-badge" style="font-size: 11.5px; font-weight: 600; color: #166534; background: #dcfce7; padding: 2px 7px; border-radius: 4px;">Max 100 KB</span>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 14px; background: #f8fafc; border: 1.5px dashed #cbd5e1; border-radius: 12px; padding: 12px;">
+              <!-- Passport Preview Thumbnail -->
+              <div id="passport-preview-box" style="width: 72px; height: 86px; border-radius: 8px; border: 1px solid #cbd5e1; background: #ffffff; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; position: relative; cursor: pointer; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+                <div id="passport-placeholder" style="display: flex; flex-direction: column; align-items: center; text-align: center; padding: 4px; color: #64748b;">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="margin-bottom: 2px;">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                  <span style="font-size: 9.5px; font-weight: 700; line-height: 1.1;">Upload</span>
+                </div>
+                <img id="passport-preview-img" src="" alt="Passport Preview" style="width: 100%; height: 100%; object-fit: cover; display: none;" />
+              </div>
+
+              <!-- Upload Instruction & Trigger Button -->
+              <div style="flex: 1;">
+                <input type="file" id="signup-passport" accept="image/*" style="display: none;" />
+                <button type="button" id="btn-browse-passport" class="btn-secondary" style="font-size: 12.5px; font-weight: 700; padding: 7px 12px; width: auto; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 5px; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  Choose Passport Photo
+                </button>
+                <p style="margin: 0; font-size: 11.5px; color: var(--text-muted); line-height: 1.35;">
+                  Compulsory face portrait. Auto-compressed to under 100 KB for optimal speed.
+                </p>
+              </div>
+            </div>
+            <span class="field-error" id="err-passport" style="display: block; margin-top: 5px;"></span>
+          </div>
+
           <div class="form-row">
             <div class="form-group">
               <label for="signup-firstname">First Name</label>
@@ -524,10 +565,14 @@
       <div class="tab-content hidden" id="tab-more-content">
         <div class="more-container">
           <div class="more-user-info">
-            <div class="more-avatar">
+            <div class="more-avatar" style="position: relative; overflow: hidden;">
               <span class="more-avatar-initials" id="more-user-initials">DA</span>
+              <img id="more-user-photo" src="" alt="Passport Photo" style="display: none; width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" />
             </div>
             <p class="more-user-name" id="more-user-name">User Name</p>
+            <div style="margin-top: 3px; margin-bottom: 4px;">
+              <span id="more-user-id" style="font-size: 11.5px; font-weight: 800; color: #1e40af; background: #dbeafe; padding: 2px 9px; border-radius: 6px; letter-spacing: 0.5px;">ir00001</span>
+            </div>
             <p class="more-user-email" id="more-user-email"></p>
           </div>
 
@@ -799,7 +844,7 @@
           </div>
 
           <div class="admin-search-wrap">
-            <input type="text" class="admin-search-input" id="admin-user-search" placeholder="Search client by name, phone or email..." />
+            <input type="text" class="admin-search-input" id="admin-user-search" placeholder="Search client by ID (e.g. ir00001), name, phone or email..." />
           </div>
 
           <div class="admin-table-wrapper">
@@ -1582,11 +1627,16 @@
       </div>
 
       <div class="user-profile-view">
-        <div class="profile-avatar-large">
+        <div class="profile-avatar-large" id="vp-avatar-wrap" style="position: relative; width: 94px; height: 110px; border-radius: 10px; overflow: hidden; border: 2px solid #cbd5e1; margin: 0 auto 16px auto; background: #f8fafc; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.08);">
           <span class="profile-avatar-initials" id="vp-initials">DA</span>
+          <img id="vp-photo" src="" alt="Client Passport" style="display: none; width: 100%; height: 100%; object-fit: cover;" />
         </div>
 
         <div class="profile-fields">
+          <div class="profile-field">
+            <span class="profile-field-label">Client ID</span>
+            <span class="profile-field-value" id="vp-client-id" style="font-weight: 800; color: #1e40af; background: #dbeafe; padding: 2px 8px; border-radius: 6px; display: inline-block; letter-spacing: 0.5px;"></span>
+          </div>
           <div class="profile-field">
             <span class="profile-field-label">Full Name</span>
             <span class="profile-field-value" id="vp-fullname"></span>
@@ -2140,13 +2190,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261029_clean_v8"></script>
-  <script src="js/picker.js?v=20261029_clean_v8"></script>
+  <script src="js/storage.js?v=20261029_clean_v9"></script>
+  <script src="js/picker.js?v=20261029_clean_v9"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261029_clean_v8"></script>
-  <script src="js/auth.js?v=20261029_clean_v8"></script>
-  <script src="js/user.js?v=20261029_clean_v8"></script>
-  <script src="js/admin.js?v=20261029_clean_v8"></script>
-  <script src="js/app.js?v=20261029_clean_v8"></script>
+  <script src="js/export.js?v=20261029_clean_v9"></script>
+  <script src="js/auth.js?v=20261029_clean_v9"></script>
+  <script src="js/user.js?v=20261029_clean_v9"></script>
+  <script src="js/admin.js?v=20261029_clean_v9"></script>
+  <script src="js/app.js?v=20261029_clean_v9"></script>
 </body>
 </html>

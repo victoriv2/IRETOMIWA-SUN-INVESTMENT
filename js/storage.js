@@ -3,7 +3,7 @@
 // ============================================
 
 // ---- HARD SYSTEM RESET EPOCH ----
-const SYSTEM_RESET_ID = 'RESET_2026_10_29_SUPABASE_PROD_V2';
+const SYSTEM_RESET_ID = 'RESET_2026_10_29_FACTORY_IR00001';
 
 (function enforceSystemReset() {
   try {
@@ -290,9 +290,10 @@ const DB = {
     const clean = identifier.trim().toLowerCase();
     const cleanDigits = identifier.trim().replace(/\D/g, '');
     return this.getUsers().find(u => {
+      const idMatch = Boolean(u.id && u.id.toLowerCase() === clean);
       const emailMatch = Boolean(u.email && u.email.trim().toLowerCase() === clean);
       const phoneMatch = Boolean(cleanDigits.length >= 10 && u.phone && u.phone.replace(/\D/g, '') === cleanDigits);
-      return emailMatch || phoneMatch;
+      return idMatch || emailMatch || phoneMatch;
     }) || null;
   },
   getUserById(id) {
@@ -300,13 +301,27 @@ const DB = {
   },
   createUser(data) {
     const users = this.getUsers();
+
+    // Unique Sequential Client ID: ir00001, ir00002, ..., ir99999
+    let maxNum = 0;
+    users.forEach(u => {
+      const match = (u.id || '').match(/^ir(\d+)$/i);
+      if (match) {
+        const n = parseInt(match[1], 10);
+        if (!isNaN(n) && n > maxNum) maxNum = n;
+      }
+    });
+    const nextNum = maxNum + 1;
+    const newId = 'ir' + String(nextNum).padStart(5, '0');
+
     const newUser = {
-      id: 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      id: newId,
       firstName: this.formatName(data.firstName),
       lastName:  this.formatName(data.lastName),
       email: data.email ? data.email.trim().toLowerCase() : '',
       phone: data.phone.trim(),
       password: data.password,
+      passportPhoto: data.passportPhoto || '',
       joinedAt: new Date().toISOString(),
     };
     users.push(newUser);
