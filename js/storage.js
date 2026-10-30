@@ -3,7 +3,7 @@
 // ============================================
 
 // ---- HARD SYSTEM RESET EPOCH ----
-const SYSTEM_RESET_ID = 'RESET_IR00001_V2';
+const SYSTEM_RESET_ID = 'RESET_IR00001_V3';
 
 (function enforceSystemReset() {
   try {
