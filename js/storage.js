@@ -179,7 +179,13 @@ const DB = {
 
       // 3. Admin sync if exists
       if (cloudAdmin && cloudAdmin.password) {
-        localStorage.setItem('sun_admin', JSON.stringify(cloudAdmin));
+        const mergedAdmin = {
+          email: cloudAdmin.email || 'admin@suninvestment.com',
+          username: cloudAdmin.username || 'admin',
+          password: cloudAdmin.password || 'Admin@123',
+          name: cloudAdmin.name || 'System Admin',
+        };
+        localStorage.setItem('sun_admin', JSON.stringify(mergedAdmin));
       }
 
       // 4. Custom Categories sync if exists
@@ -622,12 +628,25 @@ const DB = {
 
   // ---- ADMIN ----
   getAdmin() {
-    // Seed default admin if not exists
-    let admin = JSON.parse(localStorage.getItem('sun_admin') || 'null');
-    if (!admin) {
-      admin = { email: 'admin@suninvestment.com', password: 'Admin@123' };
-      localStorage.setItem('sun_admin', JSON.stringify(admin));
+    let admin = null;
+    try {
+      admin = JSON.parse(localStorage.getItem('sun_admin') || 'null');
+    } catch (e) {}
+    if (!admin || typeof admin !== 'object') {
+      admin = {};
     }
+    if (!admin.email) {
+      admin.email = 'admin@suninvestment.com';
+    }
+    if (!admin.username) {
+      admin.username = 'admin';
+    }
+    if (!admin.password) {
+      admin.password = 'Admin@123';
+    }
+    try {
+      localStorage.setItem('sun_admin', JSON.stringify(admin));
+    } catch (e) {}
     return admin;
   },
   updateAdminPassword(newPassword) {

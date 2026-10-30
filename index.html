@@ -66,7 +66,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261030_PERSIST_V22';
+      var APP_BUILD_VER = '20261030_FIX_V23';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -83,27 +83,12 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261030_persist_v22" />
-  <link rel="stylesheet" href="css/auth.css?v=20261030_persist_v22" />
+  <link rel="stylesheet" href="css/global.css?v=20261030_fix_v23" />
+  <link rel="stylesheet" href="css/auth.css?v=20261030_fix_v23" />
   <style>
-    /* Pre-boot instant session hints to eliminate visual flicker/interference on refresh */
-    html.is-user-logged-in #page-login       { display: none !important; }
-    html.is-user-logged-in #page-signup      { display: none !important; }
-    html.is-user-logged-in #page-admin-login { display: none !important; }
-    html.is-user-logged-in #page-admin       { display: none !important; }
-    html.is-user-logged-in #page-user        { display: flex !important; }
-
-    html.is-admin-logged-in #page-login       { display: none !important; }
-    html.is-admin-logged-in #page-signup      { display: none !important; }
-    html.is-admin-logged-in #page-admin-login { display: none !important; }
-    html.is-admin-logged-in #page-user        { display: none !important; }
-    html.is-admin-logged-in #page-admin       { display: flex !important; }
-
-    html.is-admin-login #page-login       { display: none !important; }
-    html.is-admin-login #page-signup      { display: none !important; }
-    html.is-admin-login #page-user        { display: none !important; }
-    html.is-admin-login #page-admin       { display: none !important; }
-    html.is-admin-login #page-admin-login { display: flex !important; }
+    /* Gentle pre-boot session hints - JavaScript has full priority without !important blocking */
+    html.is-user-logged-in #page-login { display: none; }
+    html.is-admin-logged-in #page-login { display: none; }
   </style>
 </head>
 <body>
@@ -2288,13 +2273,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261030_persist_v22"></script>
-  <script src="js/picker.js?v=20261030_persist_v22"></script>
+  <script src="js/storage.js?v=20261030_fix_v23"></script>
+  <script src="js/picker.js?v=20261030_fix_v23"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261030_persist_v22"></script>
-  <script src="js/auth.js?v=20261030_persist_v22"></script>
-  <script src="js/user.js?v=20261030_persist_v22"></script>
-  <script src="js/admin.js?v=20261030_persist_v22"></script>
-  <script src="js/app.js?v=20261030_persist_v22"></script>
+  <script src="js/export.js?v=20261030_fix_v23"></script>
+  <script src="js/auth.js?v=20261030_fix_v23"></script>
+  <script src="js/user.js?v=20261030_fix_v23"></script>
+  <script src="js/admin.js?v=20261030_fix_v23"></script>
+  <script src="js/app.js?v=20261030_fix_v23"></script>
 </body>
 </html>
