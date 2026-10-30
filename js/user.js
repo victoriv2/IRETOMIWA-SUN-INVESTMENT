@@ -576,7 +576,7 @@ const UserApp = (() => {
       });
     }
 
-    // 10% Fee Breakdown Real-time Calculator
+    // Dynamic Fee Breakdown Real-time Calculator
     const saveAmtInput = document.getElementById('save-amount');
     const withGrossEl  = document.getElementById('with-gross-amt');
     const withFeeEl    = document.getElementById('with-fee-amt');
@@ -585,8 +585,15 @@ const UserApp = (() => {
     function updateFeeCalculations() {
       if (!saveAmtInput) return;
       const gross = parseFloat(saveAmtInput.value) || 0;
-      const fee = Math.round(gross * 0.10 * 100) / 100;
+      const commRate = (typeof DB !== 'undefined' && DB.getCommissionRate) ? DB.getCommissionRate() : 4;
+      const feeRate = commRate / 100;
+      const fee = Math.round(gross * feeRate * 100) / 100;
       const net = Math.max(0, Math.round((gross - fee) * 100) / 100);
+
+      // Dynamically update commission badges in UI
+      document.querySelectorAll('.comm-rate-badge').forEach(badge => {
+        badge.textContent = `${commRate}%`;
+      });
 
       if (withGrossEl) withGrossEl.textContent = `₦${formatAmount(gross)}`;
       if (withFeeEl)   withFeeEl.textContent   = `-₦${formatAmount(fee)}`;
@@ -925,7 +932,8 @@ const UserApp = (() => {
       proceedWithPayoutSubmission();
 
       function proceedWithPayoutSubmission() {
-        const feeRate = 0.10;
+        const commRate = (typeof DB !== 'undefined' && DB.getCommissionRate) ? DB.getCommissionRate() : 4;
+        const feeRate = commRate / 100;
         const fee = Math.round(amount * feeRate * 100) / 100;
         const netAmount = Math.max(0, Math.round((amount - fee) * 100) / 100);
 
@@ -1016,7 +1024,7 @@ const UserApp = (() => {
           });
         } else {
           if (successEl) {
-            successEl.textContent = `Pay Out request submitted! Gross: ₦${formatAmount(amount)} | 10% Fee: ₦${formatAmount(fee)} | Net Transfer: ₦${formatAmount(netAmount)}. Awaiting Admin approval.`;
+            successEl.textContent = `Pay Out request submitted! Gross: ₦${formatAmount(amount)} | ${commRate}% Fee: ₦${formatAmount(fee)} | Net Transfer: ₦${formatAmount(netAmount)}. Awaiting Admin approval.`;
             successEl.classList.remove('hidden');
             setTimeout(() => successEl.classList.add('hidden'), 6000);
           }

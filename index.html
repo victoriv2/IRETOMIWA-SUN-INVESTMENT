@@ -83,8 +83,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261030_spaced_v25" />
-  <link rel="stylesheet" href="css/auth.css?v=20261030_spaced_v25" />
+  <link rel="stylesheet" href="css/global.css?v=20261030_comm_v26" />
+  <link rel="stylesheet" href="css/auth.css?v=20261030_comm_v26" />
   <style>
     /* Gentle pre-boot session hints - JavaScript has full priority without !important blocking */
     html.is-user-logged-in #page-login { display: none; }
@@ -504,18 +504,18 @@
                 </p>
               </div>
 
-              <!-- 10% Admin Fee Breakdown Card -->
+              <!-- Dynamic Admin Fee Breakdown Card -->
               <div id="withdrawal-fee-breakdown" style="margin-bottom: 16px; padding: 12px 14px; border-radius: 10px; background: #fefce8; border: 1.5px solid #fde047; font-size: 13px;">
                 <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #854d0e; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
                   <span>Withdrawal & Fee Breakdown</span>
-                  <span style="background: #fef08a; color: #713f12; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;">10% Admin Fee</span>
+                  <span style="background: #fef08a; color: #713f12; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;"><span class="comm-rate-badge">4%</span> Admin Fee</span>
                 </div>
                 <div style="display:flex; justify-content:space-between; margin-bottom: 5px;">
                   <span style="color: #713f12;">Gross Savings Requested:</span>
                   <span style="font-weight: 700; color: #1f2937;" id="with-gross-amt">₦0.00</span>
                 </div>
                 <div style="display:flex; justify-content:space-between; margin-bottom: 5px;">
-                  <span style="color: #713f12;">Admin Commission (10%):</span>
+                  <span style="color: #713f12;">Admin Commission (<span class="comm-rate-badge">4%</span>):</span>
                   <span style="font-weight: 700; color: #dc2626;" id="with-fee-amt">-₦0.00</span>
                 </div>
                 <div style="display:flex; justify-content:space-between; border-top: 1px dashed #ca8a04; padding-top: 6px; margin-top: 4px;">
@@ -1380,6 +1380,40 @@
 
           <!-- Menu Options -->
           <div class="more-menu">
+            <button type="button" class="more-menu-item" id="btn-admin-change-commission">
+              <span class="more-menu-icon" style="color: #0d9488; background: #ccfbf1;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="19" y1="5" x2="5" y2="19"/>
+                  <circle cx="6.5" cy="6.5" r="2.5"/>
+                  <circle cx="17.5" cy="17.5" r="2.5"/>
+                </svg>
+              </span>
+              <span class="more-menu-label" style="display: flex; align-items: center; justify-content: space-between; width: 100%; padding-right: 8px;">
+                <span>Payout Commission Rate</span>
+                <span class="status-badge" id="admin-more-commission-badge" style="background: #e0f2fe; color: #0369a1; font-weight: 800; font-size: 11px; padding: 2px 8px; border-radius: 999px;">4%</span>
+              </span>
+              <span class="more-menu-arrow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </span>
+            </button>
+
+            <button type="button" class="more-menu-item" id="btn-admin-change-email">
+              <span class="more-menu-icon" style="color: #2563eb; background: #dbeafe;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                  <polyline points="22,6 12,13 2,6"/>
+                </svg>
+              </span>
+              <span class="more-menu-label">Change Admin Email</span>
+              <span class="more-menu-arrow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </span>
+            </button>
+
             <button class="more-menu-item" id="btn-admin-change-pw">
               <span class="more-menu-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1837,6 +1871,98 @@
     </div>
   </div>
 
+  <!-- ============================================
+       MODAL: ADMIN ADJUST COMMISSION RATE
+       ============================================ -->
+  <div id="modal-admin-commission" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Payout Commission Rate</h3>
+        <button type="button" class="modal-close" data-modal="modal-admin-commission" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px;">
+        <span style="font-size: 11.5px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">Current Commission Rate</span>
+        <div style="font-size: 22px; font-weight: 800; color: #14532d; margin-top: 2px;" id="admin-current-commission-display">4%</div>
+        <small style="display:block; margin-top:4px; font-size:11.5px; color:#15803d; line-height: 1.4;">
+          This fee percentage is automatically deducted from client savings withdrawals when requesting or receiving payouts.
+        </small>
+      </div>
+
+      <form id="admin-commission-form" novalidate>
+        <div class="form-group">
+          <label for="admin-commission-input">New Commission Rate (%)</label>
+          <div style="position: relative;">
+            <input type="number" id="admin-commission-input" step="0.1" min="0" max="100" placeholder="e.g. 4" style="padding-right: 36px;" />
+            <span style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-weight: 700; color: var(--text-muted); font-size: 14px; pointer-events: none;">%</span>
+          </div>
+          <span class="field-error" id="err-admin-commission"></span>
+          <small style="display:block; margin-top:6px; font-size:11.5px; color:var(--text-muted);">
+            Enter a value between 0% and 100% (e.g., 4 for 4%).
+          </small>
+        </div>
+
+        <div id="admin-comm-error" class="form-error hidden"></div>
+        <div id="admin-comm-success" class="form-success hidden"></div>
+        <button type="submit" class="btn-primary btn-full">Save Commission Rate</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================
+       MODAL: ADMIN CHANGE EMAIL
+       ============================================ -->
+  <div id="modal-admin-change-email" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Change Admin Email</h3>
+        <button type="button" class="modal-close" data-modal="modal-admin-change-email" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px;">
+        <span style="font-size: 11.5px; font-weight: 700; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px;">Current Admin Email</span>
+        <div style="font-size: 15px; font-weight: 700; color: #1e3a8a; margin-top: 2px;" id="admin-current-email-display">admin@suninvestment.com</div>
+        <small style="display:block; margin-top:4px; font-size:11.5px; color:#1d4ed8; line-height: 1.4;">
+          Used for admin login and administrative correspondence.
+        </small>
+      </div>
+
+      <form id="admin-change-email-form" novalidate>
+        <div class="form-group">
+          <label for="admin-new-email-input">New Admin Email Address</label>
+          <input type="email" id="admin-new-email-input" placeholder="e.g. director@suninvestment.com" />
+          <span class="field-error" id="err-admin-new-email"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="admin-email-confirm-pw">Current Admin Password (for security)</label>
+          <div class="password-wrapper">
+            <input type="password" id="admin-email-confirm-pw" placeholder="Enter current admin password" />
+            <button type="button" class="toggle-pw" data-target="admin-email-confirm-pw" aria-label="Toggle password visibility">
+              <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+          <span class="field-error" id="err-admin-email-confirm-pw"></span>
+        </div>
+
+        <div id="admin-email-error" class="form-error hidden"></div>
+        <div id="admin-email-success" class="form-success hidden"></div>
+        <button type="submit" class="btn-primary btn-full">Update Admin Email</button>
+      </form>
+    </div>
+  </div>
+
   <!-- DATE PICKER MODAL (Full Calendar Picker: Day, Month, Year - Strict Present/Past Only) -->
   <div id="modal-date-picker" class="modal-overlay hidden">
     <div class="modal-card modal-card--sheet" style="max-width: 400px;">
@@ -2080,14 +2206,14 @@
           <span style="font-weight: 700;" id="approve-client-balance">-</span>
         </div>
 
-        <!-- 10% Fee Breakdown for Withdrawals -->
+        <!-- Dynamic Fee Breakdown for Withdrawals -->
         <div id="approve-fee-breakdown" class="hidden" style="margin-top: 8px; padding: 8px 10px; border-radius: 6px; background: #fefce8; border: 1px solid #fef08a;">
           <div style="display:flex; justify-content:space-between; margin-bottom: 4px; font-size: 12px;">
             <span style="color: #713f12;">Gross Savings Requested:</span>
             <span style="font-weight: 700; color: #1f2937;" id="approve-gross-amt">-</span>
           </div>
           <div style="display:flex; justify-content:space-between; margin-bottom: 4px; font-size: 12px;">
-            <span style="color: #713f12;">Admin Commission (10%):</span>
+            <span style="color: #713f12;">Admin Commission (<span class="comm-rate-badge">4%</span>):</span>
             <span style="font-weight: 700; color: #dc2626;" id="approve-fee-amt">-</span>
           </div>
           <div style="display:flex; justify-content:space-between; border-top: 1px dashed #ca8a04; padding-top: 4px; margin-top: 4px; font-size: 12.5px;">
@@ -2273,13 +2399,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261030_spaced_v25"></script>
-  <script src="js/picker.js?v=20261030_spaced_v25"></script>
+  <script src="js/storage.js?v=20261030_comm_v26"></script>
+  <script src="js/picker.js?v=20261030_comm_v26"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261030_spaced_v25"></script>
-  <script src="js/auth.js?v=20261030_spaced_v25"></script>
-  <script src="js/user.js?v=20261030_spaced_v25"></script>
-  <script src="js/admin.js?v=20261030_spaced_v25"></script>
-  <script src="js/app.js?v=20261030_spaced_v25"></script>
+  <script src="js/export.js?v=20261030_comm_v26"></script>
+  <script src="js/auth.js?v=20261030_comm_v26"></script>
+  <script src="js/user.js?v=20261030_comm_v26"></script>
+  <script src="js/admin.js?v=20261030_comm_v26"></script>
+  <script src="js/app.js?v=20261030_comm_v26"></script>
 </body>
 </html>

@@ -73,6 +73,7 @@ const DB = {
         admin: this.getAdmin(),
         custom_categories: this.getCustomCategories(),
         flutterwave_config: this.getFlutterwaveConfig(),
+        commission_percentage: this.getCommissionRate(),
         reset_id: SYSTEM_RESET_ID,
         updated_at: new Date().toISOString(),
       };
@@ -150,6 +151,10 @@ const DB = {
         if (activeFlw && typeof activeFlw === 'object') {
           localStorage.setItem('sun_flutterwave_config', JSON.stringify(activeFlw));
         }
+        const cloudComm = record.commission_percentage !== undefined ? record.commission_percentage : record.commissionPercentage;
+        if (cloudComm !== undefined && cloudComm !== null && !isNaN(Number(cloudComm))) {
+          localStorage.setItem('sun_commission_percentage', String(cloudComm));
+        }
 
         this._isPulling = false;
         this.notifySync('synced');
@@ -201,6 +206,12 @@ const DB = {
         if (cloudFlw.updatedAt && (!localCfg.updatedAt || cloudFlw.updatedAt >= localCfg.updatedAt)) {
           localStorage.setItem('sun_flutterwave_config', JSON.stringify({ ...localCfg, ...cloudFlw }));
         }
+      }
+
+      // 6. Commission percentage sync
+      const cloudComm = record.commission_percentage !== undefined ? record.commission_percentage : record.commissionPercentage;
+      if (cloudComm !== undefined && cloudComm !== null && !isNaN(Number(cloudComm))) {
+        localStorage.setItem('sun_commission_percentage', String(cloudComm));
       }
 
       this._isPulling = false;
@@ -655,6 +666,38 @@ const DB = {
     localStorage.setItem('sun_admin', JSON.stringify(admin));
     this.scheduleCloudPush();
     return true;
+  },
+  updateAdminEmail(newEmail) {
+    if (!newEmail || typeof newEmail !== 'string' || !newEmail.includes('@')) {
+      throw new Error('Please enter a valid email address.');
+    }
+    const admin = this.getAdmin();
+    admin.email = newEmail.trim().toLowerCase();
+    localStorage.setItem('sun_admin', JSON.stringify(admin));
+    this.scheduleCloudPush();
+    return admin.email;
+  },
+  getCommissionRate() {
+    try {
+      const stored = localStorage.getItem('sun_commission_percentage');
+      if (stored !== null && stored !== undefined && stored !== '') {
+        const parsed = parseFloat(stored);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return 4; // Default 4% commission as requested
+  },
+  setCommissionRate(rate) {
+    const num = parseFloat(rate);
+    if (isNaN(num) || num < 0 || num > 100) {
+      throw new Error('Commission rate must be a valid percentage between 0% and 100%.');
+    }
+    const rounded = Math.round(num * 100) / 100;
+    localStorage.setItem('sun_commission_percentage', String(rounded));
+    this.scheduleCloudPush();
+    return rounded;
   },
   getAdminSession() {
     try {

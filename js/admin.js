@@ -427,7 +427,8 @@ const AdminApp = (() => {
 
       const balDisplay = `₦${formatAmount(userBal.balance)}${!isDeposit && userBal.pendingWithdrawn > 0 ? ` <small style="color:var(--color-text-muted); font-size:11.5px;">(Avail: ₦${formatAmount(userBal.availableBalance)})</small>` : ''}`;
       const grossAmt = t.grossAmount || t.amount;
-      const feeAmt = t.fee !== undefined ? t.fee : (grossAmt * 0.10);
+      const defaultFeeRate = (typeof DB !== 'undefined' && DB.getCommissionRate) ? (DB.getCommissionRate() / 100) : 0.04;
+      const feeAmt = t.fee !== undefined ? t.fee : Math.round(grossAmt * defaultFeeRate * 100) / 100;
       const netAmt = t.netAmount !== undefined ? t.netAmount : (grossAmt - feeAmt);
       const feeNote = (!isDeposit && feeAmt > 0)
         ? `<div style="font-size:11px; color:#15803d; font-weight:700; margin-top:2px;">Net: ₦${formatAmount(netAmt)} <span style="color:#b91c1c; font-weight:600;">(Fee: ₦${formatAmount(feeAmt)})</span></div>`
@@ -516,11 +517,16 @@ const AdminApp = (() => {
       if (actionsDep) actionsDep.classList.remove('hidden');
       if (actionsWith) actionsWith.classList.add('hidden');
     } else {
-      // Withdrawal / Pay Out with 10% Admin Fee
+      // Withdrawal / Pay Out with Dynamic Admin Fee
       const grossAmt = t.grossAmount || t.amount;
-      const feeRate = 0.10;
+      const currentComm = (typeof DB !== 'undefined' && DB.getCommissionRate) ? DB.getCommissionRate() : 4;
+      const feeRate = t.feeRate !== undefined ? t.feeRate : (currentComm / 100);
       const feeAmt = t.fee !== undefined ? t.fee : Math.round(grossAmt * feeRate * 100) / 100;
       const netAmt = t.netAmount !== undefined ? t.netAmount : Math.max(0, Math.round((grossAmt - feeAmt) * 100) / 100);
+
+      document.querySelectorAll('.comm-rate-badge').forEach(b => {
+        b.textContent = `${Math.round(feeRate * 100)}%`;
+      });
 
       if (feeBox) feeBox.classList.remove('hidden');
       if (grossEl) grossEl.textContent = `₦${formatAmount(grossAmt)}`;
@@ -541,7 +547,7 @@ const AdminApp = (() => {
       }
 
       if (descEl) {
-        descEl.textContent = `Approve withdrawal for ${clientName}? Gross: ₦${formatAmount(grossAmt)} | 10% Admin Fee: ₦${formatAmount(feeAmt)} | Net Payout: ₦${formatAmount(netAmt)}.`;
+        descEl.textContent = `Approve withdrawal for ${clientName}? Gross: ₦${formatAmount(grossAmt)} | ${Math.round(feeRate * 100)}% Admin Fee: ₦${formatAmount(feeAmt)} | Net Payout: ₦${formatAmount(netAmt)}.`;
       }
 
       if (actionsDep) actionsDep.classList.add('hidden');
@@ -659,7 +665,8 @@ const AdminApp = (() => {
         const allTx = DB.getAllTransactions();
         const t = allTx.find(x => x.id === activeRequestTxId);
         const grossAmt = t ? (t.grossAmount || t.amount) : 0;
-        const feeRate = 0.10;
+        const currentComm = (typeof DB !== 'undefined' && DB.getCommissionRate) ? DB.getCommissionRate() : 4;
+        const feeRate = (t && t.feeRate !== undefined) ? t.feeRate : (currentComm / 100);
         const feeAmt = t && t.fee !== undefined ? t.fee : Math.round(grossAmt * feeRate * 100) / 100;
         const netAmt = t && t.netAmount !== undefined ? t.netAmount : Math.max(0, Math.round((grossAmt - feeAmt) * 100) / 100);
 
@@ -701,7 +708,8 @@ const AdminApp = (() => {
         }
 
         const grossAmt = t.grossAmount || t.amount;
-        const feeRate = 0.10;
+        const currentComm = (typeof DB !== 'undefined' && DB.getCommissionRate) ? DB.getCommissionRate() : 4;
+        const feeRate = (t && t.feeRate !== undefined) ? t.feeRate : (currentComm / 100);
         const feeAmt = t.fee !== undefined ? t.fee : Math.round(grossAmt * feeRate * 100) / 100;
         const netAmt = t.netAmount !== undefined ? t.netAmount : Math.max(0, Math.round((grossAmt - feeAmt) * 100) / 100);
 
@@ -718,8 +726,8 @@ const AdminApp = (() => {
           const res = await DB.disburseFlutterwaveTransfer({
             accountNumber: destBank.accountNumber,
             bankCode: destBank.bankCode,
-            amount: netAmt, // Transfer net payout amount (90%) to client bank
-            narration: `Payout to ${clientName} (Net of 10% admin fee) - Iretomiwa Sun`,
+            amount: netAmt, // Transfer net payout amount to client bank
+            narration: `Payout to ${clientName} (Net of ${Math.round(feeRate * 100)}% admin fee) - Iretomiwa Sun`,
             txId: t.id,
             clientName: clientName,
           });
@@ -1392,7 +1400,8 @@ const AdminApp = (() => {
       const flwBadge = isFlw ? `<div style="margin-top:3px;"><span style="display:inline-block; font-size:10.5px; font-weight:700; color:#166534; background:#dcfce7; border:1px solid #86efac; border-radius:4px; padding:2px 6px;">Flutterwave Transfer</span></div>` : '';
       const destBankInfo = t.destinationBank ? `<div style="font-size:11.5px; color:var(--text-secondary); margin-top:3px;">${escapeHtml(t.destinationBank.bankName || '')} &bull; <span style="font-family:monospace;">${escapeHtml(t.destinationBank.accountNumber || '')}</span> (${escapeHtml(t.destinationBank.accountName || '')})</div>` : '';
       const grossAmt = t.grossAmount || t.amount;
-      const feeAmt = t.fee !== undefined ? t.fee : (grossAmt * 0.10);
+      const defaultFeeRate = (typeof DB !== 'undefined' && DB.getCommissionRate) ? (DB.getCommissionRate() / 100) : 0.04;
+      const feeAmt = t.fee !== undefined ? t.fee : Math.round(grossAmt * defaultFeeRate * 100) / 100;
       const netAmt = t.netAmount !== undefined ? t.netAmount : (grossAmt - feeAmt);
       const feeBadge = (feeAmt > 0) ? `<div style="font-size:11px; margin-top:3px; color:#166534; font-weight:700;">Net: ₦${formatAmount(netAmt)} <span style="color:#b91c1c; font-weight:600;">(Fee: ₦${formatAmount(feeAmt)})</span></div>` : '';
 
@@ -1464,6 +1473,10 @@ const AdminApp = (() => {
     const emailEl = document.getElementById('admin-more-email');
     if (nameEl)  nameEl.textContent = 'System Administrator';
     if (emailEl) emailEl.textContent = admin.email;
+
+    const commRate = (typeof DB !== 'undefined' && DB.getCommissionRate) ? DB.getCommissionRate() : 4;
+    const commBadge = document.getElementById('admin-more-commission-badge');
+    if (commBadge) commBadge.textContent = `${commRate}%`;
 
     const uEl = document.getElementById('more-stat-users');
     const bEl = document.getElementById('more-stat-balance');
@@ -1711,6 +1724,198 @@ const AdminApp = (() => {
     }
   }
 
+  // Admin Payout Commission Modal
+  function initAdminCommission() {
+    const openBtn = document.getElementById('btn-admin-change-commission');
+    const modal   = document.getElementById('modal-admin-commission');
+    const form    = document.getElementById('admin-commission-form');
+
+    if (openBtn && modal) {
+      openBtn.addEventListener('click', () => {
+        const errEl   = document.getElementById('err-admin-commission');
+        const errBox  = document.getElementById('admin-comm-error');
+        const succBox = document.getElementById('admin-comm-success');
+        const dispEl  = document.getElementById('admin-current-commission-display');
+        const inputEl = document.getElementById('admin-commission-input');
+
+        if (errEl)   errEl.textContent = '';
+        if (errBox)  errBox.classList.add('hidden');
+        if (succBox) succBox.classList.add('hidden');
+
+        const currentRate = DB.getCommissionRate();
+        if (dispEl)  dispEl.textContent = `${currentRate}%`;
+        if (inputEl) inputEl.value = currentRate;
+
+        modal.classList.remove('hidden');
+        if (inputEl) inputEl.focus();
+      });
+    }
+
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const errEl   = document.getElementById('err-admin-commission');
+        const errBox  = document.getElementById('admin-comm-error');
+        const succBox = document.getElementById('admin-comm-success');
+        const inputEl = document.getElementById('admin-commission-input');
+        const dispEl  = document.getElementById('admin-current-commission-display');
+
+        if (errEl)   errEl.textContent = '';
+        if (errBox)  errBox.classList.add('hidden');
+        if (succBox) succBox.classList.add('hidden');
+
+        const val = inputEl ? inputEl.value.trim() : '';
+        const num = parseFloat(val);
+
+        if (val === '' || isNaN(num) || num < 0 || num > 100) {
+          if (errEl) errEl.textContent = 'Please enter a valid rate between 0% and 100%.';
+          return;
+        }
+
+        try {
+          const updated = DB.setCommissionRate(num);
+          if (dispEl) dispEl.textContent = `${updated}%`;
+          const badge = document.getElementById('admin-more-commission-badge');
+          if (badge) badge.textContent = `${updated}%`;
+
+          // Update dynamic fee badges everywhere
+          document.querySelectorAll('.comm-rate-badge').forEach(b => {
+            b.textContent = `${updated}%`;
+          });
+
+          if (succBox) {
+            succBox.textContent = `Commission rate updated to ${updated}% successfully.`;
+            succBox.classList.remove('hidden');
+          }
+
+          renderRequestsTab();
+          renderPayoutsTab();
+
+          setTimeout(() => {
+            if (modal) modal.classList.add('hidden');
+          }, 1200);
+        } catch (err) {
+          if (errBox) {
+            errBox.textContent = err.message || 'Failed to update commission rate.';
+            errBox.classList.remove('hidden');
+          }
+        }
+      });
+    }
+  }
+
+  // Admin Change Email Modal
+  function initAdminChangeEmail() {
+    const openBtn = document.getElementById('btn-admin-change-email');
+    const modal   = document.getElementById('modal-admin-change-email');
+    const form    = document.getElementById('admin-change-email-form');
+
+    if (openBtn && modal) {
+      openBtn.addEventListener('click', () => {
+        const errEmail = document.getElementById('err-admin-new-email');
+        const errPw    = document.getElementById('err-admin-email-confirm-pw');
+        const errBox   = document.getElementById('admin-email-error');
+        const succBox  = document.getElementById('admin-email-success');
+        const dispEl   = document.getElementById('admin-current-email-display');
+        const emailInp = document.getElementById('admin-new-email-input');
+        const pwInp    = document.getElementById('admin-email-confirm-pw');
+
+        if (errEmail) errEmail.textContent = '';
+        if (errPw)    errPw.textContent = '';
+        if (errBox)   errBox.classList.add('hidden');
+        if (succBox)  succBox.classList.add('hidden');
+
+        const admin = DB.getAdmin();
+        if (dispEl)   dispEl.textContent = admin.email;
+        if (emailInp) emailInp.value = '';
+        if (pwInp) {
+          pwInp.value = '';
+          pwInp.type = 'password';
+        }
+
+        const pwBtn = document.querySelector('.toggle-pw[data-target="admin-email-confirm-pw"]');
+        if (pwBtn) {
+          pwBtn.innerHTML = eyeOpenSVG;
+          pwBtn.setAttribute('aria-label', 'Show password');
+          pwBtn.classList.remove('active');
+        }
+
+        initPasswordToggles();
+        modal.classList.remove('hidden');
+        if (emailInp) emailInp.focus();
+      });
+    }
+
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const errEmail = document.getElementById('err-admin-new-email');
+        const errPw    = document.getElementById('err-admin-email-confirm-pw');
+        const errBox   = document.getElementById('admin-email-error');
+        const succBox  = document.getElementById('admin-email-success');
+        const emailInp = document.getElementById('admin-new-email-input');
+        const pwInp    = document.getElementById('admin-email-confirm-pw');
+        const dispEl   = document.getElementById('admin-current-email-display');
+
+        if (errEmail) errEmail.textContent = '';
+        if (errPw)    errPw.textContent = '';
+        if (errBox)   errBox.classList.add('hidden');
+        if (succBox)  succBox.classList.add('hidden');
+
+        const newEmail = emailInp ? emailInp.value.trim().toLowerCase() : '';
+        const pwVal    = pwInp ? pwInp.value : '';
+        const admin    = DB.getAdmin();
+
+        let valid = true;
+
+        if (!newEmail) {
+          if (errEmail) errEmail.textContent = 'New admin email is required.';
+          valid = false;
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+          if (errEmail) errEmail.textContent = 'Please enter a valid email address.';
+          valid = false;
+        } else if (newEmail === admin.email.toLowerCase()) {
+          if (errEmail) errEmail.textContent = 'New email must be different from current email.';
+          valid = false;
+        }
+
+        if (!pwVal) {
+          if (errPw) errPw.textContent = 'Admin password is required to confirm.';
+          valid = false;
+        } else if (pwVal !== admin.password) {
+          if (errPw) errPw.textContent = 'Incorrect admin password.';
+          valid = false;
+        }
+
+        if (!valid) return;
+
+        try {
+          const updatedEmail = DB.updateAdminEmail(newEmail);
+          if (dispEl) dispEl.textContent = updatedEmail;
+
+          const moreEmail = document.getElementById('admin-more-email');
+          if (moreEmail) moreEmail.textContent = updatedEmail;
+
+          if (succBox) {
+            succBox.textContent = 'Admin email updated successfully.';
+            succBox.classList.remove('hidden');
+          }
+
+          setTimeout(() => {
+            if (modal) modal.classList.add('hidden');
+          }, 1200);
+        } catch (err) {
+          if (errBox) {
+            errBox.textContent = err.message || 'Failed to update email.';
+            errBox.classList.remove('hidden');
+          }
+        }
+      });
+    }
+  }
+
   // Admin Factory Reset System
   function initAdminFactoryReset() {
     const openBtn    = document.getElementById('btn-admin-factory-reset');
@@ -1935,7 +2140,7 @@ const AdminApp = (() => {
   // Password visibility eye icon toggles on Admin side (Login & Modals)
   function initPasswordToggles() {
     const adminToggleBtns = document.querySelectorAll(
-      '#page-admin-login .toggle-pw, #modal-admin-change-password .toggle-pw'
+      '#page-admin-login .toggle-pw, #modal-admin-change-password .toggle-pw, #modal-admin-change-email .toggle-pw'
     );
     adminToggleBtns.forEach(btn => {
       if (btn._hasAdminToggleBound) return;
@@ -2284,6 +2489,8 @@ const AdminApp = (() => {
     initReceivedPicker();
     initRecordForm();
     initPayoutsPicker();
+    initAdminCommission();
+    initAdminChangeEmail();
     initAdminChangePassword();
     initAdminFactoryReset();
     initAdminFlutterwaveSettings();
