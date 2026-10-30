@@ -127,11 +127,12 @@ const DB = {
       const cloudTxs   = Array.isArray(record.transactions) ? record.transactions : [];
       const cloudAdmin = record.admin;
 
-      // Check if cloud has active reset or zero users
+      // Check if cloud has a new reset epoch that this device has not processed yet
       const cloudResetId = record.reset_id || record.resetId;
+      const localEpoch = localStorage.getItem('sun_system_reset_epoch');
 
-      if ((cloudResetId === SYSTEM_RESET_ID || record.isFactoryReset) && cloudUsers.length === 0) {
-        localStorage.setItem('sun_system_reset_epoch', SYSTEM_RESET_ID);
+      if (cloudResetId && cloudResetId !== localEpoch) {
+        localStorage.setItem('sun_system_reset_epoch', cloudResetId);
         localStorage.setItem('sun_users', '[]');
         localStorage.setItem('sun_transactions', '[]');
         localStorage.setItem('sun_custom_categories', '[]');
@@ -139,6 +140,8 @@ const DB = {
         localStorage.removeItem('sun_user_session');
         localStorage.removeItem('sun_active_user');
         localStorage.removeItem('sun_user_tab');
+        localStorage.removeItem('sun_admin_session');
+        localStorage.removeItem('sun_admin_tab');
 
         const activeFlw = record.flutterwave_config || record.flutterwaveConfig;
         if (cloudAdmin && cloudAdmin.password) {
@@ -360,6 +363,7 @@ const DB = {
   setSession(session) {
     try {
       localStorage.setItem('sun_session', JSON.stringify(session));
+      localStorage.setItem('sun_active_portal', 'user');
     } catch (e) {
       console.error('Failed to save session:', e);
     }
@@ -370,6 +374,9 @@ const DB = {
       localStorage.removeItem('sun_user_tab');
       localStorage.removeItem('sun_user_session');
       localStorage.removeItem('sun_active_user');
+      if (localStorage.getItem('sun_active_portal') === 'user') {
+        localStorage.removeItem('sun_active_portal');
+      }
       if (typeof document !== 'undefined' && document.documentElement) {
         document.documentElement.classList.remove('is-user-logged-in');
       }
@@ -643,6 +650,7 @@ const DB = {
   setAdminSession(val) {
     try {
       localStorage.setItem('sun_admin_session', JSON.stringify(val || { role: 'admin' }));
+      localStorage.setItem('sun_active_portal', 'admin');
     } catch (e) {
       console.error('Failed to save admin session:', e);
     }
@@ -651,6 +659,12 @@ const DB = {
     try {
       localStorage.removeItem('sun_admin_session');
       localStorage.removeItem('sun_admin_tab');
+      if (localStorage.getItem('sun_active_portal') === 'admin') {
+        localStorage.removeItem('sun_active_portal');
+      }
+      if (typeof document !== 'undefined' && document.documentElement) {
+        document.documentElement.classList.remove('is-admin-logged-in');
+      }
     } catch (e) {}
   },
 

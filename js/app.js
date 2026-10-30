@@ -267,10 +267,21 @@ const App = (() => {
       }
     }
 
-    // 3. Root URL (https://iretomiwa-sun-investment.netlify.app/)
-    // ALWAYS targets the User Portal by default!
+    // 3. Persistent Session / Saved Portal on refresh
+    if (savedPortal === 'admin' && adminSession) {
+      navigate('admin');
+      return;
+    }
+    if (savedPortal === 'admin') {
+      navigate('adminLogin');
+      return;
+    }
     if (userSession && userSession.userId && DB.getUserById(userSession.userId)) {
       navigate('user');
+      return;
+    }
+    if (adminSession) {
+      navigate('admin');
       return;
     }
 

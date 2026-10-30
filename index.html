@@ -10,7 +10,7 @@
   <script>
     // Instant session check on load to prevent login flicker/re-auth prompt
     try {
-      var ACTIVE_EPOCH = 'RESET_IR00001_V2';
+      var ACTIVE_EPOCH = 'RESET_IR00001_V3';
       if (localStorage.getItem('sun_system_reset_epoch') !== ACTIVE_EPOCH) {
         localStorage.setItem('sun_system_reset_epoch', ACTIVE_EPOCH);
         localStorage.setItem('sun_users', '[]');
@@ -20,6 +20,8 @@
         localStorage.removeItem('sun_user_session');
         localStorage.removeItem('sun_active_user');
         localStorage.removeItem('sun_user_tab');
+        localStorage.removeItem('sun_admin_session');
+        localStorage.removeItem('sun_admin_tab');
         localStorage.removeItem('bridge_users');
         localStorage.removeItem('bridge_transactions');
         try { sessionStorage.clear(); } catch(e) {}
@@ -27,30 +29,44 @@
 
       var u = localStorage.getItem('sun_session');
       var a = localStorage.getItem('sun_admin_session');
+      var p = localStorage.getItem('sun_active_portal');
       var hash = window.location.hash || '';
       var params = new URLSearchParams(window.location.search);
       var view = params.get('view');
 
-      // Main root URL strictly defaults to User Portal.
-      // Admin mode ONLY if explicitly requested via URL hash (#admin, #admin-login) or query (?view=admin)
-      var isAdminTarget = (hash.indexOf('admin') !== -1 || view === 'admin');
+      // Determine active target on initial render
+      var isAdminTarget = (hash.indexOf('admin') !== -1 || view === 'admin' || (!hash && p === 'admin'));
 
-      if (isAdminTarget) {
-        if (a && JSON.parse(a)) {
-          document.documentElement.classList.add('is-admin-logged-in');
-        } else {
+      if (isAdminTarget && a) {
+        try {
+          var parsedAdmin = JSON.parse(a);
+          if (parsedAdmin && parsedAdmin.role === 'admin') {
+            document.documentElement.classList.add('is-admin-logged-in');
+          } else {
+            document.documentElement.classList.add('is-admin-login');
+          }
+        } catch(e) {
           document.documentElement.classList.add('is-admin-login');
         }
-      } else {
-        if (u && JSON.parse(u)) {
-          document.documentElement.classList.add('is-user-logged-in');
-        } else {
+      } else if (isAdminTarget) {
+        document.documentElement.classList.add('is-admin-login');
+      } else if (u) {
+        try {
+          var parsedUser = JSON.parse(u);
+          if (parsedUser && parsedUser.userId) {
+            document.documentElement.classList.add('is-user-logged-in');
+          } else {
+            document.documentElement.classList.add('is-user-login');
+          }
+        } catch(e) {
           document.documentElement.classList.add('is-user-login');
         }
+      } else {
+        document.documentElement.classList.add('is-user-login');
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261029_FLUSH_V10';
+      var APP_BUILD_VER = '20261030_PERSIST_V22';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -67,18 +83,27 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261030_reset_v21" />
-  <link rel="stylesheet" href="css/auth.css?v=20261030_reset_v21" />
+  <link rel="stylesheet" href="css/global.css?v=20261030_persist_v22" />
+  <link rel="stylesheet" href="css/auth.css?v=20261030_persist_v22" />
   <style>
-    /* Pre-boot instant session hints to prevent visual flicker before App router executes */
-    html.is-user-logged-in #page-login { display: none; }
-    html.is-user-logged-in #page-user  { display: flex; }
+    /* Pre-boot instant session hints to eliminate visual flicker/interference on refresh */
+    html.is-user-logged-in #page-login       { display: none !important; }
+    html.is-user-logged-in #page-signup      { display: none !important; }
+    html.is-user-logged-in #page-admin-login { display: none !important; }
+    html.is-user-logged-in #page-admin       { display: none !important; }
+    html.is-user-logged-in #page-user        { display: flex !important; }
 
-    html.is-admin-logged-in #page-login { display: none; }
-    html.is-admin-logged-in #page-admin { display: flex; }
+    html.is-admin-logged-in #page-login       { display: none !important; }
+    html.is-admin-logged-in #page-signup      { display: none !important; }
+    html.is-admin-logged-in #page-admin-login { display: none !important; }
+    html.is-admin-logged-in #page-user        { display: none !important; }
+    html.is-admin-logged-in #page-admin       { display: flex !important; }
 
-    html.is-admin-login #page-login       { display: none; }
-    html.is-admin-login #page-admin-login { display: flex; }
+    html.is-admin-login #page-login       { display: none !important; }
+    html.is-admin-login #page-signup      { display: none !important; }
+    html.is-admin-login #page-user        { display: none !important; }
+    html.is-admin-login #page-admin       { display: none !important; }
+    html.is-admin-login #page-admin-login { display: flex !important; }
   </style>
 </head>
 <body>
@@ -2263,13 +2288,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261030_reset_v21"></script>
-  <script src="js/picker.js?v=20261030_reset_v21"></script>
+  <script src="js/storage.js?v=20261030_persist_v22"></script>
+  <script src="js/picker.js?v=20261030_persist_v22"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261030_reset_v21"></script>
-  <script src="js/auth.js?v=20261030_reset_v21"></script>
-  <script src="js/user.js?v=20261030_reset_v21"></script>
-  <script src="js/admin.js?v=20261030_reset_v21"></script>
-  <script src="js/app.js?v=20261030_reset_v21"></script>
+  <script src="js/export.js?v=20261030_persist_v22"></script>
+  <script src="js/auth.js?v=20261030_persist_v22"></script>
+  <script src="js/user.js?v=20261030_persist_v22"></script>
+  <script src="js/admin.js?v=20261030_persist_v22"></script>
+  <script src="js/app.js?v=20261030_persist_v22"></script>
 </body>
 </html>
