@@ -66,7 +66,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261030_FIX_V23';
+      var APP_BUILD_VER = '20261030_FITTED_V24';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -83,8 +83,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261030_fix_v23" />
-  <link rel="stylesheet" href="css/auth.css?v=20261030_fix_v23" />
+  <link rel="stylesheet" href="css/global.css?v=20261030_fitted_v24" />
+  <link rel="stylesheet" href="css/auth.css?v=20261030_fitted_v24" />
   <style>
     /* Gentle pre-boot session hints - JavaScript has full priority without !important blocking */
     html.is-user-logged-in #page-login { display: none; }
@@ -1295,7 +1295,7 @@
           </div>
 
           <!-- Flutterwave Gateway Configuration Card -->
-          <div class="admin-card" style="margin-top: 18px; text-align: left; background: var(--bg-card); border: 1.5px solid var(--border); border-radius: 12px; padding: 18px;">
+          <div class="admin-card" style="margin-top: 18px; width: 100%; max-width: 100%; box-sizing: border-box; text-align: left; background: var(--bg-card); border: 1px solid rgba(9, 84, 38, 0.08); border-radius: 14px; padding: 18px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
               <div style="display:flex; align-items:center; gap:8px;">
                 <span style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:6px; background:#eff6ff; color:#2563eb;">
@@ -1310,7 +1310,7 @@
             </p>
 
             <!-- Live Flutterwave Wallet Balance Widget -->
-            <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1.5px solid #86efac; border-radius: 10px; padding: 14px; margin-bottom: 16px;">
+            <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1.5px solid #86efac; border-radius: 10px; padding: 14px; margin-bottom: 16px; width: 100%; box-sizing: border-box;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 4px;">
                 <span style="font-size: 11.5px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">Flutterwave NGN Wallet Balance</span>
                 <button type="button" id="btn-refresh-flw-balance" style="display:inline-flex; align-items:center; gap:4px; background:#ffffff; border:1px solid #86efac; color:#15803d; border-radius:6px; padding:4px 8px; font-size:11.5px; font-weight:700; cursor:pointer;">
@@ -1327,10 +1327,10 @@
               </small>
             </div>
 
-            <form id="admin-flw-config-form" novalidate>
-              <div class="form-group" style="margin-bottom:12px;">
+            <form id="admin-flw-config-form" novalidate autocomplete="off">
+              <div class="form-group" style="margin-bottom:12px; width: 100%; box-sizing: border-box;">
                 <label for="admin-flw-mode-btn" style="font-size:12px; font-weight:700;">Gateway Environment</label>
-                <button type="button" id="admin-flw-mode-btn" class="custom-select-trigger" style="text-align: left; width: 100%;" aria-label="Gateway Environment">
+                <button type="button" id="admin-flw-mode-btn" class="custom-select-trigger" style="text-align: left; width: 100%; box-sizing: border-box;" aria-label="Gateway Environment">
                   <span id="admin-flw-mode-label">Live Mode (Real Bank Account Transfers - John Idowu)</span>
                   <svg class="picker-btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="6 9 12 15 18 9"/>
@@ -1339,22 +1339,22 @@
                 <input type="hidden" id="admin-flw-mode" value="live" />
               </div>
 
-              <div class="form-group" style="margin-bottom:12px;">
+              <div class="form-group" style="margin-bottom:12px; width: 100%; box-sizing: border-box;">
                 <label for="admin-flw-public-key" style="font-size:12px; font-weight:700;">Flutterwave Live Public Key</label>
-                <input type="text" id="admin-flw-public-key" placeholder="FLWPUBK-570758bf49301716d7e0133dce781024-X" style="width:100%; height:40px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-family:monospace; font-size:12px;" />
+                <input type="text" id="admin-flw-public-key" autocomplete="off" name="flw_pub_token" spellcheck="false" placeholder="FLWPUBK-570758bf49301716d7e0133dce781024-X" style="width:100%; max-width:100%; box-sizing:border-box; height:42px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-family:monospace; font-size:12px;" />
               </div>
 
-              <div class="form-group" style="margin-bottom:14px;">
+              <div class="form-group" style="margin-bottom:14px; width: 100%; box-sizing: border-box;">
                 <label for="admin-flw-secret-key" style="font-size:12px; font-weight:700;">Flutterwave Live Secret Key (for Automated Disbursals)</label>
-                <input type="password" id="admin-flw-secret-key" placeholder="FLWSECK-..." style="width:100%; height:40px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-family:monospace; font-size:12px;" />
+                <input type="password" id="admin-flw-secret-key" autocomplete="new-password" name="flw_sec_token" placeholder="FLWSECK-..." style="width:100%; max-width:100%; box-sizing:border-box; height:42px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-family:monospace; font-size:12px;" />
                 <small style="display:block; margin-top:4px; font-size:11px; color:var(--text-muted);">
                   Live V3 Secret Key. Used by Admin to disburse payouts directly to clients' Nigerian bank accounts.
                 </small>
               </div>
 
               <!-- Instant Auto Cash-out Toggle -->
-              <div style="background: #f8fafc; border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px;">
-                <label style="display: flex; align-items: flex-start; justify-content: space-between; cursor: pointer; gap: 12px; margin: 0;">
+              <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; width: 100%; box-sizing: border-box;">
+                <label style="display: flex; align-items: flex-start; justify-content: space-between; cursor: pointer; gap: 12px; margin: 0; width: 100%; box-sizing: border-box;">
                   <div style="flex: 1;">
                     <div style="display: flex; align-items: center; gap: 6px;">
                       <strong style="font-size: 13px; color: var(--text-primary);">Auto Cash-out (Instant Payouts)</strong>
@@ -1364,14 +1364,14 @@
                       When enabled, user savings withdrawal requests will automatically attempt instant Flutterwave bank transfer to the client's account without requiring manual admin approval.
                     </small>
                   </div>
-                  <input type="checkbox" id="admin-flw-auto-cashout" style="width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; margin-top: 2px;" />
+                  <input type="checkbox" id="admin-flw-auto-cashout" style="width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; margin-top: 2px; flex-shrink: 0;" />
                 </label>
               </div>
 
-              <div id="admin-flw-msg" class="hidden" style="font-size:12px; padding:8px 12px; border-radius:6px; margin-bottom:12px;"></div>
+              <div id="admin-flw-msg" class="hidden" style="font-size:12px; padding:8px 12px; border-radius:6px; margin-bottom:12px; width: 100%; box-sizing: border-box;"></div>
 
-              <div style="display:flex; gap:10px;">
-                <button type="submit" class="btn-primary" id="btn-save-flw-config" style="padding:9px 16px; font-size:12.5px; font-weight:700;">
+              <div style="display:flex; gap:10px; width: 100%; box-sizing: border-box;">
+                <button type="submit" class="btn-primary" id="btn-save-flw-config" style="padding:10px 18px; font-size:13px; font-weight:700; border-radius: 8px;">
                   Save Settings
                 </button>
               </div>
@@ -2273,13 +2273,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261030_fix_v23"></script>
-  <script src="js/picker.js?v=20261030_fix_v23"></script>
+  <script src="js/storage.js?v=20261030_fitted_v24"></script>
+  <script src="js/picker.js?v=20261030_fitted_v24"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261030_fix_v23"></script>
-  <script src="js/auth.js?v=20261030_fix_v23"></script>
-  <script src="js/user.js?v=20261030_fix_v23"></script>
-  <script src="js/admin.js?v=20261030_fix_v23"></script>
-  <script src="js/app.js?v=20261030_fix_v23"></script>
+  <script src="js/export.js?v=20261030_fitted_v24"></script>
+  <script src="js/auth.js?v=20261030_fitted_v24"></script>
+  <script src="js/user.js?v=20261030_fitted_v24"></script>
+  <script src="js/admin.js?v=20261030_fitted_v24"></script>
+  <script src="js/app.js?v=20261030_fitted_v24"></script>
 </body>
 </html>

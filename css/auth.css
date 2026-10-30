@@ -809,6 +809,19 @@
   word-break: break-all;
 }
 
+.admin-card {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.admin-card *,
+.admin-card input,
+.admin-card select,
+.admin-card button {
+  box-sizing: border-box;
+}
+
 .more-menu {
   display: flex;
   flex-direction: column;

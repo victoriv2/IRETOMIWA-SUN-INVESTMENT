@@ -1482,11 +1482,14 @@ const AdminApp = (() => {
     const flwModeSel   = document.getElementById('admin-flw-mode');
     const flwBadge     = document.getElementById('admin-flw-status-badge');
 
-    if (flwKeyInp && !flwKeyInp.dataset.userEdited) {
-      flwKeyInp.value = flwCfg.publicKey || '';
+    const defaultPub = 'FLWPUBK-570758bf49301716d7e0133dce781024-X';
+    const defaultSec = 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X';
+
+    if (flwKeyInp && (!flwKeyInp.value || flwKeyInp.value.includes('@') || !flwKeyInp.dataset.userEdited)) {
+      flwKeyInp.value = flwCfg.publicKey || defaultPub;
     }
-    if (flwSecretInp && !flwSecretInp.dataset.userEdited) {
-      flwSecretInp.value = flwCfg.secretKey || '';
+    if (flwSecretInp && (!flwSecretInp.value || !flwSecretInp.dataset.userEdited)) {
+      flwSecretInp.value = flwCfg.secretKey || defaultSec;
     }
     if (flwModeSel) {
       flwModeSel.value = flwCfg.mode || 'live';
