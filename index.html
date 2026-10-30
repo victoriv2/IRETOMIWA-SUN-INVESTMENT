@@ -66,7 +66,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261030_FITTED_V24';
+      var APP_BUILD_VER = '20261030_SPACED_V25';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -83,8 +83,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261030_fitted_v24" />
-  <link rel="stylesheet" href="css/auth.css?v=20261030_fitted_v24" />
+  <link rel="stylesheet" href="css/global.css?v=20261030_spaced_v25" />
+  <link rel="stylesheet" href="css/auth.css?v=20261030_spaced_v25" />
   <style>
     /* Gentle pre-boot session hints - JavaScript has full priority without !important blocking */
     html.is-user-logged-in #page-login { display: none; }
@@ -1295,7 +1295,7 @@
           </div>
 
           <!-- Flutterwave Gateway Configuration Card -->
-          <div class="admin-card" style="margin-top: 18px; width: 100%; max-width: 100%; box-sizing: border-box; text-align: left; background: var(--bg-card); border: 1px solid rgba(9, 84, 38, 0.08); border-radius: 14px; padding: 18px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);">
+          <div class="admin-card" style="margin-top: 18px; margin-bottom: 22px; width: 100%; max-width: 100%; box-sizing: border-box; text-align: left; background: var(--bg-card); border: 1px solid rgba(9, 84, 38, 0.08); border-radius: 14px; padding: 18px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
               <div style="display:flex; align-items:center; gap:8px;">
                 <span style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:6px; background:#eff6ff; color:#2563eb;">
@@ -2273,13 +2273,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261030_fitted_v24"></script>
-  <script src="js/picker.js?v=20261030_fitted_v24"></script>
+  <script src="js/storage.js?v=20261030_spaced_v25"></script>
+  <script src="js/picker.js?v=20261030_spaced_v25"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261030_fitted_v24"></script>
-  <script src="js/auth.js?v=20261030_fitted_v24"></script>
-  <script src="js/user.js?v=20261030_fitted_v24"></script>
-  <script src="js/admin.js?v=20261030_fitted_v24"></script>
-  <script src="js/app.js?v=20261030_fitted_v24"></script>
+  <script src="js/export.js?v=20261030_spaced_v25"></script>
+  <script src="js/auth.js?v=20261030_spaced_v25"></script>
+  <script src="js/user.js?v=20261030_spaced_v25"></script>
+  <script src="js/admin.js?v=20261030_spaced_v25"></script>
+  <script src="js/app.js?v=20261030_spaced_v25"></script>
 </body>
 </html>

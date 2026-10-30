@@ -813,6 +813,7 @@
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+  margin-bottom: 22px;
 }
 
 .admin-card *,
