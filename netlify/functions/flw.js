@@ -17,6 +17,32 @@ exports.handler = async (event) => {
     };
   }
 
+  // Diagnostics: Check server outbound IP
+  if (event.queryStringParameters && event.queryStringParameters.checkip) {
+    try {
+      const ipRes = await fetch('https://api.ipify.org?format=json');
+      const ipData = await ipRes.json();
+      return {
+        statusCode: 200,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          server: 'Netlify Serverless Function (AWS Lambda)',
+          ip: ipData.ip,
+          info: 'Netlify serverless functions run in the cloud with dynamic IPs across AWS IP pools. Flutterwave IP Whitelisting should be disabled/cleared in your dashboard for serverless platforms.'
+        }, null, 2),
+      };
+    } catch (e) {
+      return {
+        statusCode: 500,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: e.message }),
+      };
+    }
+  }
+
   const pathParam = (event.queryStringParameters && event.queryStringParameters.path) || '';
   const cleanPath = pathParam.replace(/^\/+/, '');
   const targetUrl = `https://api.flutterwave.com/v3/${cleanPath}`;
