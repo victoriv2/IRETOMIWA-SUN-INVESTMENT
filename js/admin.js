@@ -311,6 +311,122 @@ const AdminApp = (() => {
     }
   }
 
+  // ---- ADMIN EDIT BANK DETAILS (correct wrong bank on a pending withdrawal) ----
+  function _openAdminEditBankModal(txId, currentBank, accNumEl, bankNameEl, accNameEl, flwErrEl) {
+    // Build inline bank correction form inside a small overlay modal
+    const overlay = document.createElement('div');
+    overlay.id = 'admin-edit-bank-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+
+    const banks = DB.getNigerianBanks();
+    const bankOptions = banks.map(b => `<option value="${b.code}">${b.name}</option>`).join('');
+
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:14px;padding:24px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.25);">
+        <div style="font-size:15px;font-weight:800;color:#111;margin-bottom:4px;">Correct Bank Details</div>
+        <div style="font-size:12px;color:#6b7280;margin-bottom:16px;">Update the account number and bank. The corrected details will be verified with Flutterwave before disbursing.</div>
+
+        <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:4px;">Bank</label>
+        <select id="edit-bank-select" style="width:100%;padding:10px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;margin-bottom:12px;background:#fff;">
+          <option value="">-- Select Bank --</option>
+          ${bankOptions}
+        </select>
+
+        <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:4px;">Account Number</label>
+        <input id="edit-bank-accnum" type="text" inputmode="numeric" maxlength="10"
+          value="${currentBank.accountNumber || ''}"
+          placeholder="10-digit account number"
+          style="width:100%;padding:10px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;margin-bottom:4px;box-sizing:border-box;">
+
+        <div id="edit-bank-verify-msg" style="font-size:12px;min-height:18px;margin-bottom:12px;color:#6b7280;"></div>
+
+        <div style="display:flex;gap:8px;">
+          <button type="button" id="edit-bank-cancel" style="flex:1;padding:10px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;color:#374151;">Cancel</button>
+          <button type="button" id="edit-bank-verify" style="flex:2;padding:10px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;">Verify and Disburse</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const selEl   = overlay.querySelector('#edit-bank-select');
+    const numEl   = overlay.querySelector('#edit-bank-accnum');
+    const msgEl   = overlay.querySelector('#edit-bank-verify-msg');
+    const cancelBtn = overlay.querySelector('#edit-bank-cancel');
+    const verifyBtn = overlay.querySelector('#edit-bank-verify');
+
+    // Pre-select current bank code if known
+    if (currentBank.bankCode && selEl) selEl.value = currentBank.bankCode;
+
+    cancelBtn.addEventListener('click', () => { overlay.remove(); });
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+    verifyBtn.addEventListener('click', async () => {
+      const newBankCode = selEl.value.trim();
+      const newAccNum   = numEl.value.replace(/\D/g, '').slice(0, 10);
+      numEl.value = newAccNum;
+
+      if (!newBankCode) {
+        msgEl.style.color = '#991b1b';
+        msgEl.textContent = 'Please select a bank.';
+        return;
+      }
+      if (newAccNum.length < 10) {
+        msgEl.style.color = '#991b1b';
+        msgEl.textContent = 'Account number must be exactly 10 digits.';
+        return;
+      }
+
+      verifyBtn.disabled = true;
+      verifyBtn.textContent = 'Verifying...';
+      msgEl.style.color = '#92400e';
+      msgEl.textContent = 'Verifying account with Flutterwave...';
+
+      const vRes = await DB.resolveFlutterwaveAccount(newAccNum, newBankCode).catch(() => ({ success: false }));
+      if (!vRes.success) {
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = 'Verify and Disburse';
+        msgEl.style.color = '#991b1b';
+        msgEl.textContent = 'Account could not be verified at this bank. Check account number and bank name.';
+        return;
+      }
+
+      const confirmedName = vRes.accountName || '';
+      const selectedBank  = banks.find(b => b.code === newBankCode);
+      const newBankName   = selectedBank ? selectedBank.name : newBankCode;
+
+      msgEl.style.color = '#166534';
+      msgEl.textContent = `Verified: ${confirmedName}`;
+      verifyBtn.textContent = 'Disbursing...';
+
+      // Patch the transaction destinationBank in storage
+      const allTx = DB.getAllTransactions();
+      const txIdx = allTx.findIndex(x => x.id === txId);
+      if (txIdx !== -1) {
+        allTx[txIdx].destinationBank = {
+          bankCode: newBankCode,
+          bankName: newBankName,
+          accountNumber: newAccNum,
+          accountName: confirmedName,
+        };
+        localStorage.setItem('sun_transactions', JSON.stringify(allTx));
+        DB.scheduleCloudPush();
+      }
+
+      // Update displayed fields in parent modal
+      if (bankNameEl) bankNameEl.textContent = newBankName;
+      if (accNumEl)   accNumEl.textContent   = newAccNum;
+      if (accNameEl)  accNameEl.textContent  = confirmedName;
+      if (flwErrEl)   flwErrEl.classList.add('hidden');
+
+      overlay.remove();
+
+      // Retrieve updated transaction and trigger disburse
+      const btnFlwDisburse = document.getElementById('btn-confirm-approve-flw');
+      if (btnFlwDisburse) btnFlwDisburse.click();
+    });
+  }
+
   function renderRequestsTab() {
     updatePendingBadge();
 
@@ -549,18 +665,26 @@ const AdminApp = (() => {
             if (!vRes.success) {
               flwErrEl.innerHTML = `
                 <div style="font-weight: 700; margin-bottom: 4px; color: #991b1b;">Bank Account Could Not Be Verified</div>
-                <div style="color: #374151; font-size: 12px; line-height: 1.45;">
+                <div style="color: #374151; font-size: 12px; line-height: 1.45; margin-bottom: 10px;">
                   Account <strong>${destBank.accountNumber}</strong> (${destBank.bankName || destBank.bankCode}) could not be resolved by Flutterwave.
-                  The account number or bank may be incorrect. Disbursing will likely fail.
-                  <br>Consider asking the client to update their bank details, or use <em>Manual Approval</em>.
+                  The account number or bank name may be wrong. You can correct it below without declining this request.
                 </div>
+                <button type="button" id="btn-edit-bank-details" style="width: 100%; padding: 9px 14px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px; margin-bottom: 6px;">
+                  Correct Bank Details and Disburse
+                </button>
               `;
               flwErrEl.style.background = '#fff7ed';
               flwErrEl.style.borderColor = '#fed7aa';
               flwErrEl.style.color = '#9a3412';
               flwErrEl.classList.remove('hidden');
+
+              const editBankBtn = document.getElementById('btn-edit-bank-details');
+              if (editBankBtn) {
+                editBankBtn.addEventListener('click', () => {
+                  _openAdminEditBankModal(t.id, destBank, accNumEl, bankNameEl, accNameEl, flwErrEl);
+                });
+              }
             } else if (vRes.accountName && accNameEl) {
-              // Show the bank-confirmed name
               accNameEl.textContent = vRes.accountName;
             }
           }).catch(() => {});
