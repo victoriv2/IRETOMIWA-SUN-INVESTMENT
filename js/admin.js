@@ -542,6 +542,29 @@ const AdminApp = (() => {
         if (bankNameEl) bankNameEl.textContent = destBank.bankName || 'Nigerian Bank';
         if (accNumEl) accNumEl.textContent = destBank.accountNumber || '-';
         if (accNameEl) accNameEl.textContent = destBank.accountName || clientName;
+
+        // Live pre-verify: check account resolves before admin clicks Disburse
+        if (destBank.accountNumber && destBank.bankCode && flwErrEl) {
+          DB.resolveFlutterwaveAccount(destBank.accountNumber, destBank.bankCode).then(vRes => {
+            if (!vRes.success) {
+              flwErrEl.innerHTML = `
+                <div style="font-weight: 700; margin-bottom: 4px; color: #991b1b;">Bank Account Could Not Be Verified</div>
+                <div style="color: #374151; font-size: 12px; line-height: 1.45;">
+                  Account <strong>${destBank.accountNumber}</strong> (${destBank.bankName || destBank.bankCode}) could not be resolved by Flutterwave.
+                  The account number or bank may be incorrect. Disbursing will likely fail.
+                  <br>Consider asking the client to update their bank details, or use <em>Manual Approval</em>.
+                </div>
+              `;
+              flwErrEl.style.background = '#fff7ed';
+              flwErrEl.style.borderColor = '#fed7aa';
+              flwErrEl.style.color = '#9a3412';
+              flwErrEl.classList.remove('hidden');
+            } else if (vRes.accountName && accNameEl) {
+              // Show the bank-confirmed name
+              accNameEl.textContent = vRes.accountName;
+            }
+          }).catch(() => {});
+        }
       } else {
         if (destBox) destBox.classList.add('hidden');
       }
@@ -759,8 +782,38 @@ const AdminApp = (() => {
                                 rawErr.toLowerCase().includes('account administrator') ||
                                 rawErr.toLowerCase().includes('ip whitelist') ||
                                 rawErr.toLowerCase().includes('ip whitelisting');
+              const isAccountResolve = res.verifyFailed ||
+                                       rawErr.toLowerCase().includes('account resolve') ||
+                                       rawErr.toLowerCase().includes('verification failed') ||
+                                       rawErr.toLowerCase().includes('invalid account');
 
-              if (isBlocked) {
+              if (isAccountResolve) {
+                flwErrEl.innerHTML = `
+                  <div style="font-weight: 700; margin-bottom: 6px; color: #991b1b; font-size: 13.5px;">Bank Account Not Found</div>
+                  <div style="margin-bottom: 8px; color: #374151; font-size: 12px; line-height: 1.45;">
+                    Flutterwave could not find account <strong>${destBank.accountNumber}</strong> at the bank this client registered. The account number or bank name may be wrong.
+                  </div>
+                  <div style="background: #ffffff; border: 1.5px solid #fed7aa; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 12px; color: #9a3412;">
+                    <div style="font-weight: 800; margin-bottom: 4px;">What to do:</div>
+                    <ol style="margin: 0 0 0 16px; padding: 0; line-height: 1.6;">
+                      <li>Ask the client to update their bank account details (correct bank and account number).</li>
+                      <li>Once updated, approve this request manually or ask the client to re-submit.</li>
+                      <li>Or use <strong>Mark as Manual Bank Transfer</strong> below if you pay by hand.</li>
+                    </ol>
+                  </div>
+                  <div style="display: flex; gap: 8px; flex-direction: column;">
+                    <button type="button" id="btn-err-fallback-approve" style="width: 100%; padding: 9px 14px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px;">
+                      Mark as Manual Bank Transfer / Cash
+                    </button>
+                  </div>
+                `;
+                const errFallbackBtn = document.getElementById('btn-err-fallback-approve');
+                if (errFallbackBtn) {
+                  errFallbackBtn.addEventListener('click', () => {
+                    if (btnManualApprove) btnManualApprove.click();
+                  });
+                }
+              } else if (isBlocked) {
                 flwErrEl.innerHTML = `
                   <div style="font-weight: 700; margin-bottom: 6px; color: #991b1b; font-size: 13.5px;">Flutterwave API Payouts Restricted on Account</div>
                   <div style="margin-bottom: 8px; color: #374151; font-size: 12px; line-height: 1.45;">

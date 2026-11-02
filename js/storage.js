@@ -1126,6 +1126,33 @@ const DB = {
       return { success: false, error: 'Destination bank code and account number are required.' };
     }
 
+    // Pre-transfer account verification: confirm account resolves at the given bank before sending money
+    try {
+      const verifyRes = await this.fetchFlutterwave('accounts/resolve', {
+        method: 'POST',
+        body: JSON.stringify({
+          account_number: accountNumber.trim(),
+          account_bank: bankCode.trim(),
+        }),
+      });
+      const vj = verifyRes.json;
+      if (!vj || vj.status !== 'success' || !vj.data || !vj.data.account_number) {
+        const verifyErr = (vj && vj.message) ? vj.message : 'Account resolve failed';
+        return {
+          success: false,
+          error: `Bank account verification failed: ${verifyErr}. Please check the account number and bank are correct.`,
+          verifyFailed: true,
+        };
+      }
+      // Use the bank-confirmed account name for the transfer
+      if (vj.data.account_name && !clientName) {
+        clientName = vj.data.account_name;
+      }
+    } catch (verifyErr) {
+      // Non-blocking: if the verify endpoint fails due to network, proceed anyway
+      console.warn('Pre-transfer verify error (non-blocking):', verifyErr);
+    }
+
     const reference = 'TXF_' + (txId || Date.now()) + '_' + Math.random().toString(36).slice(2, 7);
     const payload = {
       account_bank: bankCode.trim(),
