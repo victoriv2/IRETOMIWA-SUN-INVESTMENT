@@ -902,7 +902,7 @@ const DB = {
           mode: parsed.mode || 'live',
           merchantName: 'John Idowu (Iretomiwa Sun Investment)',
           isEnabled: parsed.isEnabled !== false,
-          autoCashout: parsed.autoCashout === true,
+          autoCashout: parsed.autoCashout !== false, // Enabled by default for API payouts
           updatedAt: parsed.updatedAt || '2026-10-29T11:20:00.000Z',
         };
       }
@@ -914,7 +914,7 @@ const DB = {
       mode: 'live',
       merchantName: 'John Idowu (Iretomiwa Sun Investment)',
       isEnabled: true,
-      autoCashout: false,
+      autoCashout: true,
       updatedAt: '2026-10-29T11:20:00.000Z',
     };
   },
@@ -1029,12 +1029,12 @@ const DB = {
     };
 
     // Candidate routes to prevent browser CORS "Failed to fetch":
-    // 1. Netlify Edge Proxy (/api/flw/...)
-    // 2. Netlify Serverless Function (/.netlify/functions/flw?path=...)
+    // 1. Netlify Serverless Function (primary server-to-server proxy with CORS)
+    // 2. Netlify Edge Proxy (/api/flw/...)
     // 3. Direct Flutterwave API (fallback)
     const candidates = [
-      `/api/flw/${cleanEndpoint}`,
       `/.netlify/functions/flw?path=${encodeURIComponent(cleanEndpoint)}`,
+      `/api/flw/${cleanEndpoint}`,
       `https://api.flutterwave.com/v3/${cleanEndpoint}`
     ];
 
@@ -1131,10 +1131,10 @@ const DB = {
       account_bank: bankCode.trim(),
       account_number: accountNumber.trim(),
       amount: cleanAmount,
-      narration: narration || `Iretomiwa Sun Investment payout to ${clientName || 'Client'}`,
+      narration: (narration || `Iretomiwa Sun payout to ${clientName || 'Client'}`).slice(0, 100),
       currency: 'NGN',
       reference: reference,
-      debit_currency: 'NGN',
+      beneficiary_name: clientName ? clientName.trim() : undefined,
     };
 
     try {

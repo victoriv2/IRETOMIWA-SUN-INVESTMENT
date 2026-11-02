@@ -762,13 +762,34 @@ const AdminApp = (() => {
 
               if (isBlocked) {
                 flwErrEl.innerHTML = `
-                  <div style="font-weight: 700; margin-bottom: 4px; color: #991b1b;">Flutterwave API Payouts Restricted</div>
-                  <div style="margin-bottom: 8px; color: #374151;">Flutterwave returned: <em>"${rawErr}"</em>. Your Flutterwave merchant account does not currently permit outbound API bank transfers (requires merchant transfer clearance or funded available balance).</div>
-                  <div style="margin-bottom: 8px; color: #166534; font-weight: 600;">Transfer the net payout using your OPay or bank mobile app, then click below:</div>
-                  <button type="button" id="btn-err-fallback-approve" style="width: 100%; padding: 10px 14px; background: #15803d; color: #ffffff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px;">
-                    Approve as Bank Transfer / Cash Now
-                  </button>
+                  <div style="font-weight: 700; margin-bottom: 6px; color: #991b1b; font-size: 13.5px;">Flutterwave API Payouts Restricted on Account</div>
+                  <div style="margin-bottom: 8px; color: #374151; font-size: 12px; line-height: 1.45;">
+                    Flutterwave returned: <em>"${rawErr}"</em>. Your Flutterwave merchant dashboard currently has API transfers locked.
+                  </div>
+                  <div style="background: #ffffff; border: 1.5px solid #fed7aa; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 12px; color: #9a3412;">
+                    <div style="font-weight: 800; margin-bottom: 4px; color: #c2410c;">How to unlock Flutterwave API Payouts:</div>
+                    <ol style="margin: 0 0 0 16px; padding: 0; line-height: 1.45;">
+                      <li>Log in to <strong>dashboard.flutterwave.com</strong>.</li>
+                      <li>Go to <strong>Settings</strong> &rarr; <strong>Business Preferences</strong> &rarr; <strong>Security</strong>.</li>
+                      <li>Under <strong>Transfer Preferences</strong>, select <strong>"API"</strong> or <strong>"Both"</strong> (instead of Dashboard only).</li>
+                      <li>Save changes, then click <strong>Retry API Transfer</strong> below.</li>
+                    </ol>
+                  </div>
+                  <div style="display: flex; gap: 8px; flex-direction: column;">
+                    <button type="button" id="btn-err-retry-api" style="width: 100%; padding: 10px 14px; background: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px;">
+                      Retry Flutterwave API Transfer Now
+                    </button>
+                    <button type="button" id="btn-err-fallback-approve" style="width: 100%; padding: 9px 14px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px;">
+                      Or Mark as Manual Bank Transfer / Cash
+                    </button>
+                  </div>
                 `;
+                const retryBtn = document.getElementById('btn-err-retry-api');
+                if (retryBtn) {
+                  retryBtn.addEventListener('click', () => {
+                    btnFlwDisburse.click();
+                  });
+                }
                 const errFallbackBtn = document.getElementById('btn-err-fallback-approve');
                 if (errFallbackBtn) {
                   errFallbackBtn.addEventListener('click', () => {
@@ -778,11 +799,22 @@ const AdminApp = (() => {
               } else {
                 flwErrEl.innerHTML = `
                   <div style="font-weight: 700; margin-bottom: 4px; color: #991b1b;">Flutterwave Disbursal Failed: ${rawErr}</div>
-                  <div style="margin-bottom: 8px; color: #374151;">The client balance remains untouched. You can approve manually after sending funds:</div>
-                  <button type="button" id="btn-err-fallback-approve" style="width: 100%; padding: 10px 14px; background: #15803d; color: #ffffff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px;">
-                    Approve as Bank Transfer / Cash Now
-                  </button>
+                  <div style="margin-bottom: 8px; color: #374151; font-size: 12px;">The client balance remains untouched. You can retry the API or approve manually:</div>
+                  <div style="display: flex; gap: 8px; flex-direction: column;">
+                    <button type="button" id="btn-err-retry-api" style="width: 100%; padding: 10px 14px; background: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px;">
+                      Retry Flutterwave API Transfer Now
+                    </button>
+                    <button type="button" id="btn-err-fallback-approve" style="width: 100%; padding: 9px 14px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px;">
+                      Or Mark as Manual Bank Transfer / Cash
+                    </button>
+                  </div>
                 `;
+                const retryBtn = document.getElementById('btn-err-retry-api');
+                if (retryBtn) {
+                  retryBtn.addEventListener('click', () => {
+                    btnFlwDisburse.click();
+                  });
+                }
                 const errFallbackBtn = document.getElementById('btn-err-fallback-approve');
                 if (errFallbackBtn) {
                   errFallbackBtn.addEventListener('click', () => {
@@ -797,11 +829,22 @@ const AdminApp = (() => {
           if (flwErrEl) {
             flwErrEl.innerHTML = `
               <div style="font-weight: 700; margin-bottom: 4px; color: #991b1b;">Transfer Error: ${err.message || 'Check network connection'}</div>
-              <div style="margin-bottom: 8px; color: #374151;">You can disburse manually via your bank or OPay:</div>
-              <button type="button" id="btn-err-catch-fallback-approve" style="width: 100%; padding: 10px 14px; background: #15803d; color: #ffffff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px;">
-                Approve as Bank Transfer / Cash Now
-              </button>
+              <div style="margin-bottom: 8px; color: #374151; font-size: 12px;">You can retry the API or approve manually:</div>
+              <div style="display: flex; gap: 8px; flex-direction: column;">
+                <button type="button" id="btn-err-catch-retry-api" style="width: 100%; padding: 10px 14px; background: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px;">
+                  Retry Flutterwave API Transfer Now
+                </button>
+                <button type="button" id="btn-err-catch-fallback-approve" style="width: 100%; padding: 9px 14px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px;">
+                  Or Mark as Manual Bank Transfer / Cash
+                </button>
+              </div>
             `;
+            const retryCatchBtn = document.getElementById('btn-err-catch-retry-api');
+            if (retryCatchBtn) {
+              retryCatchBtn.addEventListener('click', () => {
+                btnFlwDisburse.click();
+              });
+            }
             const errFallbackBtn = document.getElementById('btn-err-catch-fallback-approve');
             if (errFallbackBtn) {
               errFallbackBtn.addEventListener('click', () => {
