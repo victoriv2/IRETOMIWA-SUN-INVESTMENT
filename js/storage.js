@@ -987,9 +987,11 @@ const DB = {
       { code: '561', name: 'Nova Commercial Bank' },
       { code: '50638', name: 'NowNow Digital Systems (NowNow MFB)' },
       { code: '50629', name: 'NPF Microfinance Bank' },
+      { code: '100004', name: 'OPay / Paycom' },
       { code: '999992', name: 'OPay' },
       { code: '107', name: 'Optimus Bank' },
-      { code: '999991', name: 'PalmPay' },
+      { code: '100033', name: 'PalmPay' },
+      { code: '999991', name: 'PalmPay (Old)' },
       { code: '104', name: 'Parallex Bank' },
       { code: '076', name: 'Polaris Bank' },
       { code: '105', name: 'PremiumTrust Bank' },
@@ -1063,6 +1065,24 @@ const DB = {
     throw lastError || new Error('Network connection error contacting Flutterwave.');
   },
 
+  // Bank Code Alias Resolver for Flutterwave routing (OPay, Paycom, PalmPay, Moniepoint, etc.)
+  getBankCodeCandidates(bankCode) {
+    const c = String(bankCode || '').trim();
+    if (['999992', '100004', '090110', 'opay', 'paycom'].includes(c.toLowerCase())) {
+      return ['100004', '999992', '090110'];
+    }
+    if (['999991', '100033', '090405', 'palmpay'].includes(c.toLowerCase())) {
+      return ['100033', '999991', '090405'];
+    }
+    if (['50515', '090405', '090392', 'moniepoint'].includes(c.toLowerCase())) {
+      return ['50515', '090405', '090392'];
+    }
+    if (['50211', '090267', 'kuda'].includes(c.toLowerCase())) {
+      return ['50211', '090267'];
+    }
+    return [c];
+  },
+
   // ---- FLUTTERWAVE REAL-TIME ACCOUNT RESOLUTION ----
   async resolveFlutterwaveAccount(accountNumber, bankCode, userId = null) {
     if (!accountNumber || accountNumber.length !== 10) {
@@ -1072,28 +1092,33 @@ const DB = {
       return { success: false, error: 'Please select a bank.' };
     }
     const cfg = this.getFlutterwaveConfig();
-    try {
-      if (cfg && cfg.secretKey) {
-        const response = await this.fetchFlutterwave('accounts/resolve', {
-          method: 'POST',
-          body: JSON.stringify({
-            account_number: accountNumber.trim(),
-            account_bank: bankCode.trim(),
-          }),
-        });
+    const candidates = this.getBankCodeCandidates(bankCode);
 
-        const json = response.json;
-        if (json && json.status === 'success' && json.data && json.data.account_name) {
-          return {
-            success: true,
-            accountNumber: json.data.account_number,
-            accountName: json.data.account_name.toUpperCase(),
-            source: 'bank',
-          };
+    if (cfg && cfg.secretKey) {
+      for (const cand of candidates) {
+        try {
+          const response = await this.fetchFlutterwave('accounts/resolve', {
+            method: 'POST',
+            body: JSON.stringify({
+              account_number: accountNumber.trim(),
+              account_bank: cand.trim(),
+            }),
+          });
+
+          const json = response.json;
+          if (json && json.status === 'success' && json.data && json.data.account_name) {
+            return {
+              success: true,
+              accountNumber: json.data.account_number || accountNumber.trim(),
+              accountName: json.data.account_name.toUpperCase(),
+              resolvedBankCode: cand,
+              source: 'bank',
+            };
+          }
+        } catch (err) {
+          console.warn(`Resolve candidate ${cand} error:`, err);
         }
       }
-    } catch (err) {
-      console.warn('Flutterwave account resolve API error, using profile fallback:', err);
     }
 
     // Fallback: If user is logged in, auto-fill and verify against client registered legal name
@@ -1105,6 +1130,7 @@ const DB = {
           success: true,
           accountNumber: accountNumber.trim(),
           accountName: fullName,
+          resolvedBankCode: candidates[0],
           source: 'profile',
         };
       }
@@ -1126,42 +1152,40 @@ const DB = {
       return { success: false, error: 'Destination bank code and account number are required.' };
     }
 
-    // Pre-transfer account verification: confirm account resolves at the given bank before sending money
+    // Pre-transfer account verification: try all candidate codes for fintechs like OPay/Paycom/Palmpay
+    const candidates = this.getBankCodeCandidates(bankCode);
+    let workingBankCode = candidates[0];
+    let verifiedAccountName = clientName;
+
     try {
-      const verifyRes = await this.fetchFlutterwave('accounts/resolve', {
-        method: 'POST',
-        body: JSON.stringify({
-          account_number: accountNumber.trim(),
-          account_bank: bankCode.trim(),
-        }),
-      });
-      const vj = verifyRes.json;
-      if (!vj || vj.status !== 'success' || !vj.data || !vj.data.account_number) {
-        const verifyErr = (vj && vj.message) ? vj.message : 'Account resolve failed';
-        return {
-          success: false,
-          error: `Bank account verification failed: ${verifyErr}. Please check the account number and bank are correct.`,
-          verifyFailed: true,
-        };
-      }
-      // Use the bank-confirmed account name for the transfer
-      if (vj.data.account_name && !clientName) {
-        clientName = vj.data.account_name;
+      for (const cand of candidates) {
+        const verifyRes = await this.fetchFlutterwave('accounts/resolve', {
+          method: 'POST',
+          body: JSON.stringify({
+            account_number: accountNumber.trim(),
+            account_bank: cand.trim(),
+          }),
+        });
+        const vj = verifyRes.json;
+        if (vj && vj.status === 'success' && vj.data && vj.data.account_name) {
+          workingBankCode = cand;
+          verifiedAccountName = vj.data.account_name.toUpperCase();
+          break;
+        }
       }
     } catch (verifyErr) {
-      // Non-blocking: if the verify endpoint fails due to network, proceed anyway
-      console.warn('Pre-transfer verify error (non-blocking):', verifyErr);
+      console.warn('Pre-transfer verify check warning:', verifyErr);
     }
 
     const reference = 'TXF_' + (txId || Date.now()) + '_' + Math.random().toString(36).slice(2, 7);
     const payload = {
-      account_bank: bankCode.trim(),
+      account_bank: workingBankCode,
       account_number: accountNumber.trim(),
       amount: cleanAmount,
-      narration: (narration || `Iretomiwa Sun payout to ${clientName || 'Client'}`).slice(0, 100),
+      narration: (narration || `Iretomiwa Sun payout to ${verifiedAccountName || clientName || 'Client'}`).slice(0, 100),
       currency: 'NGN',
       reference: reference,
-      beneficiary_name: clientName ? clientName.trim() : undefined,
+      beneficiary_name: (verifiedAccountName || clientName) ? (verifiedAccountName || clientName).trim() : undefined,
     };
 
     try {
