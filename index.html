@@ -67,7 +67,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261102_PORTAL_SYNC_V27';
+      var APP_BUILD_VER = '20261102_WDRAW_V28';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -87,8 +87,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261102_v27" />
-  <link rel="stylesheet" href="css/auth.css?v=20261102_v27" />
+  <link rel="stylesheet" href="css/global.css?v=20261102_v28" />
+  <link rel="stylesheet" href="css/auth.css?v=20261102_v28" />
   <style>
     /* Gentle pre-boot session hints - JavaScript has full priority without !important blocking */
     html.is-user-logged-in #page-login { display: none; }
@@ -1343,14 +1343,18 @@
                 <input type="hidden" id="admin-flw-mode" value="live" />
               </div>
 
+              <!-- Hidden dummy inputs to soak up any aggressive browser credential autofill -->
+              <input type="text" style="display:none!important;" tabindex="-1" autocomplete="username" />
+              <input type="password" style="display:none!important;" tabindex="-1" autocomplete="current-password" />
+
               <div class="form-group" style="margin-bottom:12px; width: 100%; box-sizing: border-box;">
                 <label for="admin-flw-public-key" style="font-size:12px; font-weight:700;">Flutterwave Live Public Key</label>
-                <input type="text" id="admin-flw-public-key" autocomplete="off" name="flw_pub_token" spellcheck="false" placeholder="FLWPUBK-570758bf49301716d7e0133dce781024-X" style="width:100%; max-width:100%; box-sizing:border-box; height:42px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-family:monospace; font-size:12px;" />
+                <input type="text" id="admin-flw-public-key" autocomplete="off" name="gateway_pub_val" data-lpignore="true" data-form-type="other" spellcheck="false" placeholder="FLWPUBK-570758bf49301716d7e0133dce781024-X" style="width:100%; max-width:100%; box-sizing:border-box; height:42px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-family:monospace; font-size:12px;" />
               </div>
 
               <div class="form-group" style="margin-bottom:14px; width: 100%; box-sizing: border-box;">
                 <label for="admin-flw-secret-key" style="font-size:12px; font-weight:700;">Flutterwave Live Secret Key (for Automated Disbursals)</label>
-                <input type="password" id="admin-flw-secret-key" autocomplete="new-password" name="flw_sec_token" placeholder="FLWSECK-..." style="width:100%; max-width:100%; box-sizing:border-box; height:42px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-family:monospace; font-size:12px;" />
+                <input type="text" id="admin-flw-secret-key" autocomplete="off" name="gateway_sec_val" data-lpignore="true" data-form-type="other" spellcheck="false" placeholder="FLWSECK-..." style="width:100%; max-width:100%; box-sizing:border-box; height:42px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-family:monospace; font-size:12px; -webkit-text-security: disc; text-security: disc;" />
                 <small style="display:block; margin-top:4px; font-size:11px; color:var(--text-muted);">
                   Live V3 Secret Key. Used by Admin to disburse payouts directly to clients' Nigerian bank accounts.
                 </small>
@@ -2384,6 +2388,49 @@
     </div>
   </div>
 
+  <!-- MODAL: PAYOUT / WITHDRAWAL SUCCESS CONFIRMATION -->
+  <div id="modal-payout-success" class="modal-overlay hidden" style="z-index: 1060;">
+    <div class="modal-card" style="max-width: 420px; text-align: center; padding: 26px 22px;">
+      <div style="width: 58px; height: 58px; border-radius: 50%; background: #eff6ff; color: #2563eb; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+      <h3 style="font-size: 20px; font-weight: 800; color: #111827; margin-bottom: 6px;" id="succ-payout-title">Payout Requested!</h3>
+      <p style="font-size: 13.5px; color: #4b5563; margin-bottom: 18px; line-height: 1.45;" id="succ-payout-desc">
+        Your withdrawal request has been submitted and recorded.
+      </p>
+
+      <!-- Receipt summary box -->
+      <div style="background: #f8fafc; border: 1.5px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 20px; text-align: left; font-size: 13px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom: 7px;">
+          <span style="color: var(--text-muted);">Gross Requested:</span>
+          <span style="font-weight: 800; font-size: 15px; color: #111827;" id="succ-payout-gross">₦0.00</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom: 7px;">
+          <span style="color: var(--text-muted);">Admin Commission:</span>
+          <span style="font-weight: 700; color: #dc2626;" id="succ-payout-fee">-₦0.00</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom: 7px;">
+          <span style="color: #166534; font-weight: 800;">Net Payout Amount:</span>
+          <span style="font-weight: 900; font-size: 16px; color: #166534;" id="succ-payout-net">₦0.00</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom: 7px;">
+          <span style="color: var(--text-muted);">Destination Bank:</span>
+          <span style="font-weight: 700; color: #0284c7;" id="succ-payout-bank">-</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; border-top: 1px dashed var(--border); padding-top: 7px; margin-top: 7px;">
+          <span style="color: var(--text-muted);">Remaining Available Balance:</span>
+          <span style="font-weight: 800; color: var(--text-primary); font-size: 14.5px;" id="succ-payout-balance">₦0.00</span>
+        </div>
+      </div>
+
+      <button type="button" class="btn-primary btn-full modal-close" data-modal="modal-payout-success" id="btn-close-payout-success" style="padding: 12px 18px; font-weight: 700;">
+        Back to Dashboard
+      </button>
+    </div>
+  </div>
+
   <!-- UNIVERSAL FULL VIEW IMAGE LIGHTBOX MODAL -->
   <div id="modal-image-lightbox" class="image-lightbox-overlay hidden" role="dialog" aria-modal="true" aria-label="Full Image View">
     <div class="image-lightbox-container">
@@ -2403,13 +2450,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261102_v27"></script>
-  <script src="js/picker.js?v=20261102_v27"></script>
+  <script src="js/storage.js?v=20261102_v28"></script>
+  <script src="js/picker.js?v=20261102_v28"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261102_v27"></script>
-  <script src="js/auth.js?v=20261102_v27"></script>
-  <script src="js/user.js?v=20261102_v27"></script>
-  <script src="js/admin.js?v=20261102_v27"></script>
-  <script src="js/app.js?v=20261102_v27"></script>
+  <script src="js/export.js?v=20261102_v28"></script>
+  <script src="js/auth.js?v=20261102_v28"></script>
+  <script src="js/user.js?v=20261102_v28"></script>
+  <script src="js/admin.js?v=20261102_v28"></script>
+  <script src="js/app.js?v=20261102_v28"></script>
 </body>
 </html>

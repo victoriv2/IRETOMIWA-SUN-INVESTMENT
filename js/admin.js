@@ -1498,11 +1498,17 @@ const AdminApp = (() => {
     const defaultPub = 'FLWPUBK-570758bf49301716d7e0133dce781024-X';
     const defaultSec = 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X';
 
-    if (flwKeyInp && (!flwKeyInp.value || flwKeyInp.value.includes('@') || !flwKeyInp.dataset.userEdited)) {
-      flwKeyInp.value = flwCfg.publicKey || defaultPub;
+    if (flwKeyInp) {
+      const cleanPub = (flwCfg.publicKey && !flwCfg.publicKey.includes('@') && flwCfg.publicKey.startsWith('FLWPUBK'))
+        ? flwCfg.publicKey
+        : defaultPub;
+      flwKeyInp.value = cleanPub;
     }
-    if (flwSecretInp && (!flwSecretInp.value || !flwSecretInp.dataset.userEdited)) {
-      flwSecretInp.value = flwCfg.secretKey || defaultSec;
+    if (flwSecretInp) {
+      const cleanSec = (flwCfg.secretKey && flwCfg.secretKey.startsWith('FLWSECK'))
+        ? flwCfg.secretKey
+        : defaultSec;
+      flwSecretInp.value = cleanSec;
     }
     if (flwModeSel) {
       flwModeSel.value = flwCfg.mode || 'live';
@@ -1583,8 +1589,18 @@ const AdminApp = (() => {
       const modeSel = document.getElementById('admin-flw-mode');
       const msgBox  = document.getElementById('admin-flw-msg');
 
-      const pubKey = (keyInp ? keyInp.value.trim() : '') || 'FLWPUBK-570758bf49301716d7e0133dce781024-X';
-      const secKey = (secretInp ? secretInp.value.trim() : '') || 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X';
+      let pubKey = (keyInp ? keyInp.value.trim() : '');
+      let secKey = (secretInp ? secretInp.value.trim() : '');
+      const defaultPub = 'FLWPUBK-570758bf49301716d7e0133dce781024-X';
+      const defaultSec = 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X';
+
+      if (!pubKey || pubKey.includes('@') || !pubKey.startsWith('FLWPUBK')) {
+        pubKey = defaultPub;
+      }
+      if (!secKey || !secKey.startsWith('FLWSECK')) {
+        secKey = defaultSec;
+      }
+
       const mode   = modeSel ? modeSel.value : 'live';
       const autoCashoutInp = document.getElementById('admin-flw-auto-cashout');
       const isAutoCashout = autoCashoutInp ? autoCashoutInp.checked : false;

@@ -885,13 +885,19 @@ const DB = {
 
   // ---- FLUTTERWAVE GATEWAY CONFIG ----
   getFlutterwaveConfig() {
+    const defaultPub = 'FLWPUBK-570758bf49301716d7e0133dce781024-X';
+    const defaultSec = 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X';
     try {
       const raw = localStorage.getItem('sun_flutterwave_config');
       if (raw) {
         const parsed = JSON.parse(raw);
+        let pub = parsed.publicKey;
+        let sec = parsed.secretKey;
+        if (!pub || pub.includes('@') || !pub.startsWith('FLWPUBK')) pub = defaultPub;
+        if (!sec || !sec.startsWith('FLWSECK')) sec = defaultSec;
         return {
-          publicKey: parsed.publicKey || 'FLWPUBK-570758bf49301716d7e0133dce781024-X',
-          secretKey: parsed.secretKey || 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X',
+          publicKey: pub,
+          secretKey: sec,
           encryptionKey: parsed.encryptionKey || 'fc044b9b11bc9d09633290a0',
           mode: parsed.mode || 'live',
           merchantName: 'John Idowu (Iretomiwa Sun Investment)',
@@ -902,8 +908,8 @@ const DB = {
       }
     } catch(e) {}
     return {
-      publicKey: 'FLWPUBK-570758bf49301716d7e0133dce781024-X',
-      secretKey: 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X',
+      publicKey: defaultPub,
+      secretKey: defaultSec,
       encryptionKey: 'fc044b9b11bc9d09633290a0',
       mode: 'live',
       merchantName: 'John Idowu (Iretomiwa Sun Investment)',
@@ -913,10 +919,19 @@ const DB = {
     };
   },
   setFlutterwaveConfig(cfg) {
+    const defaultPub = 'FLWPUBK-570758bf49301716d7e0133dce781024-X';
+    const defaultSec = 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X';
     const current = this.getFlutterwaveConfig();
+    let pub = (cfg.publicKey || current.publicKey || '').trim();
+    let sec = (cfg.secretKey || current.secretKey || '').trim();
+    if (!pub || pub.includes('@') || !pub.startsWith('FLWPUBK')) pub = defaultPub;
+    if (!sec || !sec.startsWith('FLWSECK')) sec = defaultSec;
+
     const updated = {
       ...current,
       ...cfg,
+      publicKey: pub,
+      secretKey: sec,
       updatedAt: new Date().toISOString(),
     };
     localStorage.setItem('sun_flutterwave_config', JSON.stringify(updated));

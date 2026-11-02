@@ -422,6 +422,33 @@ const UserApp = (() => {
     if (modal) modal.classList.remove('hidden');
   }
 
+  function openPayoutSuccessModal({ gross, fee, net, bankName, accountNumber, balance, isInstant }) {
+    const modal = document.getElementById('modal-payout-success');
+    if (!modal) return;
+
+    const titleEl = document.getElementById('succ-payout-title');
+    const descEl  = document.getElementById('succ-payout-desc');
+    const grossEl = document.getElementById('succ-payout-gross');
+    const feeEl   = document.getElementById('succ-payout-fee');
+    const netEl   = document.getElementById('succ-payout-net');
+    const bankEl  = document.getElementById('succ-payout-bank');
+    const balEl   = document.getElementById('succ-payout-balance');
+
+    if (titleEl) titleEl.textContent = isInstant ? 'Payout Disbursed!' : 'Payout Request Submitted!';
+    if (descEl) {
+      descEl.textContent = isInstant
+        ? `₦${formatAmount(net)} has been automatically disbursed to your bank account.`
+        : `Your payout request of ₦${formatAmount(gross)} has been submitted. Awaiting admin approval.`;
+    }
+    if (grossEl) grossEl.textContent = `₦${formatAmount(gross)}`;
+    if (feeEl)   feeEl.textContent   = `-₦${formatAmount(fee)}`;
+    if (netEl)   netEl.textContent   = `₦${formatAmount(net)}`;
+    if (bankEl)  bankEl.textContent  = `${bankName} • ${accountNumber}`;
+    if (balEl)   balEl.textContent   = `₦${formatAmount(balance)}`;
+
+    modal.classList.remove('hidden');
+  }
+
   function initSaveForm() {
     // Type toggle buttons (Deposit vs Payout)
     const btnDeposit  = document.getElementById('btn-type-deposit');
@@ -636,6 +663,16 @@ const UserApp = (() => {
     if (closeSuccBtn && modalSucc) {
       closeSuccBtn.addEventListener('click', () => {
         modalSucc.classList.add('hidden');
+        switchTab('home');
+      });
+    }
+
+    // Close payout success modal
+    const closePayoutSuccBtn = document.getElementById('btn-close-payout-success');
+    const modalPayoutSucc    = document.getElementById('modal-payout-success');
+    if (closePayoutSuccBtn && modalPayoutSucc) {
+      closePayoutSuccBtn.addEventListener('click', () => {
+        modalPayoutSucc.classList.add('hidden');
         switchTab('home');
       });
     }
@@ -975,11 +1012,25 @@ const UserApp = (() => {
         const flwCfg = DB.getFlutterwaveConfig();
         const clientLegalName = user ? `${DB.formatName(user.firstName)} ${DB.formatName(user.lastName)}` : 'Client';
 
+        // Redirect user directly to Home tab and refresh balances/transactions
+        switchTab('home');
+        renderSavingsList();
+        renderTotal();
+
+        const currentBal = (typeof DB !== 'undefined' && DB.getUserBalance)
+          ? DB.getUserBalance(currentUserId).balance
+          : 0;
+
         if (flwCfg && flwCfg.autoCashout && destinationBank.accountNumber && destinationBank.bankCode) {
-          if (successEl) {
-            successEl.textContent = `Auto Cash-out initiated... Disbursing ₦${formatAmount(netAmount)} to ${destinationBank.accountNumber} via Flutterwave.`;
-            successEl.classList.remove('hidden');
-          }
+          openPayoutSuccessModal({
+            gross: amount,
+            fee: fee,
+            net: netAmount,
+            bankName: bName,
+            accountNumber: bNum,
+            balance: currentBal,
+            isInstant: false
+          });
 
           DB.disburseFlutterwaveTransfer({
             accountNumber: destinationBank.accountNumber,
@@ -1000,20 +1051,18 @@ const UserApp = (() => {
                 netAmount: netAmount,
                 feeRate: feeRate,
               });
-              if (successEl) {
-                successEl.textContent = `Auto Cash-out Successful! ₦${formatAmount(netAmount)} has been disbursed to your ${bName} account.`;
-                successEl.classList.remove('hidden');
-                setTimeout(() => successEl.classList.add('hidden'), 7000);
-              }
               renderSavingsList();
               renderTotal();
+              openPayoutSuccessModal({
+                gross: amount,
+                fee: fee,
+                net: netAmount,
+                bankName: bName,
+                accountNumber: bNum,
+                balance: DB.getUserBalance(currentUserId).balance,
+                isInstant: true
+              });
             } else {
-              // Flutterwave transfer failed or restricted on account - remains queued for manual admin confirmation
-              if (successEl) {
-                successEl.textContent = `Payout request queued! Gross: ₦${formatAmount(amount)} | Net: ₦${formatAmount(netAmount)}. Awaiting Admin approval.`;
-                successEl.classList.remove('hidden');
-                setTimeout(() => successEl.classList.add('hidden'), 6000);
-              }
               renderSavingsList();
               renderTotal();
             }
@@ -1023,13 +1072,15 @@ const UserApp = (() => {
             renderTotal();
           });
         } else {
-          if (successEl) {
-            successEl.textContent = `Pay Out request submitted! Gross: ₦${formatAmount(amount)} | ${commRate}% Fee: ₦${formatAmount(fee)} | Net Transfer: ₦${formatAmount(netAmount)}. Awaiting Admin approval.`;
-            successEl.classList.remove('hidden');
-            setTimeout(() => successEl.classList.add('hidden'), 6000);
-          }
-          renderSavingsList();
-          renderTotal();
+          openPayoutSuccessModal({
+            gross: amount,
+            fee: fee,
+            net: netAmount,
+            bankName: bName,
+            accountNumber: bNum,
+            balance: currentBal,
+            isInstant: false
+          });
         }
       }
     });
