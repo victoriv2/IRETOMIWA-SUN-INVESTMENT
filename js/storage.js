@@ -63,17 +63,110 @@ const DB = {
   },
 
   async syncPush() {
-    if (!navigator.onLine) return;
+    if (!navigator.onLine) return false;
     try {
       this.notifySync('syncing');
+
+      // Fetch latest state from Supabase to merge bidirectionally and prevent clobbering
+      let cloudUsers = [];
+      let cloudTxs = [];
+      let cloudCats = [];
+      let cloudFlw = null;
+      let cloudComm = null;
+      let cloudResetId = null;
+
+      try {
+        const pullRes = await fetch(`${this.SUPABASE.URL}/rest/v1/${this.SUPABASE.TABLE}?id=eq.${this.SUPABASE.SYNC_ID}&select=*`, {
+          method: 'GET',
+          headers: {
+            'apikey': this.SUPABASE.ANON_KEY,
+            'Authorization': `Bearer ${this.SUPABASE.ANON_KEY}`,
+            'Accept': 'application/json',
+          },
+        });
+        if (pullRes.ok) {
+          const rows = await pullRes.json();
+          const rec = (Array.isArray(rows) && rows[0]) ? rows[0] : (rows || {});
+          cloudUsers = Array.isArray(rec.users) ? rec.users : [];
+          cloudTxs = Array.isArray(rec.transactions) ? rec.transactions : [];
+          cloudCats = Array.isArray(rec.custom_categories || rec.customCategories) ? (rec.custom_categories || rec.customCategories) : [];
+          cloudFlw = rec.flutterwave_config || rec.flutterwaveConfig || null;
+          cloudComm = rec.commission_percentage !== undefined ? rec.commission_percentage : rec.commissionPercentage;
+          cloudResetId = rec.reset_id || rec.resetId || null;
+        }
+      } catch (e) {
+        console.warn('Pre-push fetch notice:', e);
+      }
+
+      // If cloud had a factory reset that local hasn't processed, pull first
+      const localEpoch = localStorage.getItem('sun_system_reset_epoch');
+      if (cloudResetId && cloudResetId !== localEpoch) {
+        await this.syncPull();
+        return true;
+      }
+
+      // Merge Users (Union by ID, keeping all unique accounts and latest updates)
+      const localUsers = this.getUsers();
+      const userMap = new Map();
+      cloudUsers.forEach(u => {
+        if (u && u.id) userMap.set(u.id, u);
+      });
+      localUsers.forEach(u => {
+        if (u && u.id) {
+          const existing = userMap.get(u.id);
+          userMap.set(u.id, existing ? { ...existing, ...u } : u);
+        }
+      });
+      const mergedUsers = Array.from(userMap.values());
+      localStorage.setItem('sun_users', JSON.stringify(mergedUsers));
+
+      // Merge Transactions (Union by ID, keeping all records and preserving approved/declined statuses)
+      const localTxs = this.getAllTransactions();
+      const txMap = new Map();
+      cloudTxs.forEach(t => {
+        if (t && t.id) txMap.set(t.id, t);
+      });
+      localTxs.forEach(t => {
+        if (t && t.id) {
+          const existing = txMap.get(t.id);
+          if (existing) {
+            const isLocalReviewed = t.status === 'approved' || t.status === 'declined';
+            const isCloudReviewed = existing.status === 'approved' || existing.status === 'declined';
+            txMap.set(t.id, isLocalReviewed ? { ...existing, ...t } : (isCloudReviewed ? { ...t, ...existing } : { ...existing, ...t }));
+          } else {
+            txMap.set(t.id, t);
+          }
+        }
+      });
+      const mergedTxs = Array.from(txMap.values());
+      localStorage.setItem('sun_transactions', JSON.stringify(mergedTxs));
+
+      // Merge custom categories
+      const localCats = this.getCustomCategories();
+      const mergedCats = Array.from(new Set([...cloudCats, ...localCats]));
+      localStorage.setItem('sun_custom_categories', JSON.stringify(mergedCats));
+
+      // Merge Flutterwave config
+      let mergedFlw = this.getFlutterwaveConfig();
+      if (cloudFlw && typeof cloudFlw === 'object') {
+        if (cloudFlw.updatedAt && (!mergedFlw.updatedAt || cloudFlw.updatedAt >= mergedFlw.updatedAt)) {
+          mergedFlw = { ...mergedFlw, ...cloudFlw };
+          localStorage.setItem('sun_flutterwave_config', JSON.stringify(mergedFlw));
+        }
+      }
+
+      // Merge Commission Rate
+      const localComm = this.getCommissionRate();
+      const finalComm = (cloudComm !== undefined && cloudComm !== null && !isNaN(Number(cloudComm))) ? Number(cloudComm) : localComm;
+
       const payload = {
         id: this.SUPABASE.SYNC_ID,
-        users: this.getUsers(),
-        transactions: this.getAllTransactions(),
+        users: mergedUsers,
+        transactions: mergedTxs,
         admin: this.getAdmin(),
-        custom_categories: this.getCustomCategories(),
-        flutterwave_config: this.getFlutterwaveConfig(),
-        commission_percentage: this.getCommissionRate(),
+        custom_categories: mergedCats,
+        flutterwave_config: mergedFlw,
+        commission_percentage: finalComm,
         reset_id: SYSTEM_RESET_ID,
         updated_at: new Date().toISOString(),
       };
@@ -93,9 +186,11 @@ const DB = {
         throw new Error(`Supabase Sync Push HTTP ${res.status}`);
       }
       this.notifySync('synced');
+      return true;
     } catch (err) {
-      console.warn('Supabase sync push:', err);
+      console.warn('Supabase sync push error:', err);
       this.notifySync('error', err);
+      return false;
     }
   },
 
@@ -165,15 +260,49 @@ const DB = {
         return;
       }
 
-      // Authoritative Supabase Database Sync (Single Source of Truth)
-      // Local storage is strictly a read cache; it NEVER pushes or contaminates cloud on pull
-      localStorage.setItem('sun_users', JSON.stringify(cloudUsers));
-      localStorage.setItem('sun_transactions', JSON.stringify(cloudTxs));
+      // Bidirectional Merge: Cloud is authoritative, but NEVER delete locally created accounts that haven't synced yet
+      const localUsers = this.getUsers();
+      const userMap = new Map();
+      cloudUsers.forEach(cu => { if (cu && cu.id) userMap.set(cu.id, cu); });
+      let needsPushToCloud = false;
+      localUsers.forEach(lu => {
+        if (lu && lu.id) {
+          if (!userMap.has(lu.id)) {
+            userMap.set(lu.id, lu);
+            needsPushToCloud = true;
+          } else {
+            const cloudU = userMap.get(lu.id);
+            userMap.set(lu.id, { ...cloudU, ...lu });
+          }
+        }
+      });
+      const finalUsers = Array.from(userMap.values());
+      localStorage.setItem('sun_users', JSON.stringify(finalUsers));
 
-      // Validate active user session against authoritative cloud users
+      // Bidirectional Merge for Transactions
+      const localTxs = this.getAllTransactions();
+      const txMap = new Map();
+      cloudTxs.forEach(ct => { if (ct && ct.id) txMap.set(ct.id, ct); });
+      localTxs.forEach(lt => {
+        if (lt && lt.id) {
+          if (!txMap.has(lt.id)) {
+            txMap.set(lt.id, lt);
+            needsPushToCloud = true;
+          } else {
+            const cloudT = txMap.get(lt.id);
+            const isLocalReviewed = lt.status === 'approved' || lt.status === 'declined';
+            const isCloudReviewed = cloudT.status === 'approved' || cloudT.status === 'declined';
+            txMap.set(lt.id, isLocalReviewed ? { ...cloudT, ...lt } : (isCloudReviewed ? { ...lt, ...cloudT } : { ...cloudT, ...lt }));
+          }
+        }
+      });
+      const finalTxs = Array.from(txMap.values());
+      localStorage.setItem('sun_transactions', JSON.stringify(finalTxs));
+
+      // Validate active user session against merged users
       const currentSession = this.getSession();
       if (currentSession && currentSession.userId) {
-        const stillExists = cloudUsers.some(u => u.id === currentSession.userId);
+        const stillExists = finalUsers.some(u => u.id === currentSession.userId);
         if (!stillExists) {
           this.clearSession();
           if (window.App && typeof window.App.navigate === 'function') {
@@ -216,6 +345,11 @@ const DB = {
 
       this._isPulling = false;
       this.notifySync('synced');
+
+      // If local storage had unsynced records, push merged state up to Supabase immediately
+      if (needsPushToCloud) {
+        this.scheduleCloudPush();
+      }
 
       // Refresh active views with clean database data
       if (window.UserApp && typeof window.UserApp.refresh === 'function') {
@@ -319,7 +453,14 @@ const DB = {
   getUserById(id) {
     return this.getUsers().find(u => u.id === id) || null;
   },
-  createUser(data) {
+  async createUser(data) {
+    // Quick pull to ensure sequential ID reflects any recent accounts across devices
+    if (navigator.onLine) {
+      try {
+        await this.syncPull();
+      } catch(e) {}
+    }
+
     const users = this.getUsers();
 
     // Unique Sequential Client ID: ir00001, ir00002, ..., ir99999
@@ -345,7 +486,19 @@ const DB = {
       joinedAt: new Date().toISOString(),
     };
     users.push(newUser);
-    this.saveUsers(users);
+    localStorage.setItem('sun_users', JSON.stringify(users));
+
+    // Push to Supabase immediately and await confirmation
+    if (navigator.onLine) {
+      try {
+        await this.syncPush();
+      } catch (e) {
+        console.warn('Initial account push error:', e);
+      }
+    } else {
+      this.scheduleCloudPush();
+    }
+
     return newUser;
   },
   updateUser(id, fields) {

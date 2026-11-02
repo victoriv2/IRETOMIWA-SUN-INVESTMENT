@@ -258,7 +258,7 @@ const Auth = (() => {
     const form = document.getElementById('signup-form');
     if (!form) return;
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
       clearErrors('err-firstname', 'err-lastname', 'err-email', 'err-phone', 'err-password', 'err-confirm', 'err-passport');
       showFormError('signup-error', '');
@@ -345,9 +345,25 @@ const Auth = (() => {
 
       if (!valid) return;
 
-      const user = DB.createUser({ firstName, lastName, email, phone, password, passportPhoto: selectedPassportDataUrl });
-      DB.setSession({ userId: user.id });
-      App.navigate('user');
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const origText = submitBtn ? submitBtn.textContent : 'Create Account';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Creating Account & Syncing...';
+      }
+
+      try {
+        const user = await DB.createUser({ firstName, lastName, email, phone, password, passportPhoto: selectedPassportDataUrl });
+        DB.setSession({ userId: user.id });
+        App.navigate('user');
+      } catch (err) {
+        showFormError('signup-error', 'Registration error: ' + (err.message || 'Please try again.'));
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = origText;
+        }
+      }
     });
   }
 
@@ -356,7 +372,7 @@ const Auth = (() => {
     const form = document.getElementById('login-form');
     if (!form) return;
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
       clearErrors('err-login-identifier', 'err-login-password');
       showFormError('login-error', '');
@@ -385,18 +401,32 @@ const Auth = (() => {
       const isMatchPw = (password === admin.password || password === 'Admin@123' || password === 'adminpassword123');
 
       if (isMatchId && isMatchPw) {
+        localStorage.setItem('sun_active_portal', 'admin');
         DB.setAdminSession({ role: 'admin' });
         App.navigate('admin');
         return;
       }
 
       // Check user by Email OR Phone number
-      const user = DB.getUserByIdentifier(identifier);
-      if (!user || user.password !== password) {
-        showFormError('login-error', 'Invalid email/phone number or password.');
+      let user = DB.getUserByIdentifier(identifier);
+      if (!user && navigator.onLine) {
+        try {
+          await DB.syncPull();
+          user = DB.getUserByIdentifier(identifier);
+        } catch (err) {}
+      }
+
+      if (!user) {
+        showFormError('login-error', 'Account does not exist with this email or phone number. Please sign up.');
         return;
       }
 
+      if (user.password !== password) {
+        showFormError('login-error', 'Incorrect password. Please try again.');
+        return;
+      }
+
+      localStorage.setItem('sun_active_portal', 'user');
       DB.setSession({ userId: user.id });
       App.navigate('user');
     });
@@ -409,10 +439,10 @@ const Auth = (() => {
     const gotoAdmin   = document.getElementById('goto-admin');
     const adminToUser = document.getElementById('admin-to-user-portal');
 
-    if (gotoLogin)   gotoLogin.addEventListener('click',   (e) => { e.preventDefault(); App.navigate('login'); });
-    if (gotoSignup)  gotoSignup.addEventListener('click',  (e) => { e.preventDefault(); App.navigate('signup'); });
-    if (gotoAdmin)   gotoAdmin.addEventListener('click',   (e) => { e.preventDefault(); App.navigate('admin'); });
-    if (adminToUser) adminToUser.addEventListener('click', (e) => { e.preventDefault(); App.navigate('login'); });
+    if (gotoLogin)   gotoLogin.addEventListener('click',   (e) => { e.preventDefault(); localStorage.setItem('sun_active_portal', 'user'); App.navigate('login'); });
+    if (gotoSignup)  gotoSignup.addEventListener('click',  (e) => { e.preventDefault(); localStorage.setItem('sun_active_portal', 'user'); App.navigate('signup'); });
+    if (gotoAdmin)   gotoAdmin.addEventListener('click',   (e) => { e.preventDefault(); localStorage.setItem('sun_active_portal', 'admin'); App.navigate('admin'); });
+    if (adminToUser) adminToUser.addEventListener('click', (e) => { e.preventDefault(); localStorage.setItem('sun_active_portal', 'user'); App.navigate('login'); });
   }
 
   return {

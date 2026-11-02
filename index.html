@@ -34,8 +34,9 @@
       var params = new URLSearchParams(window.location.search);
       var view = params.get('view');
 
-      // Determine active target on initial render
-      var isAdminTarget = (hash.indexOf('admin') !== -1 || view === 'admin' || (!hash && p === 'admin'));
+      // Determine active target on initial render:
+      // Strictly user portal unless URL explicitly contains admin (#admin, #admin-login, ?view=admin)
+      var isAdminTarget = (hash.indexOf('admin') !== -1 || view === 'admin');
 
       if (isAdminTarget && a) {
         try {
@@ -50,7 +51,7 @@
         }
       } else if (isAdminTarget) {
         document.documentElement.classList.add('is-admin-login');
-      } else if (u) {
+      } else if (u && hash === '#user') {
         try {
           var parsedUser = JSON.parse(u);
           if (parsedUser && parsedUser.userId) {
@@ -66,7 +67,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261030_SPACED_V25';
+      var APP_BUILD_VER = '20261102_PORTAL_SYNC_V27';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -80,11 +81,14 @@
       var lastBuild = localStorage.getItem('sun_build_ver');
       if (lastBuild !== APP_BUILD_VER) {
         localStorage.setItem('sun_build_ver', APP_BUILD_VER);
+        localStorage.removeItem('sun_active_portal');
+        localStorage.removeItem('sun_user_tab');
+        localStorage.removeItem('sun_admin_tab');
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261030_comm_v26" />
-  <link rel="stylesheet" href="css/auth.css?v=20261030_comm_v26" />
+  <link rel="stylesheet" href="css/global.css?v=20261102_v27" />
+  <link rel="stylesheet" href="css/auth.css?v=20261102_v27" />
   <style>
     /* Gentle pre-boot session hints - JavaScript has full priority without !important blocking */
     html.is-user-logged-in #page-login { display: none; }
@@ -2399,13 +2403,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261030_comm_v26"></script>
-  <script src="js/picker.js?v=20261030_comm_v26"></script>
+  <script src="js/storage.js?v=20261102_v27"></script>
+  <script src="js/picker.js?v=20261102_v27"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261030_comm_v26"></script>
-  <script src="js/auth.js?v=20261030_comm_v26"></script>
-  <script src="js/user.js?v=20261030_comm_v26"></script>
-  <script src="js/admin.js?v=20261030_comm_v26"></script>
-  <script src="js/app.js?v=20261030_comm_v26"></script>
+  <script src="js/export.js?v=20261102_v27"></script>
+  <script src="js/auth.js?v=20261102_v27"></script>
+  <script src="js/user.js?v=20261102_v27"></script>
+  <script src="js/admin.js?v=20261102_v27"></script>
+  <script src="js/app.js?v=20261102_v27"></script>
 </body>
 </html>

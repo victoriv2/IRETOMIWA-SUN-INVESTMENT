@@ -225,16 +225,23 @@ const App = (() => {
       }
     }
 
-    // 1. Explicit URL Hash priority
-    if (currentHash === '#admin') {
-      if (adminSession) { navigate('admin'); return; }
-      else { navigate('adminLogin'); return; }
+    // 1. Explicit Admin Portal routing (via #admin, #admin-login, or ?view=admin)
+    if (currentHash === '#admin' || viewParam === 'admin') {
+      if (adminSession) {
+        navigate('admin');
+        return;
+      } else {
+        navigate('adminLogin');
+        return;
+      }
     }
     if (currentHash === '#admin-login') {
       navigate('adminLogin');
       return;
     }
-    if (currentHash === '#user') {
+
+    // 2. Explicit User Portal routing
+    if (currentHash === '#user' || viewParam === 'user') {
       if (userSession && userSession.userId && DB.getUserById(userSession.userId)) {
         navigate('user');
         return;
@@ -252,36 +259,10 @@ const App = (() => {
       return;
     }
 
-    // 2. Explicit query param priority (e.g. from admin/index.html forwarding)
-    if (viewParam === 'admin') {
-      if (adminSession) { navigate('admin'); return; }
-      else { navigate('adminLogin'); return; }
-    }
-    if (viewParam === 'user') {
-      if (userSession && userSession.userId && DB.getUserById(userSession.userId)) {
-        navigate('user');
-        return;
-      } else {
-        navigate('login');
-        return;
-      }
-    }
-
-    // 3. Persistent Session / Saved Portal on refresh
-    if (savedPortal === 'admin' && adminSession) {
-      navigate('admin');
-      return;
-    }
-    if (savedPortal === 'admin') {
-      navigate('adminLogin');
-      return;
-    }
+    // 3. Default Root Portal Navigation: Strictly User Portal!
+    // Visiting root domain or refreshing without admin hash never opens Admin
     if (userSession && userSession.userId && DB.getUserById(userSession.userId)) {
       navigate('user');
-      return;
-    }
-    if (adminSession) {
-      navigate('admin');
       return;
     }
 

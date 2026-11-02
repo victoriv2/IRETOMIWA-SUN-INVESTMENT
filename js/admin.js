@@ -2123,15 +2123,18 @@ const AdminApp = (() => {
     const tabUserSideBtn = document.getElementById('btn-admin-to-user-tab');
     if (tabUserSideBtn) {
       tabUserSideBtn.addEventListener('click', () => {
+        try {
+          localStorage.setItem('sun_active_portal', 'user');
+        } catch(e) {}
         if (window.App) {
           const uSession = DB.getSession();
-          if (uSession && uSession.userId) {
+          if (uSession && uSession.userId && DB.getUserById(uSession.userId)) {
             App.navigate('user');
           } else {
             App.navigate('login');
           }
         } else {
-          window.location.href = '../index.html';
+          window.location.href = '../index.html#login';
         }
       });
     }
