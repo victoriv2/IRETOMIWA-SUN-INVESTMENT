@@ -338,11 +338,10 @@ const AdminApp = (() => {
         <div style="margin-bottom:12px;">
           <div style="font-size:11px;font-weight:700;color:#4b5563;text-transform:uppercase;margin-bottom:6px;">Quick Bank Selection:</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <button type="button" class="btn-quick-bank" data-code="100004" data-name="OPay / Paycom" style="padding:6px 10px;font-size:11.5px;font-weight:700;border:1.5px solid #16a34a;background:#f0fdf4;color:#166534;border-radius:6px;cursor:pointer;">OPay (100004)</button>
-            <button type="button" class="btn-quick-bank" data-code="999992" data-name="OPay" style="padding:6px 10px;font-size:11.5px;font-weight:700;border:1.5px solid #16a34a;background:#f0fdf4;color:#166534;border-radius:6px;cursor:pointer;">OPay (999992)</button>
-            <button type="button" class="btn-quick-bank" data-code="100033" data-name="PalmPay" style="padding:6px 10px;font-size:11.5px;font-weight:600;border:1px solid #d1d5db;background:#fff;color:#374151;border-radius:6px;cursor:pointer;">PalmPay</button>
-            <button type="button" class="btn-quick-bank" data-code="50515" data-name="Moniepoint" style="padding:6px 10px;font-size:11.5px;font-weight:600;border:1px solid #d1d5db;background:#fff;color:#374151;border-radius:6px;cursor:pointer;">Moniepoint</button>
-            <button type="button" class="btn-quick-bank" data-code="50211" data-name="Kuda" style="padding:6px 10px;font-size:11.5px;font-weight:600;border:1px solid #d1d5db;background:#fff;color:#374151;border-radius:6px;cursor:pointer;">Kuda</button>
+            <button type="button" class="btn-quick-bank" data-code="999992" data-name="OPay" style="padding:6px 14px;font-size:12px;font-weight:700;border:1.5px solid #16a34a;background:#f0fdf4;color:#166534;border-radius:6px;cursor:pointer;">OPay</button>
+            <button type="button" class="btn-quick-bank" data-code="100033" data-name="PalmPay" style="padding:6px 12px;font-size:12px;font-weight:600;border:1px solid #d1d5db;background:#fff;color:#374151;border-radius:6px;cursor:pointer;">PalmPay</button>
+            <button type="button" class="btn-quick-bank" data-code="50515" data-name="Moniepoint" style="padding:6px 12px;font-size:12px;font-weight:600;border:1px solid #d1d5db;background:#fff;color:#374151;border-radius:6px;cursor:pointer;">Moniepoint</button>
+            <button type="button" class="btn-quick-bank" data-code="50211" data-name="Kuda" style="padding:6px 12px;font-size:12px;font-weight:600;border:1px solid #d1d5db;background:#fff;color:#374151;border-radius:6px;cursor:pointer;">Kuda</button>
           </div>
         </div>
 
@@ -377,8 +376,8 @@ const AdminApp = (() => {
 
     // Default to OPay if not set
     if (selEl) {
-      selEl.value = currentBank.bankCode || '100004';
-      if (!selEl.value) selEl.value = '999992';
+      selEl.value = currentBank.bankCode || '999992';
+      if (!selEl.value || selEl.value === '100004') selEl.value = '999992';
     }
 
     // Quick bank selection buttons
@@ -420,20 +419,20 @@ const AdminApp = (() => {
         ? vRes.accountName
         : clientLegalName.toUpperCase();
       
-      const effectiveBankCode = (vRes && vRes.resolvedBankCode) ? vRes.resolvedBankCode : newBankCode;
-      const selectedBank  = banks.find(b => b.code === effectiveBankCode) || banks.find(b => b.code === newBankCode);
-      const newBankName   = selectedBank ? selectedBank.name : 'OPay';
+      const isOpay = ['999992', '100004', '090110'].includes(String(effectiveBankCode));
+      const cleanBankCode = isOpay ? '999992' : effectiveBankCode;
+      const cleanBankName = isOpay ? 'OPay' : (selectedBank ? selectedBank.name : 'OPay');
 
       msgEl.style.color = '#166534';
-      msgEl.textContent = `Verified: ${confirmedName} (${newBankName})`;
+      msgEl.textContent = `Verified: ${confirmedName} (${cleanBankName})`;
       verifyBtn.textContent = 'Disbursing...';
 
       // Patch the transaction destinationBank in storage
       const freshAllTx = DB.getAllTransactions();
       const txIdx = freshAllTx.findIndex(x => x.id === txId);
       const destinationBank = {
-        bankCode: effectiveBankCode,
-        bankName: newBankName,
+        bankCode: cleanBankCode,
+        bankName: cleanBankName,
         accountNumber: newAccNum,
         accountName: confirmedName,
       };

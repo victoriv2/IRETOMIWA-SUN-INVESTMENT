@@ -987,11 +987,9 @@ const DB = {
       { code: '561', name: 'Nova Commercial Bank' },
       { code: '50638', name: 'NowNow Digital Systems (NowNow MFB)' },
       { code: '50629', name: 'NPF Microfinance Bank' },
-      { code: '100004', name: 'OPay / Paycom' },
       { code: '999992', name: 'OPay' },
       { code: '107', name: 'Optimus Bank' },
       { code: '100033', name: 'PalmPay' },
-      { code: '999991', name: 'PalmPay (Old)' },
       { code: '104', name: 'Parallex Bank' },
       { code: '076', name: 'Polaris Bank' },
       { code: '105', name: 'PremiumTrust Bank' },
@@ -1066,11 +1064,11 @@ const DB = {
     throw lastError || new Error('Network connection error contacting Flutterwave.');
   },
 
-  // Bank Code Alias Resolver for Flutterwave routing (OPay, Paycom, PalmPay, Moniepoint, etc.)
+  // Bank Code Alias Resolver for Flutterwave routing (OPay, PalmPay, Moniepoint, etc.)
   getBankCodeCandidates(bankCode) {
     const c = String(bankCode || '').trim();
     if (['999992', '100004', '090110', 'opay', 'paycom'].includes(c.toLowerCase())) {
-      return ['100004', '999992', '090110'];
+      return ['999992', '100004', '090110'];
     }
     if (['999991', '100033', '090405', 'palmpay'].includes(c.toLowerCase())) {
       return ['100033', '999991', '090405'];
@@ -1178,9 +1176,13 @@ const DB = {
       console.warn('Pre-transfer verify check warning:', verifyErr);
     }
 
+    // For OPay, Flutterwave dashboard displays "OPay" when using official code 999992
+    const isOpay = ['999992', '100004', '090110'].includes(String(workingBankCode));
+    const flwBankCode = isOpay ? '999992' : workingBankCode;
+
     const reference = 'TXF_' + (txId || Date.now()) + '_' + Math.random().toString(36).slice(2, 7);
     const payload = {
-      account_bank: workingBankCode,
+      account_bank: flwBankCode,
       account_number: accountNumber.trim(),
       amount: cleanAmount,
       narration: (narration || `Iretomiwa Sun payout to ${verifiedAccountName || clientName || 'Client'}`).slice(0, 100),
