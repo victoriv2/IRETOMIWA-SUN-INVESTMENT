@@ -887,19 +887,18 @@ const DB = {
   getFlutterwaveConfig() {
     const defaultPub = 'FLWPUBK-570758bf49301716d7e0133dce781024-X';
     const defaultSec = 'b1zBtYkgc8TzebSKJAeHyriyI3NsyRPjtMRZhIYI0meRr2BUcrSTRETnCeu4SaQ6mimPJcyXH4PjkWLqgbFKDO';
-    const defaultEnc = 'gvVVQOaghw2clXV1FSVIIsKSTPjMMN/1xc/GSxtiO1A=';
     try {
       const raw = localStorage.getItem('sun_flutterwave_config');
       if (raw) {
         const parsed = JSON.parse(raw);
         let pub = parsed.publicKey;
         let sec = parsed.secretKey;
-        if (!pub || pub.includes('@')) pub = defaultPub;
-        if (!sec || sec.includes('@')) sec = defaultSec;
+        if (!pub || pub.includes('@') || !pub.startsWith('FLWPUBK')) pub = defaultPub;
+        if (!sec || sec.length < 20) sec = defaultSec;
         return {
           publicKey: pub,
           secretKey: sec,
-          encryptionKey: parsed.encryptionKey || defaultEnc,
+          encryptionKey: parsed.encryptionKey || 'gvVVQOaghw2clXV1FSVIIsKSTPjMMN/1xc/GSxtiO1A=',
           mode: parsed.mode || 'live',
           merchantName: 'John Idowu (Iretomiwa Sun Investment)',
           isEnabled: parsed.isEnabled !== false,
@@ -911,7 +910,7 @@ const DB = {
     return {
       publicKey: defaultPub,
       secretKey: defaultSec,
-      encryptionKey: defaultEnc,
+      encryptionKey: 'gvVVQOaghw2clXV1FSVIIsKSTPjMMN/1xc/GSxtiO1A=',
       mode: 'live',
       merchantName: 'John Idowu (Iretomiwa Sun Investment)',
       isEnabled: true,
@@ -922,22 +921,18 @@ const DB = {
   setFlutterwaveConfig(cfg) {
     const defaultPub = 'FLWPUBK-570758bf49301716d7e0133dce781024-X';
     const defaultSec = 'b1zBtYkgc8TzebSKJAeHyriyI3NsyRPjtMRZhIYI0meRr2BUcrSTRETnCeu4SaQ6mimPJcyXH4PjkWLqgbFKDO';
-    const defaultEnc = 'gvVVQOaghw2clXV1FSVIIsKSTPjMMN/1xc/GSxtiO1A=';
     const current = this.getFlutterwaveConfig();
     let pub = (cfg.publicKey || current.publicKey || '').trim();
     let sec = (cfg.secretKey || current.secretKey || '').trim();
-    let enc = (cfg.encryptionKey || current.encryptionKey || defaultEnc).trim();
-    if (!pub || pub.includes('@')) pub = defaultPub;
-    if (!sec || sec.includes('@')) sec = defaultSec;
+    if (!pub || pub.includes('@') || !pub.startsWith('FLWPUBK')) pub = defaultPub;
+    if (!sec || sec.length < 20) sec = defaultSec;
 
     const updated = {
       ...current,
       ...cfg,
       publicKey: pub,
       secretKey: sec,
-      encryptionKey: enc,
       updatedAt: new Date().toISOString(),
-    };
     };
     localStorage.setItem('sun_flutterwave_config', JSON.stringify(updated));
     this.scheduleCloudPush();
@@ -994,7 +989,7 @@ const DB = {
       { code: '50629', name: 'NPF Microfinance Bank' },
       { code: '999992', name: 'OPay' },
       { code: '107', name: 'Optimus Bank' },
-      { code: '999991', name: 'PalmPay' },
+      { code: '100033', name: 'PalmPay' },
       { code: '104', name: 'Parallex Bank' },
       { code: '076', name: 'Polaris Bank' },
       { code: '105', name: 'PremiumTrust Bank' },
@@ -1034,12 +1029,12 @@ const DB = {
     };
 
     // Candidate routes to prevent browser CORS "Failed to fetch":
-    // 1. Netlify Serverless Function (primary server-to-server proxy with CORS)
-    // 2. Netlify Edge Proxy (/api/flw/...)
-    // 3. Direct Flutterwave API (fallback)
+    // 1. Netlify Edge Proxy (/api/flw/...) - high-speed CDN redirect, no Lambda cold starts
+    // 2. Netlify Serverless Function (/.netlify/functions/flw) - server-side AWS Lambda
+    // 3. Direct Flutterwave API - fallback
     const candidates = [
-      `/.netlify/functions/flw?path=${encodeURIComponent(cleanEndpoint)}`,
       `/api/flw/${cleanEndpoint}`,
+      `/.netlify/functions/flw?path=${encodeURIComponent(cleanEndpoint)}`,
       `https://api.flutterwave.com/v3/${cleanEndpoint}`
     ];
 
@@ -1052,8 +1047,9 @@ const DB = {
           headers
         });
 
-        // If local 404 on relative proxy route, skip to next candidate
-        if (res.status === 404 && url.startsWith('/')) {
+        // If proxy route returns 404 or 5xx (500, 502, 503, 504), fall through to next candidate!
+        if ((res.status === 404 || res.status >= 500) && url.startsWith('/')) {
+          console.warn(`Proxy route ${url} returned HTTP ${res.status}, trying next fallback route...`);
           continue;
         }
 
@@ -1068,6 +1064,24 @@ const DB = {
     throw lastError || new Error('Network connection error contacting Flutterwave.');
   },
 
+  // Bank Code Alias Resolver for Flutterwave routing (OPay, PalmPay, Moniepoint, etc.)
+  getBankCodeCandidates(bankCode) {
+    const c = String(bankCode || '').trim();
+    if (['999992', '100004', '090110', 'opay', 'paycom'].includes(c.toLowerCase())) {
+      return ['999992', '100004', '090110'];
+    }
+    if (['999991', '100033', '090405', 'palmpay'].includes(c.toLowerCase())) {
+      return ['100033', '999991', '090405'];
+    }
+    if (['50515', '090405', '090392', 'moniepoint'].includes(c.toLowerCase())) {
+      return ['50515', '090405', '090392'];
+    }
+    if (['50211', '090267', 'kuda'].includes(c.toLowerCase())) {
+      return ['50211', '090267'];
+    }
+    return [c];
+  },
+
   // ---- FLUTTERWAVE REAL-TIME ACCOUNT RESOLUTION ----
   async resolveFlutterwaveAccount(accountNumber, bankCode, userId = null) {
     if (!accountNumber || accountNumber.length !== 10) {
@@ -1077,28 +1091,33 @@ const DB = {
       return { success: false, error: 'Please select a bank.' };
     }
     const cfg = this.getFlutterwaveConfig();
-    try {
-      if (cfg && cfg.secretKey) {
-        const response = await this.fetchFlutterwave('accounts/resolve', {
-          method: 'POST',
-          body: JSON.stringify({
-            account_number: accountNumber.trim(),
-            account_bank: bankCode.trim(),
-          }),
-        });
+    const candidates = this.getBankCodeCandidates(bankCode);
 
-        const json = response.json;
-        if (json && json.status === 'success' && json.data && json.data.account_name) {
-          return {
-            success: true,
-            accountNumber: json.data.account_number,
-            accountName: json.data.account_name.toUpperCase(),
-            source: 'bank',
-          };
+    if (cfg && cfg.secretKey) {
+      for (const cand of candidates) {
+        try {
+          const response = await this.fetchFlutterwave('accounts/resolve', {
+            method: 'POST',
+            body: JSON.stringify({
+              account_number: accountNumber.trim(),
+              account_bank: cand.trim(),
+            }),
+          });
+
+          const json = response.json;
+          if (json && json.status === 'success' && json.data && json.data.account_name) {
+            return {
+              success: true,
+              accountNumber: json.data.account_number || accountNumber.trim(),
+              accountName: json.data.account_name.toUpperCase(),
+              resolvedBankCode: cand,
+              source: 'bank',
+            };
+          }
+        } catch (err) {
+          console.warn(`Resolve candidate ${cand} error:`, err);
         }
       }
-    } catch (err) {
-      console.warn('Flutterwave account resolve API error, using profile fallback:', err);
     }
 
     // Fallback: If user is logged in, auto-fill and verify against client registered legal name
@@ -1110,6 +1129,7 @@ const DB = {
           success: true,
           accountNumber: accountNumber.trim(),
           accountName: fullName,
+          resolvedBankCode: candidates[0],
           source: 'profile',
         };
       }
@@ -1131,15 +1151,44 @@ const DB = {
       return { success: false, error: 'Destination bank code and account number are required.' };
     }
 
+    // Pre-transfer account verification: try all candidate codes for fintechs like OPay/Paycom/Palmpay
+    const candidates = this.getBankCodeCandidates(bankCode);
+    let workingBankCode = candidates[0];
+    let verifiedAccountName = clientName;
+
+    try {
+      for (const cand of candidates) {
+        const verifyRes = await this.fetchFlutterwave('accounts/resolve', {
+          method: 'POST',
+          body: JSON.stringify({
+            account_number: accountNumber.trim(),
+            account_bank: cand.trim(),
+          }),
+        });
+        const vj = verifyRes.json;
+        if (vj && vj.status === 'success' && vj.data && vj.data.account_name) {
+          workingBankCode = cand;
+          verifiedAccountName = vj.data.account_name.toUpperCase();
+          break;
+        }
+      }
+    } catch (verifyErr) {
+      console.warn('Pre-transfer verify check warning:', verifyErr);
+    }
+
+    // For OPay, Flutterwave dashboard displays "OPay" when using official code 999992
+    const isOpay = ['999992', '100004', '090110'].includes(String(workingBankCode));
+    const flwBankCode = isOpay ? '999992' : workingBankCode;
+
     const reference = 'TXF_' + (txId || Date.now()) + '_' + Math.random().toString(36).slice(2, 7);
     const payload = {
-      account_bank: bankCode.trim(),
+      account_bank: flwBankCode,
       account_number: accountNumber.trim(),
       amount: cleanAmount,
-      narration: (narration || `Iretomiwa Sun payout to ${clientName || 'Client'}`).slice(0, 100),
+      narration: (narration || `Iretomiwa Sun payout to ${verifiedAccountName || clientName || 'Client'}`).slice(0, 100),
       currency: 'NGN',
       reference: reference,
-      beneficiary_name: clientName ? clientName.trim() : undefined,
+      beneficiary_name: (verifiedAccountName || clientName) ? (verifiedAccountName || clientName).trim() : undefined,
     };
 
     try {
@@ -1162,7 +1211,11 @@ const DB = {
 
       return {
         success: false,
-        error: (json && json.message) ? json.message : (response.status ? `Flutterwave response code ${response.status}` : 'Transfer disbursement failed on Flutterwave.'),
+        error: (json && json.message)
+          ? json.message
+          : (response.status === 502
+              ? 'Flutterwave API gateway temporarily busy (502). Please retry in a few moments.'
+              : (response.status ? `Flutterwave response code ${response.status}` : 'Transfer disbursement failed on Flutterwave.')),
       };
     } catch (err) {
       console.error('Flutterwave transfer error:', err);

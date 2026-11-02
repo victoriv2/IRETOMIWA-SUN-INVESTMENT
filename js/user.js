@@ -580,6 +580,9 @@ const UserApp = (() => {
       const res = await DB.resolveFlutterwaveAccount(rawNum, bankCode, currentUserId);
 
       if (res.success && res.accountName) {
+        if (res.resolvedBankCode && bankSelectEl) {
+          bankSelectEl.value = res.resolvedBankCode;
+        }
         resCardEl.style.cssText = 'margin-top: -6px; margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #f0fdf4; border: 1.5px solid #86efac; color: #166534;';
         resIconEl.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
         if (res.source === 'profile') {
@@ -1299,6 +1302,9 @@ const UserApp = (() => {
       const res = await DB.resolveFlutterwaveAccount(rawNum, bankCode, currentUserId);
 
       if (res.success && res.accountName) {
+        if (res.resolvedBankCode && bankSelect) {
+          bankSelect.value = res.resolvedBankCode;
+        }
         resCard.style.cssText = 'margin-top: -4px; margin-bottom: 16px; padding: 10px 14px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; background: #f0fdf4; border: 1.5px solid #86efac; color: #166534;';
         resIcon.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
         if (res.source === 'profile') {

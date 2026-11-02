@@ -67,7 +67,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261102_NEWKEY_V31';
+      var APP_BUILD_VER = '20261102_RESTORE_V36';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -84,11 +84,13 @@
         localStorage.removeItem('sun_active_portal');
         localStorage.removeItem('sun_user_tab');
         localStorage.removeItem('sun_admin_tab');
+        // Force-reset Flutterwave config so new default keys load instead of cached old keys
+        localStorage.removeItem('sun_flutterwave_config');
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261102_v31" />
-  <link rel="stylesheet" href="css/auth.css?v=20261102_v31" />
+  <link rel="stylesheet" href="css/global.css?v=20261102_v36" />
+  <link rel="stylesheet" href="css/auth.css?v=20261102_v36" />
   <style>
     /* Gentle pre-boot session hints - JavaScript has full priority without !important blocking */
     html.is-user-logged-in #page-login { display: none; }
@@ -2450,13 +2452,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261102_v31"></script>
-  <script src="js/picker.js?v=20261102_v31"></script>
+  <script src="js/storage.js?v=20261102_v36"></script>
+  <script src="js/picker.js?v=20261102_v36"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261102_v31"></script>
-  <script src="js/auth.js?v=20261102_v31"></script>
-  <script src="js/user.js?v=20261102_v31"></script>
-  <script src="js/admin.js?v=20261102_v31"></script>
-  <script src="js/app.js?v=20261102_v31"></script>
+  <script src="js/export.js?v=20261102_v36"></script>
+  <script src="js/auth.js?v=20261102_v36"></script>
+  <script src="js/user.js?v=20261102_v36"></script>
+  <script src="js/admin.js?v=20261102_v36"></script>
+  <script src="js/app.js?v=20261102_v36"></script>
 </body>
 </html>
