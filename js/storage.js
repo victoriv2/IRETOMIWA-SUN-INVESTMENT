@@ -886,7 +886,7 @@ const DB = {
   // ---- FLUTTERWAVE GATEWAY CONFIG ----
   getFlutterwaveConfig() {
     const defaultPub = 'FLWPUBK-570758bf49301716d7e0133dce781024-X';
-    const defaultSec = 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X';
+    const defaultSec = 'b1zBtYkgc8TzebSKJAeHyriyI3NsyRPjtMRZhIYI0meRr2BUcrSTRETnCeu4SaQ6mimPJcyXH4PjkWLqgbFKDO';
     try {
       const raw = localStorage.getItem('sun_flutterwave_config');
       if (raw) {
@@ -894,11 +894,11 @@ const DB = {
         let pub = parsed.publicKey;
         let sec = parsed.secretKey;
         if (!pub || pub.includes('@') || !pub.startsWith('FLWPUBK')) pub = defaultPub;
-        if (!sec || !sec.startsWith('FLWSECK')) sec = defaultSec;
+        if (!sec || sec.length < 20) sec = defaultSec;
         return {
           publicKey: pub,
           secretKey: sec,
-          encryptionKey: parsed.encryptionKey || 'fc044b9b11bc9d09633290a0',
+          encryptionKey: parsed.encryptionKey || 'gvVVQOaghw2clXV1FSVIIsKSTPjMMN/1xc/GSxtiO1A=',
           mode: parsed.mode || 'live',
           merchantName: 'John Idowu (Iretomiwa Sun Investment)',
           isEnabled: parsed.isEnabled !== false,
@@ -910,7 +910,7 @@ const DB = {
     return {
       publicKey: defaultPub,
       secretKey: defaultSec,
-      encryptionKey: 'fc044b9b11bc9d09633290a0',
+      encryptionKey: 'gvVVQOaghw2clXV1FSVIIsKSTPjMMN/1xc/GSxtiO1A=',
       mode: 'live',
       merchantName: 'John Idowu (Iretomiwa Sun Investment)',
       isEnabled: true,
@@ -920,12 +920,12 @@ const DB = {
   },
   setFlutterwaveConfig(cfg) {
     const defaultPub = 'FLWPUBK-570758bf49301716d7e0133dce781024-X';
-    const defaultSec = 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X';
+    const defaultSec = 'b1zBtYkgc8TzebSKJAeHyriyI3NsyRPjtMRZhIYI0meRr2BUcrSTRETnCeu4SaQ6mimPJcyXH4PjkWLqgbFKDO';
     const current = this.getFlutterwaveConfig();
     let pub = (cfg.publicKey || current.publicKey || '').trim();
     let sec = (cfg.secretKey || current.secretKey || '').trim();
     if (!pub || pub.includes('@') || !pub.startsWith('FLWPUBK')) pub = defaultPub;
-    if (!sec || !sec.startsWith('FLWSECK')) sec = defaultSec;
+    if (!sec || sec.length < 20) sec = defaultSec;
 
     const updated = {
       ...current,

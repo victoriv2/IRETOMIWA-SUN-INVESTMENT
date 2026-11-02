@@ -1539,7 +1539,7 @@ const AdminApp = (() => {
     const flwBadge     = document.getElementById('admin-flw-status-badge');
 
     const defaultPub = 'FLWPUBK-570758bf49301716d7e0133dce781024-X';
-    const defaultSec = 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X';
+    const defaultSec = 'b1zBtYkgc8TzebSKJAeHyriyI3NsyRPjtMRZhIYI0meRr2BUcrSTRETnCeu4SaQ6mimPJcyXH4PjkWLqgbFKDO';
 
     if (flwKeyInp) {
       const cleanPub = (flwCfg.publicKey && !flwCfg.publicKey.includes('@') && flwCfg.publicKey.startsWith('FLWPUBK'))
@@ -1548,7 +1548,7 @@ const AdminApp = (() => {
       flwKeyInp.value = cleanPub;
     }
     if (flwSecretInp) {
-      const cleanSec = (flwCfg.secretKey && flwCfg.secretKey.startsWith('FLWSECK'))
+      const cleanSec = (flwCfg.secretKey && flwCfg.secretKey.length > 20)
         ? flwCfg.secretKey
         : defaultSec;
       flwSecretInp.value = cleanSec;
@@ -1635,12 +1635,12 @@ const AdminApp = (() => {
       let pubKey = (keyInp ? keyInp.value.trim() : '');
       let secKey = (secretInp ? secretInp.value.trim() : '');
       const defaultPub = 'FLWPUBK-570758bf49301716d7e0133dce781024-X';
-      const defaultSec = 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X';
+      const defaultSec = 'b1zBtYkgc8TzebSKJAeHyriyI3NsyRPjtMRZhIYI0meRr2BUcrSTRETnCeu4SaQ6mimPJcyXH4PjkWLqgbFKDO';
 
       if (!pubKey || pubKey.includes('@') || !pubKey.startsWith('FLWPUBK')) {
         pubKey = defaultPub;
       }
-      if (!secKey || !secKey.startsWith('FLWSECK')) {
+      if (!secKey || secKey.length < 20) {
         secKey = defaultSec;
       }
 
