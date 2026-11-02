@@ -49,11 +49,19 @@ exports.handler = async (event) => {
 
   const authHeader = event.headers['authorization'] || event.headers['Authorization'] || '';
 
+  let requestBody = event.body;
+  if (event.isBase64Encoded && event.body) {
+    try {
+      requestBody = Buffer.from(event.body, 'base64').toString('utf8');
+    } catch(e) {}
+  }
+
   try {
     const fetchOptions = {
       method: event.httpMethod,
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
     };
 
@@ -61,11 +69,16 @@ exports.handler = async (event) => {
       fetchOptions.headers['Authorization'] = authHeader;
     }
 
-    if (event.httpMethod !== 'GET' && event.httpMethod !== 'HEAD' && event.body) {
-      fetchOptions.body = event.body;
+    if (event.httpMethod !== 'GET' && event.httpMethod !== 'HEAD' && requestBody) {
+      fetchOptions.body = requestBody;
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    fetchOptions.signal = controller.signal;
+
     const response = await fetch(targetUrl, fetchOptions);
+    clearTimeout(timeoutId);
     const responseText = await response.text();
 
     return {
@@ -77,6 +90,7 @@ exports.handler = async (event) => {
       body: responseText,
     };
   } catch (err) {
+    const isTimeout = err.name === 'AbortError';
     return {
       statusCode: 502,
       headers: {
@@ -85,7 +99,7 @@ exports.handler = async (event) => {
       },
       body: JSON.stringify({
         status: 'error',
-        message: 'Proxy gateway error: ' + (err.message || 'Could not reach Flutterwave API'),
+        message: isTimeout ? 'Flutterwave API timeout after 12s' : ('Proxy gateway error: ' + (err.message || 'Could not reach Flutterwave API')),
       }),
     };
   }

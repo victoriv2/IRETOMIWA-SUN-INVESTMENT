@@ -1031,12 +1031,12 @@ const DB = {
     };
 
     // Candidate routes to prevent browser CORS "Failed to fetch":
-    // 1. Netlify Serverless Function (primary server-to-server proxy with CORS)
-    // 2. Netlify Edge Proxy (/api/flw/...)
-    // 3. Direct Flutterwave API (fallback)
+    // 1. Netlify Edge Proxy (/api/flw/...) - high-speed CDN redirect, no Lambda cold starts
+    // 2. Netlify Serverless Function (/.netlify/functions/flw) - server-side AWS Lambda
+    // 3. Direct Flutterwave API - fallback
     const candidates = [
-      `/.netlify/functions/flw?path=${encodeURIComponent(cleanEndpoint)}`,
       `/api/flw/${cleanEndpoint}`,
+      `/.netlify/functions/flw?path=${encodeURIComponent(cleanEndpoint)}`,
       `https://api.flutterwave.com/v3/${cleanEndpoint}`
     ];
 
@@ -1049,8 +1049,9 @@ const DB = {
           headers
         });
 
-        // If local 404 on relative proxy route, skip to next candidate
-        if (res.status === 404 && url.startsWith('/')) {
+        // If proxy route returns 404 or 5xx (500, 502, 503, 504), fall through to next candidate!
+        if ((res.status === 404 || res.status >= 500) && url.startsWith('/')) {
+          console.warn(`Proxy route ${url} returned HTTP ${res.status}, trying next fallback route...`);
           continue;
         }
 
@@ -1208,7 +1209,11 @@ const DB = {
 
       return {
         success: false,
-        error: (json && json.message) ? json.message : (response.status ? `Flutterwave response code ${response.status}` : 'Transfer disbursement failed on Flutterwave.'),
+        error: (json && json.message)
+          ? json.message
+          : (response.status === 502
+              ? 'Flutterwave API gateway temporarily busy (502). Please retry in a few moments.'
+              : (response.status ? `Flutterwave response code ${response.status}` : 'Transfer disbursement failed on Flutterwave.')),
       };
     } catch (err) {
       console.error('Flutterwave transfer error:', err);
