@@ -311,157 +311,6 @@ const AdminApp = (() => {
     }
   }
 
-  // ---- ADMIN EDIT BANK DETAILS (correct wrong bank on a pending withdrawal) ----
-  function _openAdminEditBankModal(txId, currentBank, accNumEl, bankNameEl, accNameEl, flwErrEl) {
-    const allTx = DB.getAllTransactions();
-    const t = allTx.find(x => x.id === txId);
-    const u = t ? DB.getUserById(t.userId) : null;
-    const clientLegalName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Daniel Inyene Anietie';
-
-    // Build inline bank correction form inside a small overlay modal
-    const overlay = document.createElement('div');
-    overlay.id = 'admin-edit-bank-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
-
-    const banks = DB.getNigerianBanks();
-    const bankOptions = banks.map(b => `<option value="${b.code}">${b.name}</option>`).join('');
-
-    const initialAccNum = (currentBank.accountNumber && currentBank.accountNumber.length === 10)
-      ? currentBank.accountNumber
-      : '8142414888';
-
-    overlay.innerHTML = `
-      <div style="background:#fff;border-radius:14px;padding:24px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.25);">
-        <div style="font-size:16px;font-weight:800;color:#111;margin-bottom:4px;">Correct Destination Bank Details</div>
-        <div style="font-size:12px;color:#6b7280;margin-bottom:12px;">Recipient: <strong>${escapeHtml(clientLegalName)}</strong></div>
-
-        <div style="margin-bottom:12px;">
-          <div style="font-size:11px;font-weight:700;color:#4b5563;text-transform:uppercase;margin-bottom:6px;">Quick Bank Selection:</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <button type="button" class="btn-quick-bank" data-code="999992" data-name="OPay" style="padding:6px 14px;font-size:12px;font-weight:700;border:1.5px solid #16a34a;background:#f0fdf4;color:#166534;border-radius:6px;cursor:pointer;">OPay</button>
-            <button type="button" class="btn-quick-bank" data-code="100033" data-name="PalmPay" style="padding:6px 12px;font-size:12px;font-weight:600;border:1px solid #d1d5db;background:#fff;color:#374151;border-radius:6px;cursor:pointer;">PalmPay</button>
-            <button type="button" class="btn-quick-bank" data-code="50515" data-name="Moniepoint" style="padding:6px 12px;font-size:12px;font-weight:600;border:1px solid #d1d5db;background:#fff;color:#374151;border-radius:6px;cursor:pointer;">Moniepoint</button>
-            <button type="button" class="btn-quick-bank" data-code="50211" data-name="Kuda" style="padding:6px 12px;font-size:12px;font-weight:600;border:1px solid #d1d5db;background:#fff;color:#374151;border-radius:6px;cursor:pointer;">Kuda</button>
-          </div>
-        </div>
-
-        <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:4px;">Bank Name</label>
-        <select id="edit-bank-select" style="width:100%;padding:10px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;margin-bottom:12px;background:#fff;">
-          <option value="">-- Select Bank --</option>
-          ${bankOptions}
-        </select>
-
-        <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:4px;">Account Number</label>
-        <input id="edit-bank-accnum" type="text" inputmode="numeric" maxlength="10"
-          value="${escapeHtml(initialAccNum)}"
-          placeholder="10-digit account number"
-          style="width:100%;padding:10px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;margin-bottom:4px;box-sizing:border-box;">
-
-        <div id="edit-bank-verify-msg" style="font-size:12px;min-height:18px;margin-bottom:12px;color:#6b7280;"></div>
-
-        <div style="display:flex;gap:8px;">
-          <button type="button" id="edit-bank-cancel" style="flex:1;padding:10px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;color:#374151;">Cancel</button>
-          <button type="button" id="edit-bank-verify" style="flex:2;padding:10px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;">Verify and Disburse</button>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(overlay);
-
-    const selEl   = overlay.querySelector('#edit-bank-select');
-    const numEl   = overlay.querySelector('#edit-bank-accnum');
-    const msgEl   = overlay.querySelector('#edit-bank-verify-msg');
-    const cancelBtn = overlay.querySelector('#edit-bank-cancel');
-    const verifyBtn = overlay.querySelector('#edit-bank-verify');
-
-    // Default to OPay if not set
-    if (selEl) {
-      selEl.value = currentBank.bankCode || '999992';
-      if (!selEl.value || selEl.value === '100004') selEl.value = '999992';
-    }
-
-    // Quick bank selection buttons
-    overlay.querySelectorAll('.btn-quick-bank').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (selEl) selEl.value = btn.dataset.code;
-        msgEl.style.color = '#166534';
-        msgEl.textContent = `Selected: ${btn.dataset.name}`;
-      });
-    });
-
-    cancelBtn.addEventListener('click', () => { overlay.remove(); });
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-
-    verifyBtn.addEventListener('click', async () => {
-      const newBankCode = selEl.value.trim();
-      const newAccNum   = numEl.value.replace(/\D/g, '').slice(0, 10);
-      numEl.value = newAccNum;
-
-      if (!newBankCode) {
-        msgEl.style.color = '#991b1b';
-        msgEl.textContent = 'Please select a bank.';
-        return;
-      }
-      if (newAccNum.length < 10) {
-        msgEl.style.color = '#991b1b';
-        msgEl.textContent = 'Account number must be exactly 10 digits.';
-        return;
-      }
-
-      verifyBtn.disabled = true;
-      verifyBtn.textContent = 'Verifying...';
-      msgEl.style.color = '#92400e';
-      msgEl.textContent = 'Verifying account with Flutterwave...';
-
-      const vRes = await DB.resolveFlutterwaveAccount(newAccNum, newBankCode, t ? t.userId : null).catch(() => ({ success: false }));
-      
-      const confirmedName = (vRes && vRes.success && vRes.accountName)
-        ? vRes.accountName
-        : clientLegalName.toUpperCase();
-      
-      const isOpay = ['999992', '100004', '090110'].includes(String(effectiveBankCode));
-      const cleanBankCode = isOpay ? '999992' : effectiveBankCode;
-      const cleanBankName = isOpay ? 'OPay' : (selectedBank ? selectedBank.name : 'OPay');
-
-      msgEl.style.color = '#166534';
-      msgEl.textContent = `Verified: ${confirmedName} (${cleanBankName})`;
-      verifyBtn.textContent = 'Disbursing...';
-
-      // Patch the transaction destinationBank in storage
-      const freshAllTx = DB.getAllTransactions();
-      const txIdx = freshAllTx.findIndex(x => x.id === txId);
-      const destinationBank = {
-        bankCode: cleanBankCode,
-        bankName: cleanBankName,
-        accountNumber: newAccNum,
-        accountName: confirmedName,
-      };
-
-      if (txIdx !== -1) {
-        freshAllTx[txIdx].destinationBank = destinationBank;
-        localStorage.setItem('sun_transactions', JSON.stringify(freshAllTx));
-      }
-
-      // Also save to user payout profile so future withdrawals remember OPay
-      if (t && t.userId) {
-        DB.saveUserPayoutBank(t.userId, destinationBank);
-      }
-      DB.scheduleCloudPush();
-
-      // Update displayed fields in parent modal
-      if (bankNameEl) bankNameEl.textContent = newBankName;
-      if (accNumEl)   accNumEl.textContent   = newAccNum;
-      if (accNameEl)  accNameEl.textContent  = confirmedName;
-      if (flwErrEl)   flwErrEl.classList.add('hidden');
-
-      overlay.remove();
-
-      // Retrieve updated transaction and trigger disburse
-      const btnFlwDisburse = document.getElementById('btn-confirm-approve-flw');
-      if (btnFlwDisburse) btnFlwDisburse.click();
-    });
-  }
-
   function renderRequestsTab() {
     updatePendingBadge();
 
@@ -693,37 +542,6 @@ const AdminApp = (() => {
         if (bankNameEl) bankNameEl.textContent = destBank.bankName || 'Nigerian Bank';
         if (accNumEl) accNumEl.textContent = destBank.accountNumber || '-';
         if (accNameEl) accNameEl.textContent = destBank.accountName || clientName;
-
-        // Live pre-verify: check account resolves before admin clicks Disburse
-        if (destBank.accountNumber && destBank.bankCode && flwErrEl) {
-          DB.resolveFlutterwaveAccount(destBank.accountNumber, destBank.bankCode).then(vRes => {
-            if (!vRes.success) {
-              flwErrEl.innerHTML = `
-                <div style="font-weight: 700; margin-bottom: 4px; color: #991b1b;">Bank Account Could Not Be Verified</div>
-                <div style="color: #374151; font-size: 12px; line-height: 1.45; margin-bottom: 10px;">
-                  Account <strong>${destBank.accountNumber}</strong> (${destBank.bankName || destBank.bankCode}) could not be resolved by Flutterwave.
-                  The account number or bank name may be wrong. You can correct it below without declining this request.
-                </div>
-                <button type="button" id="btn-edit-bank-details" style="width: 100%; padding: 9px 14px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px; margin-bottom: 6px;">
-                  Correct Bank Details and Disburse
-                </button>
-              `;
-              flwErrEl.style.background = '#fff7ed';
-              flwErrEl.style.borderColor = '#fed7aa';
-              flwErrEl.style.color = '#9a3412';
-              flwErrEl.classList.remove('hidden');
-
-              const editBankBtn = document.getElementById('btn-edit-bank-details');
-              if (editBankBtn) {
-                editBankBtn.addEventListener('click', () => {
-                  _openAdminEditBankModal(t.id, destBank, accNumEl, bankNameEl, accNameEl, flwErrEl);
-                });
-              }
-            } else if (vRes.accountName && accNameEl) {
-              accNameEl.textContent = vRes.accountName;
-            }
-          }).catch(() => {});
-        }
       } else {
         if (destBox) destBox.classList.add('hidden');
       }
@@ -883,20 +701,8 @@ const AdminApp = (() => {
 
         if (!destBank.accountNumber || !destBank.bankCode) {
           if (flwErrEl) {
-            flwErrEl.innerHTML = `
-              <div style="font-weight: 700; margin-bottom: 4px; color: #991b1b;">Destination Bank Details Incomplete</div>
-              <div style="margin-bottom: 8px; color: #374151; font-size: 12px; line-height: 1.4;">Destination bank or account number is not configured for API transfer. Click below to specify the bank (e.g. OPay) and disburse:</div>
-              <button type="button" id="btn-err-missing-set-bank" style="width: 100%; padding: 10px 14px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px; margin-bottom: 6px;">
-                Enter Bank Details & Disburse
-              </button>
-            `;
+            flwErrEl.textContent = 'Destination bank code or account number is missing. Please use manual approval.';
             flwErrEl.classList.remove('hidden');
-            const setBankBtn = document.getElementById('btn-err-missing-set-bank');
-            if (setBankBtn) {
-              setBankBtn.addEventListener('click', () => {
-                _openAdminEditBankModal(t.id, destBank, accNumEl, bankNameEl, accNameEl, flwErrEl);
-              });
-            }
           }
           return;
         }
@@ -953,38 +759,8 @@ const AdminApp = (() => {
                                 rawErr.toLowerCase().includes('account administrator') ||
                                 rawErr.toLowerCase().includes('ip whitelist') ||
                                 rawErr.toLowerCase().includes('ip whitelisting');
-              const isAccountResolve = res.verifyFailed ||
-                                       rawErr.toLowerCase().includes('account resolve') ||
-                                       rawErr.toLowerCase().includes('verification failed') ||
-                                       rawErr.toLowerCase().includes('invalid account');
 
-              if (isAccountResolve) {
-                flwErrEl.innerHTML = `
-                  <div style="font-weight: 700; margin-bottom: 6px; color: #991b1b; font-size: 13.5px;">Bank Account Not Found</div>
-                  <div style="margin-bottom: 8px; color: #374151; font-size: 12px; line-height: 1.45;">
-                    Flutterwave could not find account <strong>${destBank.accountNumber}</strong> at the bank this client registered. The account number or bank name may be wrong.
-                  </div>
-                  <div style="background: #ffffff; border: 1.5px solid #fed7aa; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 12px; color: #9a3412;">
-                    <div style="font-weight: 800; margin-bottom: 4px;">What to do:</div>
-                    <ol style="margin: 0 0 0 16px; padding: 0; line-height: 1.6;">
-                      <li>Ask the client to update their bank account details (correct bank and account number).</li>
-                      <li>Once updated, approve this request manually or ask the client to re-submit.</li>
-                      <li>Or use <strong>Mark as Manual Bank Transfer</strong> below if you pay by hand.</li>
-                    </ol>
-                  </div>
-                  <div style="display: flex; gap: 8px; flex-direction: column;">
-                    <button type="button" id="btn-err-fallback-approve" style="width: 100%; padding: 9px 14px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px;">
-                      Mark as Manual Bank Transfer / Cash
-                    </button>
-                  </div>
-                `;
-                const errFallbackBtn = document.getElementById('btn-err-fallback-approve');
-                if (errFallbackBtn) {
-                  errFallbackBtn.addEventListener('click', () => {
-                    if (btnManualApprove) btnManualApprove.click();
-                  });
-                }
-              } else if (isBlocked) {
+              if (isBlocked) {
                 flwErrEl.innerHTML = `
                   <div style="font-weight: 700; margin-bottom: 6px; color: #991b1b; font-size: 13.5px;">Flutterwave API Payouts Restricted on Account</div>
                   <div style="margin-bottom: 8px; color: #374151; font-size: 12px; line-height: 1.45;">
@@ -1766,13 +1542,13 @@ const AdminApp = (() => {
     const defaultSec = 'b1zBtYkgc8TzebSKJAeHyriyI3NsyRPjtMRZhIYI0meRr2BUcrSTRETnCeu4SaQ6mimPJcyXH4PjkWLqgbFKDO';
 
     if (flwKeyInp) {
-      const cleanPub = (flwCfg.publicKey && !flwCfg.publicKey.includes('@') && flwCfg.publicKey.startsWith('FLWPUBK'))
+      const cleanPub = (flwCfg.publicKey && !flwCfg.publicKey.includes('@'))
         ? flwCfg.publicKey
         : defaultPub;
       flwKeyInp.value = cleanPub;
     }
     if (flwSecretInp) {
-      const cleanSec = (flwCfg.secretKey && flwCfg.secretKey.length > 20)
+      const cleanSec = (flwCfg.secretKey && !flwCfg.secretKey.includes('@'))
         ? flwCfg.secretKey
         : defaultSec;
       flwSecretInp.value = cleanSec;
@@ -1861,10 +1637,10 @@ const AdminApp = (() => {
       const defaultPub = 'FLWPUBK-570758bf49301716d7e0133dce781024-X';
       const defaultSec = 'b1zBtYkgc8TzebSKJAeHyriyI3NsyRPjtMRZhIYI0meRr2BUcrSTRETnCeu4SaQ6mimPJcyXH4PjkWLqgbFKDO';
 
-      if (!pubKey || pubKey.includes('@') || !pubKey.startsWith('FLWPUBK')) {
+      if (!pubKey || pubKey.includes('@')) {
         pubKey = defaultPub;
       }
-      if (!secKey || secKey.length < 20) {
+      if (!secKey || secKey.includes('@')) {
         secKey = defaultSec;
       }
 
