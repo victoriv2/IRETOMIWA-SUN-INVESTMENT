@@ -75,19 +75,55 @@ $mimeTypes = @{
     ".txt"  = "text/plain; charset=utf-8"
 }
 
-$listener = New-Object System.Net.HttpListener
-$listener.Prefixes.Add("http://localhost:$port/")
-$listener.Prefixes.Add("http://127.0.0.1:$port/")
-
+# Check if an existing instance of our local server is already running on port 8080
 try {
-    $listener.Start()
+    $wc = New-Object System.Net.WebClient
+    $wc.Headers.Add("User-Agent", "Mozilla/5.0")
+    $content = $wc.DownloadString("http://localhost:8080/index.html")
+    if ($content -match "IRETOMIWA SUN" -or $content -match "APP_BUILD_VER") {
+        Write-Host ""
+        Write-Host "==============================================================================" -ForegroundColor Green
+        Write-Host "  IRETOMIWA SUN SERVER IS ALREADY RUNNING ON http://localhost:8080/ !" -ForegroundColor Yellow
+        Write-Host "==============================================================================" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "Opening Admin Portal in your default browser..." -ForegroundColor Cyan
+        Start-Process "http://localhost:8080/#admin"
+        Write-Host ""
+        Write-Host "You can close this window. The active server continues running in the background." -ForegroundColor Gray
+        Start-Sleep -Seconds 3
+        exit 0
+    }
 } catch {
-    Write-Host "Failed to start listener on port $port : $_" -ForegroundColor Red
-    Write-Host "Port $port might be in use by another program." -ForegroundColor Yellow
+    # Port 8080 is not actively responding, continue to bind listener
+}
+
+$candidatePorts = @(8080, 8081, 8085)
+$listener = $null
+$activePort = $null
+
+foreach ($p in $candidatePorts) {
+    try {
+        $tempListener = New-Object System.Net.HttpListener
+        $tempListener.Prefixes.Add("http://localhost:$p/")
+        $tempListener.Prefixes.Add("http://127.0.0.1:$p/")
+        $tempListener.Start()
+        $listener = $tempListener
+        $activePort = $p
+        break
+    } catch {
+        # Conflict on port $p, try next candidate port
+    }
+}
+
+if (-not $listener) {
+    Write-Host "Failed to start listener on ports (8080, 8081, 8085)." -ForegroundColor Red
+    Write-Host "Please close any other command windows running the server and try again." -ForegroundColor Yellow
     Write-Host "Press Enter to exit..." -ForegroundColor Gray
     Read-Host
     exit 1
 }
+
+$port = $activePort
 
 Write-Host "[2/3] Local Web Server started at: http://localhost:$port/" -ForegroundColor Green
 Write-Host "[3/3] Opening Admin Portal in your default browser..." -ForegroundColor Green
