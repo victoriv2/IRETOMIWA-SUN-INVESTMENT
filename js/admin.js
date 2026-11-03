@@ -1379,9 +1379,25 @@ const AdminApp = (() => {
     const allTx = DB.getAllTransactions();
     const deposits = allTx.filter(t => (t.type || 'deposit') === 'deposit' && (t.status || 'approved') === 'approved');
     const filtered = deposits.filter(t => {
-      if (recPeriod === 'day')   return (t.createdAt || '').slice(0, 10) === buildRecDateISO();
-      if (recPeriod === 'month') return (t.createdAt || '').slice(0, 7) === `${recYear}-${pad(recMonth + 1)}`;
-      if (recPeriod === 'year')  return (t.createdAt || '').slice(0, 4) === ('' + recYear);
+      const dates = [
+        (t.createdAt || '').slice(0, 10),
+        (t.reviewedAt || '').slice(0, 10),
+        (t.approvedAt || '').slice(0, 10),
+        (t.timestamp || '').slice(0, 10),
+        (t.date || '').slice(0, 10)
+      ].filter(Boolean);
+      if (recPeriod === 'day') {
+        const target = buildRecDateISO();
+        return dates.includes(target);
+      }
+      if (recPeriod === 'month') {
+        const targetM = `${recYear}-${pad(recMonth + 1)}`;
+        return dates.some(d => d.slice(0, 7) === targetM);
+      }
+      if (recPeriod === 'year') {
+        const targetY = '' + recYear;
+        return dates.some(d => d.slice(0, 4) === targetY);
+      }
       return true; // 'all'
     });
 
@@ -1834,9 +1850,26 @@ const AdminApp = (() => {
     const allTx = DB.getAllTransactions();
     const payouts = allTx.filter(t => (t.type === 'payout' || t.type === 'withdrawal') && (t.status || 'approved') === 'approved');
     const filtered = payouts.filter(t => {
-      if (payPeriod === 'day')   return (t.createdAt || '').slice(0, 10) === buildPayDateISO();
-      if (payPeriod === 'month') return (t.createdAt || '').slice(0, 7) === `${payYear}-${pad(payMonth + 1)}`;
-      if (payPeriod === 'year')  return (t.createdAt || '').slice(0, 4) === ('' + payYear);
+      const dates = [
+        (t.reviewedAt || '').slice(0, 10),
+        (t.disbursedAt || '').slice(0, 10),
+        (t.paidAt || '').slice(0, 10),
+        (t.createdAt || '').slice(0, 10),
+        (t.timestamp || '').slice(0, 10),
+        (t.date || '').slice(0, 10)
+      ].filter(Boolean);
+      if (payPeriod === 'day') {
+        const target = buildPayDateISO();
+        return dates.includes(target);
+      }
+      if (payPeriod === 'month') {
+        const targetM = `${payYear}-${pad(payMonth + 1)}`;
+        return dates.some(d => d.slice(0, 7) === targetM);
+      }
+      if (payPeriod === 'year') {
+        const targetY = '' + payYear;
+        return dates.some(d => d.slice(0, 4) === targetY);
+      }
       return true; // 'all'
     });
 
@@ -2894,9 +2927,16 @@ const AdminApp = (() => {
         const allTx = DB.getAllTransactions();
         const deposits = allTx.filter(t => (t.type || 'deposit') === 'deposit' && (t.status || 'approved') === 'approved');
         const filtered = deposits.filter(t => {
-          if (recPeriod === 'day')   return (t.createdAt || '').slice(0, 10) === buildRecDateISO();
-          if (recPeriod === 'month') return (t.createdAt || '').slice(0, 7) === `${recYear}-${pad(recMonth + 1)}`;
-          if (recPeriod === 'year')  return (t.createdAt || '').slice(0, 4) === ('' + recYear);
+          const dates = [
+            (t.createdAt || '').slice(0, 10),
+            (t.reviewedAt || '').slice(0, 10),
+            (t.approvedAt || '').slice(0, 10),
+            (t.timestamp || '').slice(0, 10),
+            (t.date || '').slice(0, 10)
+          ].filter(Boolean);
+          if (recPeriod === 'day')   return dates.includes(buildRecDateISO());
+          if (recPeriod === 'month') return dates.some(d => d.slice(0, 7) === `${recYear}-${pad(recMonth + 1)}`);
+          if (recPeriod === 'year')  return dates.some(d => d.slice(0, 4) === ('' + recYear));
           return true; // 'all'
         });
         filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -2934,9 +2974,16 @@ const AdminApp = (() => {
         const allTx = DB.getAllTransactions();
         const deposits = allTx.filter(t => (t.type || 'deposit') === 'deposit' && (t.status || 'approved') === 'approved');
         const filtered = deposits.filter(t => {
-          if (recPeriod === 'day')   return (t.createdAt || '').slice(0, 10) === buildRecDateISO();
-          if (recPeriod === 'month') return (t.createdAt || '').slice(0, 7) === `${recYear}-${pad(recMonth + 1)}`;
-          if (recPeriod === 'year')  return (t.createdAt || '').slice(0, 4) === ('' + recYear);
+          const dates = [
+            (t.createdAt || '').slice(0, 10),
+            (t.reviewedAt || '').slice(0, 10),
+            (t.approvedAt || '').slice(0, 10),
+            (t.timestamp || '').slice(0, 10),
+            (t.date || '').slice(0, 10)
+          ].filter(Boolean);
+          if (recPeriod === 'day')   return dates.includes(buildRecDateISO());
+          if (recPeriod === 'month') return dates.some(d => d.slice(0, 7) === `${recYear}-${pad(recMonth + 1)}`);
+          if (recPeriod === 'year')  return dates.some(d => d.slice(0, 4) === ('' + recYear));
           return true; // 'all'
         });
         filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -2986,9 +3033,17 @@ const AdminApp = (() => {
         const allTx = DB.getAllTransactions();
         const payouts = allTx.filter(t => (t.type === 'payout' || t.type === 'withdrawal') && (t.status || 'approved') === 'approved');
         const filtered = payouts.filter(t => {
-          if (payPeriod === 'day')   return (t.createdAt || '').slice(0, 10) === buildPayDateISO();
-          if (payPeriod === 'month') return (t.createdAt || '').slice(0, 7) === `${payYear}-${pad(payMonth + 1)}`;
-          if (payPeriod === 'year')  return (t.createdAt || '').slice(0, 4) === ('' + payYear);
+          const dates = [
+            (t.reviewedAt || '').slice(0, 10),
+            (t.disbursedAt || '').slice(0, 10),
+            (t.paidAt || '').slice(0, 10),
+            (t.createdAt || '').slice(0, 10),
+            (t.timestamp || '').slice(0, 10),
+            (t.date || '').slice(0, 10)
+          ].filter(Boolean);
+          if (payPeriod === 'day')   return dates.includes(buildPayDateISO());
+          if (payPeriod === 'month') return dates.some(d => d.slice(0, 7) === `${payYear}-${pad(payMonth + 1)}`);
+          if (payPeriod === 'year')  return dates.some(d => d.slice(0, 4) === ('' + payYear));
           return true; // 'all'
         });
         filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -3035,9 +3090,17 @@ const AdminApp = (() => {
         const allTx = DB.getAllTransactions();
         const payouts = allTx.filter(t => (t.type === 'payout' || t.type === 'withdrawal') && (t.status || 'approved') === 'approved');
         const filtered = payouts.filter(t => {
-          if (payPeriod === 'day')   return (t.createdAt || '').slice(0, 10) === buildPayDateISO();
-          if (payPeriod === 'month') return (t.createdAt || '').slice(0, 7) === `${payYear}-${pad(payMonth + 1)}`;
-          if (payPeriod === 'year')  return (t.createdAt || '').slice(0, 4) === ('' + payYear);
+          const dates = [
+            (t.reviewedAt || '').slice(0, 10),
+            (t.disbursedAt || '').slice(0, 10),
+            (t.paidAt || '').slice(0, 10),
+            (t.createdAt || '').slice(0, 10),
+            (t.timestamp || '').slice(0, 10),
+            (t.date || '').slice(0, 10)
+          ].filter(Boolean);
+          if (payPeriod === 'day')   return dates.includes(buildPayDateISO());
+          if (payPeriod === 'month') return dates.some(d => d.slice(0, 7) === `${payYear}-${pad(payMonth + 1)}`);
+          if (payPeriod === 'year')  return dates.some(d => d.slice(0, 4) === ('' + payYear));
           return true; // 'all'
         });
         filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
