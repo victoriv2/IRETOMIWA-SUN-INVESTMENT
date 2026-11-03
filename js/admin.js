@@ -842,7 +842,7 @@ const AdminApp = (() => {
     }
 
     if (btnManualApprove && modalApprove) {
-      btnManualApprove.addEventListener('click', () => {
+      btnManualApprove.addEventListener('click', async () => {
         if (!activeRequestTxId) return;
         const allTx = DB.getAllTransactions();
         const t = allTx.find(x => x.id === activeRequestTxId);
@@ -859,6 +859,14 @@ const AdminApp = (() => {
           netAmount: netAmt,
           feeRate: feeRate,
         });
+
+        // Instant cloud sync
+        try {
+          await DB.syncPush();
+        } catch (syncErr) {
+          console.warn('Manual approval sync warning:', syncErr);
+        }
+
         modalApprove.classList.add('hidden');
         activeRequestTxId = null;
 
@@ -938,14 +946,35 @@ const AdminApp = (() => {
               feeRate: feeRate,
             });
 
+            // Immediately push to Supabase to guarantee cloud sync!
+            try {
+              await DB.syncPush();
+            } catch (syncErr) {
+              console.warn('Post-payout Supabase sync warning:', syncErr);
+            }
+
             modalApprove.classList.add('hidden');
             activeRequestTxId = null;
+
+            if (btnFlwText) btnFlwText.textContent = originalText;
+            btnFlwDisburse.disabled = false;
 
             renderRequestsTab();
             renderUsersTab();
             renderReceivedTab();
             renderPayoutsTab();
             renderMoreTab();
+
+            // Notify admin with full details
+            alert(
+              `Payout Disbursed Successfully!\n\n` +
+              `Amount: ₦${formatAmount(netAmt)}\n` +
+              `Recipient: ${res.accountName || clientName}\n` +
+              `Bank: ${destBank.bankName || 'Bank'} (${destBank.accountNumber})\n` +
+              `Transfer ID: #${res.transferId}\n` +
+              `Reference: ${res.reference || ''}\n\n` +
+              `Transaction has been approved and saved to database.`
+            );
           } else {
             if (flwErrEl) {
               const rawErr = res.error || 'Transfer failed';
@@ -1106,12 +1135,19 @@ const AdminApp = (() => {
     }
 
     if (btnConfirmDecline && modalDecline) {
-      btnConfirmDecline.addEventListener('click', () => {
+      btnConfirmDecline.addEventListener('click', async () => {
         if (!activeRequestTxId) return;
         const reasonInput = document.getElementById('decline-reason-input');
         const reason = reasonInput ? reasonInput.value.trim() : '';
 
         DB.declineTransaction(activeRequestTxId, reason);
+
+        try {
+          await DB.syncPush();
+        } catch (syncErr) {
+          console.warn('Decline sync warning:', syncErr);
+        }
+
         modalDecline.classList.add('hidden');
         activeRequestTxId = null;
 

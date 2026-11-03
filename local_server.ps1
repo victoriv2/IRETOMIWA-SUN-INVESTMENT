@@ -137,57 +137,68 @@ function Process-ClientRequest($context) {
             Write-Host "[FLW PROXY] $method $subPath" -ForegroundColor Magenta
 
             try {
-                $webReq = [System.Net.HttpWebRequest]::Create($targetUrl)
-                $webReq.Method = $method
-                $webReq.Timeout = 45000
-                $incomingUa = $request.Headers["User-Agent"]
-                if ($incomingUa) {
-                    $webReq.UserAgent = $incomingUa
-                } else {
-                    $webReq.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                }
-                $webReq.Accept = "application/json"
-
                 $authHeader = $request.Headers["Authorization"]
+
+                $curlArgs = [System.Collections.Generic.List[string]]::new()
+                $curlArgs.Add("-s")
+                $curlArgs.Add("-w")
+                $curlArgs.Add("---HTTPCODE---%{http_code}")
+                $curlArgs.Add("-X")
+                $curlArgs.Add($method)
+                $curlArgs.Add("-H")
+                $curlArgs.Add("Accept: application/json")
+
                 if ($authHeader) {
-                    $webReq.Headers["Authorization"] = $authHeader
+                    $curlArgs.Add("-H")
+                    $curlArgs.Add("Authorization: $authHeader")
                 }
 
+                $tempBodyFile = $null
                 if ($method -eq "POST" -or $method -eq "PUT") {
-                    $webReq.ContentType = "application/json"
-                    $reqStream = $request.InputStream
-                    if ($reqStream) {
-                        $targetStream = $webReq.GetRequestStream()
-                        $reqStream.CopyTo($targetStream)
-                        $targetStream.Flush()
-                        $targetStream.Close()
+                    $curlArgs.Add("-H")
+                    $curlArgs.Add("Content-Type: application/json")
+
+                    $tempBodyFile = [System.IO.Path]::GetTempFileName()
+                    $fs = [System.IO.File]::Create($tempBodyFile)
+                    $request.InputStream.CopyTo($fs)
+                    $fs.Flush()
+                    $fs.Close()
+
+                    $curlArgs.Add("--data-binary")
+                    $curlArgs.Add("@$tempBodyFile")
+                }
+
+                $curlArgs.Add($targetUrl)
+
+                $rawOutput = & "curl.exe" $curlArgs
+
+                if ($tempBodyFile -and [System.IO.File]::Exists($tempBodyFile)) {
+                    try { Remove-Item $tempBodyFile -Force } catch {}
+                }
+
+                $parts = $rawOutput -split "---HTTPCODE---"
+                $respBody = $parts[0]
+                $statusCode = 200
+                if ($parts.Length -gt 1) {
+                    [int]::TryParse($parts[1].Trim(), [ref]$statusCode) | Out-Null
+                }
+
+                if ($statusCode -le 0 -or $statusCode -lt 100) {
+                    $statusCode = 502
+                    if ([string]::IsNullOrWhiteSpace($respBody)) {
+                        $respBody = '{"status":"error","message":"Gateway timeout connecting to Flutterwave"}'
                     }
                 }
 
-                $webResp = $null
-                try {
-                    $webResp = $webReq.GetResponse()
-                } catch [System.Net.WebException] {
-                    $webResp = $_.Exception.Response
-                }
+                Write-Host "[FLW PROXY RES] $statusCode" -ForegroundColor $(if ($statusCode -ge 200 -and $statusCode -lt 300) { "Green" } else { "Yellow" })
 
-                if ($webResp) {
-                    $httpWebResp = [System.Net.HttpWebResponse]$webResp
-                    $response.StatusCode = [int]$httpWebResp.StatusCode
-                    $response.ContentType = "application/json; charset=utf-8"
-
-                    $respStream = $httpWebResp.GetResponseStream()
-                    if ($respStream) {
-                        $respStream.CopyTo($response.OutputStream)
-                        $respStream.Close()
-                    }
-                    $httpWebResp.Close()
-                } else {
-                    $response.StatusCode = 502
-                    $errBytes = [System.Text.Encoding]::UTF8.GetBytes('{"status":"error","message":"No response received from Flutterwave"}')
-                    $response.OutputStream.Write($errBytes, 0, $errBytes.Length)
-                }
+                $response.StatusCode = $statusCode
+                $response.ContentType = "application/json; charset=utf-8"
+                $respBytes = [System.Text.Encoding]::UTF8.GetBytes($respBody)
+                $response.ContentLength64 = $respBytes.Length
+                $response.OutputStream.Write($respBytes, 0, $respBytes.Length)
             } catch {
+                Write-Host "[FLW PROXY ERR] $_" -ForegroundColor Red
                 $response.StatusCode = 500
                 $errMsg = $_.Exception.Message -replace '"', '\"'
                 $errBytes = [System.Text.Encoding]::UTF8.GetBytes("{`"status`":`"error`",`"message`":`"$errMsg`"}")
@@ -230,7 +241,9 @@ function Process-ClientRequest($context) {
             try {
                 $bytes = [System.IO.File]::ReadAllBytes($filePath)
                 $response.ContentLength64 = $bytes.Length
-                $response.OutputStream.Write($bytes, 0, $bytes.Length)
+                if ($method -ne "HEAD") {
+                    $response.OutputStream.Write($bytes, 0, $bytes.Length)
+                }
             } catch {
                 $response.StatusCode = 500
             }

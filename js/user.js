@@ -1006,6 +1006,11 @@ const UserApp = (() => {
           status: 'pending',
         });
 
+        // Immediately push to cloud so Admin sees pending request in real time
+        try {
+          DB.syncPush().catch(e => console.warn('Pending withdrawal sync warning:', e));
+        } catch (e) {}
+
         // Reset inputs
         amountInput.value = '';
         if (noteInput) noteInput.value = '';

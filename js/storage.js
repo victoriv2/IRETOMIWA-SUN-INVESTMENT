@@ -624,7 +624,22 @@ const DB = {
     tx.reviewedBy = reviewMeta.reviewedBy || 'admin';
     if (reviewMeta.paymentGateway) tx.paymentGateway = reviewMeta.paymentGateway;
     if (reviewMeta.flutterwaveRef) tx.flutterwaveRef = reviewMeta.flutterwaveRef;
-    if (reviewMeta.flutterwaveTransferId) tx.flutterwaveTransferId = reviewMeta.flutterwaveTransferId;
+    if (reviewMeta.flutterwaveTransferId) {
+      tx.flwId = reviewMeta.flutterwaveTransferId;
+      tx.flutterwaveTransferId = reviewMeta.flutterwaveTransferId;
+    }
+    if (reviewMeta.grossAmount !== undefined) tx.grossAmount = reviewMeta.grossAmount;
+    if (reviewMeta.fee !== undefined) tx.fee = reviewMeta.fee;
+    if (reviewMeta.netAmount !== undefined) tx.netAmount = reviewMeta.netAmount;
+    if (reviewMeta.feeRate !== undefined) tx.feeRate = reviewMeta.feeRate;
+
+    // Update transaction note with complete payout details
+    if (reviewMeta.flutterwaveTransferId && (!tx.note || !tx.note.includes('FLW:'))) {
+      const bankInfo = tx.destinationBank ? `${tx.destinationBank.bankName || 'Bank'} ${tx.destinationBank.accountNumber}` : '';
+      const netStr = tx.netAmount ? `Net: ₦${Number(tx.netAmount).toFixed(2)}` : '';
+      const feeStr = tx.fee ? `(Fee: ₦${Number(tx.fee).toFixed(2)})` : '';
+      tx.note = `Payout to: ${bankInfo} | ${netStr} ${feeStr} | FLW: ${reviewMeta.flutterwaveTransferId}`.trim();
+    }
 
     localStorage.setItem('sun_transactions', JSON.stringify(all));
     this.scheduleCloudPush();
@@ -1026,7 +1041,7 @@ const DB = {
     ];
   },
 
-  // ---- SECURE FLUTTERWAVE API CALL (WITH NETLIFY CORS PROXY & FALLBACK) ----
+  // ---- SECURE FLUTTERWAVE API CALL (WITH LOCAL/NETLIFY CORS PROXY & FALLBACK) ----
   async fetchFlutterwave(endpoint, options = {}) {
     const cleanEndpoint = endpoint.replace(/^\/+/, '');
     const cfg = this.getFlutterwaveConfig();
@@ -1036,15 +1051,21 @@ const DB = {
       ...(options.headers || {})
     };
 
-    // Candidate routes to prevent browser CORS "Failed to fetch":
-    // 1. Netlify Edge Proxy (/api/flw/...) - high-speed CDN redirect, no Lambda cold starts
-    // 2. Netlify Serverless Function (/.netlify/functions/flw) - server-side AWS Lambda
+    // Candidate routes to prevent browser CORS and IP restriction blocks:
+    // 1. Local / Server Proxy (/api/flw/...) - connects through local PC IP or edge proxy
+    // 2. Netlify Serverless Function (/.netlify/functions/flw) - fallback on cloud
     // 3. Direct Flutterwave API - fallback
-    const candidates = [
-      `/api/flw/${cleanEndpoint}`,
-      `/.netlify/functions/flw?path=${encodeURIComponent(cleanEndpoint)}`,
-      `https://api.flutterwave.com/v3/${cleanEndpoint}`
-    ];
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const candidates = isLocalhost
+      ? [
+          `/api/flw/${cleanEndpoint}`,
+          `https://api.flutterwave.com/v3/${cleanEndpoint}`
+        ]
+      : [
+          `/api/flw/${cleanEndpoint}`,
+          `/.netlify/functions/flw?path=${encodeURIComponent(cleanEndpoint)}`,
+          `https://api.flutterwave.com/v3/${cleanEndpoint}`
+        ];
 
     let lastError = null;
 
@@ -1055,14 +1076,21 @@ const DB = {
           headers
         });
 
-        // If proxy route returns 404 or 5xx (500, 502, 503, 504), fall through to next candidate!
-        if ((res.status === 404 || res.status >= 500) && url.startsWith('/')) {
-          console.warn(`Proxy route ${url} returned HTTP ${res.status}, trying next fallback route...`);
+        const rawText = await res.text();
+        let json = null;
+        try {
+          json = JSON.parse(rawText);
+        } catch (e) {
+          json = null;
+        }
+
+        // If proxy returned HTML (e.g. 404 page or Cloudflare challenge), try next route
+        if (!json && res.status >= 400 && url.startsWith('/')) {
+          console.warn(`Proxy route ${url} returned non-JSON HTTP ${res.status}, trying fallback route...`);
           continue;
         }
 
-        const json = await res.json().catch(() => null);
-        return { ok: res.ok, status: res.status, json: json };
+        return { ok: res.ok, status: res.status, json: json, rawText: rawText };
       } catch (err) {
         lastError = err;
         continue;
