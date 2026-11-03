@@ -14,10 +14,10 @@ const AdminApp = (() => {
   let currentTab = 'users';
 
   // Filter States
-  let recPeriod = 'day';
+  let recPeriod = 'all';
   let recFilterDate = new Date().toISOString().slice(0, 10);
 
-  let payPeriod = 'day';
+  let payPeriod = 'all';
   let payFilterDate = new Date().toISOString().slice(0, 10);
   let currentViewedUserId = null;
 
@@ -1051,10 +1051,13 @@ const AdminApp = (() => {
                 }
               } else {
                 flwErrEl.innerHTML = `
-                  <div style="font-weight: 700; margin-bottom: 4px; color: #991b1b;">Flutterwave Disbursal Failed: ${rawErr}</div>
-                  <div style="margin-bottom: 8px; color: #374151; font-size: 12px;">The client balance remains untouched. You can retry the API or approve manually:</div>
+                  <div style="font-weight: 700; margin-bottom: 4px; color: #991b1b;">Flutterwave Disbursal: ${rawErr}</div>
+                  <div style="margin-bottom: 8px; color: #374151; font-size: 12px;">If Flutterwave sent the money or if you already paid the client, click "Approve as Flutterwave Transfer" below to sync with database:</div>
                   <div style="display: flex; gap: 8px; flex-direction: column;">
-                    <button type="button" id="btn-err-retry-api" style="width: 100%; padding: 10px 14px; background: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px;">
+                    <button type="button" id="btn-err-already-paid-flw" style="width: 100%; padding: 10px 14px; background: #15803d; color: #ffffff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px;">
+                      Already Paid via Flutterwave? Approve & Sync Now
+                    </button>
+                    <button type="button" id="btn-err-retry-api" style="width: 100%; padding: 9px 14px; background: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12.5px;">
                       Retry Flutterwave API Transfer Now
                     </button>
                     <button type="button" id="btn-err-fallback-approve" style="width: 100%; padding: 9px 14px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px;">
@@ -1062,6 +1065,28 @@ const AdminApp = (() => {
                     </button>
                   </div>
                 `;
+                const alreadyPaidBtn = document.getElementById('btn-err-already-paid-flw');
+                if (alreadyPaidBtn) {
+                  alreadyPaidBtn.addEventListener('click', async () => {
+                    DB.approveTransaction(t.id, {
+                      reviewedBy: 'admin (flutterwave)',
+                      paymentGateway: 'flutterwave',
+                      flutterwaveRef: 'FLW_TRANSFER_' + Date.now(),
+                      grossAmount: grossAmt,
+                      fee: feeAmt,
+                      netAmount: netAmt,
+                      feeRate: feeRate,
+                    });
+                    try { await DB.syncPush(); } catch (e) {}
+                    modalApprove.classList.add('hidden');
+                    activeRequestTxId = null;
+                    renderRequestsTab();
+                    renderUsersTab();
+                    renderReceivedTab();
+                    renderPayoutsTab();
+                    renderMoreTab();
+                  });
+                }
                 const retryBtn = document.getElementById('btn-err-retry-api');
                 if (retryBtn) {
                   retryBtn.addEventListener('click', () => {
@@ -1193,14 +1218,46 @@ const AdminApp = (() => {
 
   function updateReceivedFilterButtons() {
     const fullDateEl = document.getElementById('admin-rec-full-date');
+    const allBtn     = document.getElementById('admin-rec-date-all');
+    const monthBtn   = document.getElementById('admin-rec-date-month');
+    const todayBtn   = document.getElementById('admin-rec-date-today');
+    const nextBtn    = document.getElementById('admin-rec-date-next');
+
+    if (recPeriod === 'all') {
+      if (fullDateEl) fullDateEl.textContent = 'All Records (All Time)';
+      if (allBtn)   allBtn.classList.add('active');
+      if (monthBtn) monthBtn.classList.remove('active');
+      if (todayBtn) todayBtn.classList.remove('active');
+      if (nextBtn) {
+        nextBtn.disabled = true;
+        nextBtn.classList.add('disabled');
+      }
+      return;
+    }
+
+    if (recPeriod === 'month') {
+      if (fullDateEl) fullDateEl.textContent = `${monthNames[recMonth]} ${recYear}`;
+      if (allBtn)   allBtn.classList.remove('active');
+      if (monthBtn) monthBtn.classList.add('active');
+      if (todayBtn) todayBtn.classList.remove('active');
+      const now = new Date();
+      const isCurMonth = (recYear === now.getFullYear() && recMonth === now.getMonth());
+      if (nextBtn) {
+        nextBtn.disabled = isCurMonth;
+        nextBtn.classList.toggle('disabled', isCurMonth);
+      }
+      return;
+    }
+
+    // recPeriod === 'day'
     if (fullDateEl) {
       fullDateEl.textContent = `${recDay} ${monthNames[recMonth]} ${recYear}`;
     }
     const isToday = isDateToday(recYear, recMonth, recDay);
-    const todayBtn = document.getElementById('admin-rec-date-today');
+    if (allBtn)   allBtn.classList.remove('active');
+    if (monthBtn) monthBtn.classList.remove('active');
     if (todayBtn) todayBtn.classList.toggle('active', isToday);
 
-    const nextBtn = document.getElementById('admin-rec-date-next');
     if (nextBtn) {
       const atOrAfterToday = isToday || isDateFuture(recYear, recMonth, recDay);
       nextBtn.disabled = atOrAfterToday;
@@ -1212,10 +1269,34 @@ const AdminApp = (() => {
     const prevBtn    = document.getElementById('admin-rec-date-prev');
     const nextBtn    = document.getElementById('admin-rec-date-next');
     const triggerBtn = document.getElementById('admin-rec-picker-trigger');
+    const allBtn     = document.getElementById('admin-rec-date-all');
+    const monthBtn   = document.getElementById('admin-rec-date-month');
     const todayBtn   = document.getElementById('admin-rec-date-today');
+
+    if (allBtn) {
+      allBtn.addEventListener('click', () => {
+        recPeriod = 'all';
+        updateReceivedFilterButtons();
+        renderReceivedTab();
+      });
+    }
+
+    if (monthBtn) {
+      monthBtn.addEventListener('click', () => {
+        const now = new Date();
+        recMonth = now.getMonth();
+        recYear  = now.getFullYear();
+        recPeriod = 'month';
+        updateReceivedFilterButtons();
+        renderReceivedTab();
+      });
+    }
 
     if (prevBtn) {
       prevBtn.addEventListener('click', () => {
+        if (recPeriod === 'all' || recPeriod === 'month') {
+          recPeriod = 'day';
+        }
         const cur = new Date(recYear, recMonth, recDay);
         cur.setDate(cur.getDate() - 1);
         recDay   = cur.getDate();
@@ -1230,6 +1311,9 @@ const AdminApp = (() => {
 
     if (nextBtn) {
       nextBtn.addEventListener('click', () => {
+        if (recPeriod === 'all' || recPeriod === 'month') {
+          recPeriod = 'day';
+        }
         const cur = new Date(recYear, recMonth, recDay);
         cur.setDate(cur.getDate() + 1);
         if (isDateFuture(cur.getFullYear(), cur.getMonth(), cur.getDate())) {
@@ -1295,15 +1379,29 @@ const AdminApp = (() => {
       if (recPeriod === 'day')   return (t.createdAt || '').slice(0, 10) === buildRecDateISO();
       if (recPeriod === 'month') return (t.createdAt || '').slice(0, 7) === `${recYear}-${pad(recMonth + 1)}`;
       if (recPeriod === 'year')  return (t.createdAt || '').slice(0, 4) === ('' + recYear);
-      return true;
+      return true; // 'all'
     });
+
+    // Sort newest first
+    filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     const totalAmt = filtered.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
 
     const totalEl = document.getElementById('admin-received-total');
     const countEl = document.getElementById('admin-received-count');
+    const labelEl = document.getElementById('admin-received-counter-label');
+
     if (totalEl) totalEl.textContent = '₦' + formatAmount(totalAmt);
     if (countEl) countEl.textContent = filtered.length;
+    if (labelEl) {
+      if (recPeriod === 'all') {
+        labelEl.textContent = `Showing all ${filtered.length} deposit records (Total: ₦${formatAmount(totalAmt)})`;
+      } else if (recPeriod === 'month') {
+        labelEl.textContent = `Showing ${filtered.length} deposit records for ${monthNames[recMonth]} ${recYear} (Total: ₦${formatAmount(totalAmt)})`;
+      } else {
+        labelEl.textContent = `Showing ${filtered.length} deposit records for ${recDay} ${monthNames[recMonth]} ${recYear} (Total: ₦${formatAmount(totalAmt)})`;
+      }
+    }
 
     const tbody = document.getElementById('admin-received-table-body');
     if (!tbody) return;
@@ -1575,14 +1673,46 @@ const AdminApp = (() => {
 
   function updatePayoutsFilterButtons() {
     const fullDateEl = document.getElementById('admin-pay-full-date');
+    const allBtn     = document.getElementById('admin-pay-date-all');
+    const monthBtn   = document.getElementById('admin-pay-date-month');
+    const todayBtn   = document.getElementById('admin-pay-date-today');
+    const nextBtn    = document.getElementById('admin-pay-date-next');
+
+    if (payPeriod === 'all') {
+      if (fullDateEl) fullDateEl.textContent = 'All Records (All Time)';
+      if (allBtn)   allBtn.classList.add('active');
+      if (monthBtn) monthBtn.classList.remove('active');
+      if (todayBtn) todayBtn.classList.remove('active');
+      if (nextBtn) {
+        nextBtn.disabled = true;
+        nextBtn.classList.add('disabled');
+      }
+      return;
+    }
+
+    if (payPeriod === 'month') {
+      if (fullDateEl) fullDateEl.textContent = `${monthNames[payMonth]} ${payYear}`;
+      if (allBtn)   allBtn.classList.remove('active');
+      if (monthBtn) monthBtn.classList.add('active');
+      if (todayBtn) todayBtn.classList.remove('active');
+      const now = new Date();
+      const isCurMonth = (payYear === now.getFullYear() && payMonth === now.getMonth());
+      if (nextBtn) {
+        nextBtn.disabled = isCurMonth;
+        nextBtn.classList.toggle('disabled', isCurMonth);
+      }
+      return;
+    }
+
+    // payPeriod === 'day'
     if (fullDateEl) {
       fullDateEl.textContent = `${payDay} ${monthNames[payMonth]} ${payYear}`;
     }
     const isToday = isDateToday(payYear, payMonth, payDay);
-    const todayBtn = document.getElementById('admin-pay-date-today');
+    if (allBtn)   allBtn.classList.remove('active');
+    if (monthBtn) monthBtn.classList.remove('active');
     if (todayBtn) todayBtn.classList.toggle('active', isToday);
 
-    const nextBtn = document.getElementById('admin-pay-date-next');
     if (nextBtn) {
       const atOrAfterToday = isToday || isDateFuture(payYear, payMonth, payDay);
       nextBtn.disabled = atOrAfterToday;
@@ -1594,10 +1724,34 @@ const AdminApp = (() => {
     const prevBtn    = document.getElementById('admin-pay-date-prev');
     const nextBtn    = document.getElementById('admin-pay-date-next');
     const triggerBtn = document.getElementById('admin-pay-picker-trigger');
+    const allBtn     = document.getElementById('admin-pay-date-all');
+    const monthBtn   = document.getElementById('admin-pay-date-month');
     const todayBtn   = document.getElementById('admin-pay-date-today');
+
+    if (allBtn) {
+      allBtn.addEventListener('click', () => {
+        payPeriod = 'all';
+        updatePayoutsFilterButtons();
+        renderPayoutsTab();
+      });
+    }
+
+    if (monthBtn) {
+      monthBtn.addEventListener('click', () => {
+        const now = new Date();
+        payMonth = now.getMonth();
+        payYear  = now.getFullYear();
+        payPeriod = 'month';
+        updatePayoutsFilterButtons();
+        renderPayoutsTab();
+      });
+    }
 
     if (prevBtn) {
       prevBtn.addEventListener('click', () => {
+        if (payPeriod === 'all' || payPeriod === 'month') {
+          payPeriod = 'day';
+        }
         const cur = new Date(payYear, payMonth, payDay);
         cur.setDate(cur.getDate() - 1);
         payDay   = cur.getDate();
@@ -1612,6 +1766,9 @@ const AdminApp = (() => {
 
     if (nextBtn) {
       nextBtn.addEventListener('click', () => {
+        if (payPeriod === 'all' || payPeriod === 'month') {
+          payPeriod = 'day';
+        }
         const cur = new Date(payYear, payMonth, payDay);
         cur.setDate(cur.getDate() + 1);
         if (isDateFuture(cur.getFullYear(), cur.getMonth(), cur.getDate())) {
@@ -1677,15 +1834,29 @@ const AdminApp = (() => {
       if (payPeriod === 'day')   return (t.createdAt || '').slice(0, 10) === buildPayDateISO();
       if (payPeriod === 'month') return (t.createdAt || '').slice(0, 7) === `${payYear}-${pad(payMonth + 1)}`;
       if (payPeriod === 'year')  return (t.createdAt || '').slice(0, 4) === ('' + payYear);
-      return true;
+      return true; // 'all'
     });
+
+    // Sort newest first
+    filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     const totalAmt = filtered.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
 
     const totalEl = document.getElementById('admin-payouts-total');
     const countEl = document.getElementById('admin-payouts-count');
+    const labelEl = document.getElementById('admin-payouts-counter-label');
+
     if (totalEl) totalEl.textContent = '₦' + formatAmount(totalAmt);
     if (countEl) countEl.textContent = filtered.length;
+    if (labelEl) {
+      if (payPeriod === 'all') {
+        labelEl.textContent = `Showing all ${filtered.length} disbursements (Total: ₦${formatAmount(totalAmt)})`;
+      } else if (payPeriod === 'month') {
+        labelEl.textContent = `Showing ${filtered.length} disbursements for ${monthNames[payMonth]} ${payYear} (Total: ₦${formatAmount(totalAmt)})`;
+      } else {
+        labelEl.textContent = `Showing ${filtered.length} disbursements for ${payDay} ${monthNames[payMonth]} ${payYear} (Total: ₦${formatAmount(totalAmt)})`;
+      }
+    }
 
     const tbody = document.getElementById('admin-payouts-table-body');
     if (!tbody) return;
@@ -2704,6 +2875,206 @@ const AdminApp = (() => {
           ],
           summary: [
             { label: 'Pending Requests', value: pendingCount },
+          ],
+          headers,
+          rows,
+        });
+      });
+    }
+
+    // 4. Export Money Received (Deposits Log)
+    const btnRecExcel = document.getElementById('btn-admin-export-received-excel');
+    const btnRecPdf   = document.getElementById('btn-admin-export-received-pdf');
+
+    if (btnRecExcel) {
+      btnRecExcel.addEventListener('click', () => {
+        const allTx = DB.getAllTransactions();
+        const deposits = allTx.filter(t => (t.type || 'deposit') === 'deposit' && (t.status || 'approved') === 'approved');
+        const filtered = deposits.filter(t => {
+          if (recPeriod === 'day')   return (t.createdAt || '').slice(0, 10) === buildRecDateISO();
+          if (recPeriod === 'month') return (t.createdAt || '').slice(0, 7) === `${recYear}-${pad(recMonth + 1)}`;
+          if (recPeriod === 'year')  return (t.createdAt || '').slice(0, 4) === ('' + recYear);
+          return true; // 'all'
+        });
+        filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        if (filtered.length === 0) {
+          alert('No money received records to export for this period.');
+          return;
+        }
+
+        const headers = ['Date & Time', 'Client Name', 'Phone Number', 'Category', 'Gateway', 'Amount (₦)', 'Note / Memo'];
+        const rows = filtered.map(t => {
+          const u = DB.getUserById(t.userId);
+          const fullName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Client';
+          return [
+            formatDateTime(t.createdAt),
+            fullName,
+            (u && u.phone) || '-',
+            t.category || 'General Savings',
+            t.paymentGateway === 'flutterwave' ? 'Flutterwave' : 'Cash / Manual',
+            formatAmount(t.amount),
+            t.note || '-',
+          ];
+        });
+
+        Exporter.toExcel({
+          filename: `Received_Deposits_${recPeriod}_${new Date().toISOString().slice(0, 10)}`,
+          headers,
+          rows,
+        });
+      });
+    }
+
+    if (btnRecPdf) {
+      btnRecPdf.addEventListener('click', () => {
+        const allTx = DB.getAllTransactions();
+        const deposits = allTx.filter(t => (t.type || 'deposit') === 'deposit' && (t.status || 'approved') === 'approved');
+        const filtered = deposits.filter(t => {
+          if (recPeriod === 'day')   return (t.createdAt || '').slice(0, 10) === buildRecDateISO();
+          if (recPeriod === 'month') return (t.createdAt || '').slice(0, 7) === `${recYear}-${pad(recMonth + 1)}`;
+          if (recPeriod === 'year')  return (t.createdAt || '').slice(0, 4) === ('' + recYear);
+          return true; // 'all'
+        });
+        filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        if (filtered.length === 0) {
+          alert('No money received records to export for this period.');
+          return;
+        }
+
+        const totalAmt = filtered.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+        const headers = ['Date & Time', 'Client', 'Phone', 'Category', 'Amount (₦)', 'Note / Memo'];
+        const rows = filtered.map(t => {
+          const u = DB.getUserById(t.userId);
+          const fullName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Client';
+          return [
+            formatDateTime(t.createdAt),
+            fullName,
+            (u && u.phone) || '-',
+            t.category || 'General Savings',
+            '+₦' + formatAmount(t.amount),
+            t.note || '-',
+          ];
+        });
+
+        Exporter.toPDF({
+          title: 'Physical Money Received (Deposits Log)',
+          subtitle: `Inflow Records - ${recPeriod === 'all' ? 'All Time' : (recPeriod === 'month' ? `${monthNames[recMonth]} ${recYear}` : `${recDay} ${monthNames[recMonth]} ${recYear}`)}`,
+          meta: [
+            { label: 'Total Entries', value: filtered.length },
+            { label: 'Filter Period', value: recPeriod.toUpperCase() },
+          ],
+          summary: [
+            { label: 'Total Money Received', value: '₦' + formatAmount(totalAmt) },
+          ],
+          headers,
+          rows,
+        });
+      });
+    }
+
+    // 5. Export Money Paid Out (Disbursements Log)
+    const btnPayExcel = document.getElementById('btn-admin-export-payouts-excel');
+    const btnPayPdf   = document.getElementById('btn-admin-export-payouts-pdf');
+
+    if (btnPayExcel) {
+      btnPayExcel.addEventListener('click', () => {
+        const allTx = DB.getAllTransactions();
+        const payouts = allTx.filter(t => (t.type === 'payout' || t.type === 'withdrawal') && (t.status || 'approved') === 'approved');
+        const filtered = payouts.filter(t => {
+          if (payPeriod === 'day')   return (t.createdAt || '').slice(0, 10) === buildPayDateISO();
+          if (payPeriod === 'month') return (t.createdAt || '').slice(0, 7) === `${payYear}-${pad(payMonth + 1)}`;
+          if (payPeriod === 'year')  return (t.createdAt || '').slice(0, 4) === ('' + payYear);
+          return true; // 'all'
+        });
+        filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        if (filtered.length === 0) {
+          alert('No payout records to export for this period.');
+          return;
+        }
+
+        const headers = ['Date & Time', 'Client Name', 'Phone', 'Category', 'Gross Amount (₦)', 'Admin Fee (₦)', 'Net Payout (₦)', 'Gateway', 'Bank Details', 'Reference / Memo'];
+        const rows = filtered.map(t => {
+          const u = DB.getUserById(t.userId);
+          const fullName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Client';
+          const grossAmt = t.grossAmount || t.amount;
+          const defaultFeeRate = (typeof DB !== 'undefined' && DB.getCommissionRate) ? (DB.getCommissionRate() / 100) : 0.04;
+          const feeAmt = t.fee !== undefined ? t.fee : Math.round(grossAmt * defaultFeeRate * 100) / 100;
+          const netAmt = t.netAmount !== undefined ? t.netAmount : (grossAmt - feeAmt);
+          const bankStr = t.destinationBank ? `${t.destinationBank.bankName || ''} - ${t.destinationBank.accountNumber || ''} (${t.destinationBank.accountName || ''})` : '-';
+
+          return [
+            formatDateTime(t.createdAt),
+            fullName,
+            (u && u.phone) || '-',
+            t.category || 'General Savings',
+            formatAmount(grossAmt),
+            formatAmount(feeAmt),
+            formatAmount(netAmt),
+            t.paymentGateway === 'flutterwave' ? 'Flutterwave' : 'Cash / Manual',
+            bankStr,
+            t.flutterwaveRef || t.note || '-',
+          ];
+        });
+
+        Exporter.toExcel({
+          filename: `Disbursements_Payouts_${payPeriod}_${new Date().toISOString().slice(0, 10)}`,
+          headers,
+          rows,
+        });
+      });
+    }
+
+    if (btnPayPdf) {
+      btnPayPdf.addEventListener('click', () => {
+        const allTx = DB.getAllTransactions();
+        const payouts = allTx.filter(t => (t.type === 'payout' || t.type === 'withdrawal') && (t.status || 'approved') === 'approved');
+        const filtered = payouts.filter(t => {
+          if (payPeriod === 'day')   return (t.createdAt || '').slice(0, 10) === buildPayDateISO();
+          if (payPeriod === 'month') return (t.createdAt || '').slice(0, 7) === `${payYear}-${pad(payMonth + 1)}`;
+          if (payPeriod === 'year')  return (t.createdAt || '').slice(0, 4) === ('' + payYear);
+          return true; // 'all'
+        });
+        filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        if (filtered.length === 0) {
+          alert('No payout records to export for this period.');
+          return;
+        }
+
+        const totalGross = filtered.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+        const headers = ['Date & Time', 'Client', 'Category', 'Gross (₦)', 'Fee (₦)', 'Net Disbursed (₦)', 'Destination'];
+        const rows = filtered.map(t => {
+          const u = DB.getUserById(t.userId);
+          const fullName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Client';
+          const grossAmt = t.grossAmount || t.amount;
+          const defaultFeeRate = (typeof DB !== 'undefined' && DB.getCommissionRate) ? (DB.getCommissionRate() / 100) : 0.04;
+          const feeAmt = t.fee !== undefined ? t.fee : Math.round(grossAmt * defaultFeeRate * 100) / 100;
+          const netAmt = t.netAmount !== undefined ? t.netAmount : (grossAmt - feeAmt);
+          const destShort = t.destinationBank ? `${t.destinationBank.bankName || ''} ${t.destinationBank.accountNumber || ''}` : 'Cash';
+
+          return [
+            formatDateTime(t.createdAt),
+            fullName,
+            t.category || 'General Savings',
+            '-₦' + formatAmount(grossAmt),
+            '₦' + formatAmount(feeAmt),
+            '₦' + formatAmount(netAmt),
+            destShort,
+          ];
+        });
+
+        Exporter.toPDF({
+          title: 'Physical Money Paid Out (Disbursements Log)',
+          subtitle: `Disbursements Records - ${payPeriod === 'all' ? 'All Time' : (payPeriod === 'month' ? `${monthNames[payMonth]} ${payYear}` : `${payDay} ${monthNames[payMonth]} ${payYear}`)}`,
+          meta: [
+            { label: 'Total Entries', value: filtered.length },
+            { label: 'Filter Period', value: payPeriod.toUpperCase() },
+          ],
+          summary: [
+            { label: 'Total Payouts Disbursed', value: '₦' + formatAmount(totalGross), isDebit: true },
           ],
           headers,
           rows,
