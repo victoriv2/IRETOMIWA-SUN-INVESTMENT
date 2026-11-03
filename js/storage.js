@@ -894,7 +894,7 @@ const DB = {
   // ---- FLUTTERWAVE GATEWAY CONFIG ----
   getFlutterwaveConfig() {
     const defaultPub = 'FLWPUBK-570758bf49301716d7e0133dce781024-X';
-    const defaultSec = 'b1zBtYkgc8TzebSKJAeHyriyI3NsyRPjtMRZhIYI0meRr2BUcrSTRETnCeu4SaQ6mimPJcyXH4PjkWLqgbFKDO';
+    const defaultSec = 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X';
     try {
       const raw = localStorage.getItem('sun_flutterwave_config');
       if (raw) {
@@ -902,28 +902,28 @@ const DB = {
         let pub = parsed.publicKey;
         let sec = parsed.secretKey;
         if (!pub || pub.includes('@') || !pub.startsWith('FLWPUBK')) pub = defaultPub;
-        if (!sec || sec.length < 20) sec = defaultSec;
+        if (!sec || !sec.startsWith('FLWSECK')) sec = defaultSec;
         return {
           publicKey: pub,
           secretKey: sec,
-          encryptionKey: parsed.encryptionKey || 'gvVVQOaghw2clXV1FSVIIsKSTPjMMN/1xc/GSxtiO1A=',
+          encryptionKey: parsed.encryptionKey || 'fc044b9b11bc9d09633290a0',
           mode: parsed.mode || 'live',
           merchantName: 'John Idowu (Iretomiwa Sun Investment)',
           isEnabled: parsed.isEnabled !== false,
           autoCashout: parsed.autoCashout !== false, // Enabled by default for API payouts
-          updatedAt: parsed.updatedAt || '2026-10-29T11:20:00.000Z',
+          updatedAt: parsed.updatedAt || '2026-11-03T11:50:00.000Z',
         };
       }
     } catch(e) {}
     return {
       publicKey: defaultPub,
       secretKey: defaultSec,
-      encryptionKey: 'gvVVQOaghw2clXV1FSVIIsKSTPjMMN/1xc/GSxtiO1A=',
+      encryptionKey: 'fc044b9b11bc9d09633290a0',
       mode: 'live',
       merchantName: 'John Idowu (Iretomiwa Sun Investment)',
       isEnabled: true,
       autoCashout: true,
-      updatedAt: '2026-10-29T11:20:00.000Z',
+      updatedAt: '2026-11-03T11:50:00.000Z',
     };
   },
   setFlutterwaveConfig(cfg) {
@@ -1075,8 +1075,8 @@ const DB = {
   // Bank Code Alias Resolver for Flutterwave routing (OPay, PalmPay, Moniepoint, etc.)
   getBankCodeCandidates(bankCode) {
     const c = String(bankCode || '').trim();
-    if (['999992', '100004', '090110', 'opay', 'paycom'].includes(c.toLowerCase())) {
-      return ['999992', '100004', '090110'];
+    if (['100004', '999992', '090110', 'opay', 'paycom'].includes(c.toLowerCase())) {
+      return ['100004', '090110', '999992'];
     }
     if (['999991', '100033', '090405', 'palmpay'].includes(c.toLowerCase())) {
       return ['100033', '999991', '090405'];
@@ -1184,9 +1184,9 @@ const DB = {
       console.warn('Pre-transfer verify check warning:', verifyErr);
     }
 
-    // For OPay, Flutterwave dashboard displays "OPay" when using official code 999992
-    const isOpay = ['999992', '100004', '090110'].includes(String(workingBankCode));
-    const flwBankCode = isOpay ? '999992' : workingBankCode;
+    // For OPay, Flutterwave standard transfer routing code is 100004
+    const isOpay = ['100004', '999992', '090110', 'opay', 'paycom'].includes(String(workingBankCode).toLowerCase());
+    const flwBankCode = isOpay ? '100004' : workingBankCode;
 
     const reference = 'TXF_' + (txId || Date.now()) + '_' + Math.random().toString(36).slice(2, 7);
     const payload = {
