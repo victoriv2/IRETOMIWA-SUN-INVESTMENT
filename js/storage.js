@@ -91,7 +91,9 @@ const DB = {
           cloudTxs = Array.isArray(rec.transactions) ? rec.transactions : [];
           cloudCats = Array.isArray(rec.custom_categories || rec.customCategories) ? (rec.custom_categories || rec.customCategories) : [];
           cloudFlw = rec.flutterwave_config || rec.flutterwaveConfig || null;
-          cloudComm = rec.commission_percentage !== undefined ? rec.commission_percentage : rec.commissionPercentage;
+          cloudComm = (cloudFlw && cloudFlw.commission_percentage !== undefined)
+            ? cloudFlw.commission_percentage
+            : (rec.commission_percentage !== undefined ? rec.commission_percentage : rec.commissionPercentage);
           cloudResetId = rec.reset_id || rec.resetId || null;
         }
       } catch (e) {
@@ -159,6 +161,11 @@ const DB = {
       const localComm = this.getCommissionRate();
       const finalComm = (cloudComm !== undefined && cloudComm !== null && !isNaN(Number(cloudComm))) ? Number(cloudComm) : localComm;
 
+      // Safely embed commission rate in flutterwave_config JSON to match Supabase schema
+      if (mergedFlw && typeof mergedFlw === 'object') {
+        mergedFlw.commission_percentage = finalComm;
+      }
+
       const payload = {
         id: this.SUPABASE.SYNC_ID,
         users: mergedUsers,
@@ -166,7 +173,6 @@ const DB = {
         admin: this.getAdmin(),
         custom_categories: mergedCats,
         flutterwave_config: mergedFlw,
-        commission_percentage: finalComm,
         reset_id: SYSTEM_RESET_ID,
         updated_at: new Date().toISOString(),
       };
@@ -338,7 +344,9 @@ const DB = {
       }
 
       // 6. Commission percentage sync
-      const cloudComm = record.commission_percentage !== undefined ? record.commission_percentage : record.commissionPercentage;
+      const cloudComm = (record.flutterwave_config && record.flutterwave_config.commission_percentage !== undefined)
+        ? record.flutterwave_config.commission_percentage
+        : (record.commission_percentage !== undefined ? record.commission_percentage : record.commissionPercentage);
       if (cloudComm !== undefined && cloudComm !== null && !isNaN(Number(cloudComm))) {
         localStorage.setItem('sun_commission_percentage', String(cloudComm));
       }
