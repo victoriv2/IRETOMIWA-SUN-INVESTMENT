@@ -67,6 +67,14 @@ const DB = {
     if (!baseUser) return updatedUser || null;
     if (!updatedUser) return baseUser || null;
 
+    // Critical identity guard: If both have phones and they don't match, they are different clients!
+    const p1 = (baseUser.phone || '').trim().replace(/^\+234/, '0');
+    const p2 = (updatedUser.phone || '').trim().replace(/^\+234/, '0');
+    if (p1 && p2 && p1 !== p2) {
+      // Do NOT overwrite baseUser with a completely different person's info!
+      return baseUser;
+    }
+
     const merged = { ...baseUser, ...updatedUser };
 
     // Critical: Never overwrite a valid passportPhoto with null, undefined, or empty string!
@@ -185,7 +193,27 @@ const DB = {
       localUsers.forEach(u => {
         if (u && u.id) {
           const existing = userMap.get(u.id);
-          userMap.set(u.id, existing ? this._mergeUser(existing, u) : u);
+          if (existing) {
+            const p1 = (existing.phone || '').trim().replace(/^\+234/, '0');
+            const p2 = (u.phone || '').trim().replace(/^\+234/, '0');
+            if (p1 && p2 && p1 !== p2) {
+              // ID collision detected between different clients! Reassign local user to next sequential ID
+              let maxNum = 0;
+              userMap.forEach(usr => {
+                const match = (usr.id || '').match(/^ir(\d+)$/i);
+                if (match) {
+                  const n = parseInt(match[1], 10);
+                  if (!isNaN(n) && n > maxNum) maxNum = n;
+                }
+              });
+              const newId = 'ir' + String(maxNum + 1).padStart(5, '0');
+              userMap.set(newId, { ...u, id: newId });
+            } else {
+              userMap.set(u.id, this._mergeUser(existing, u));
+            }
+          } else {
+            userMap.set(u.id, u);
+          }
         }
       });
       const mergedUsers = Array.from(userMap.values());
@@ -349,8 +377,24 @@ const DB = {
             needsPushToCloud = true;
           } else {
             const cloudU = userMap.get(lu.id);
-            // Safe merge: Cloud is authoritative, but photos, banks and local updates are never lost
-            userMap.set(lu.id, this._mergeUser(lu, cloudU));
+            const p1 = (cloudU.phone || '').trim().replace(/^\+234/, '0');
+            const p2 = (lu.phone || '').trim().replace(/^\+234/, '0');
+            if (p1 && p2 && p1 !== p2) {
+              // ID collision detected! Local user has an ID assigned that cloud already gave to someone else.
+              let maxNum = 0;
+              userMap.forEach(usr => {
+                const match = (usr.id || '').match(/^ir(\d+)$/i);
+                if (match) {
+                  const n = parseInt(match[1], 10);
+                  if (!isNaN(n) && n > maxNum) maxNum = n;
+                }
+              });
+              const newId = 'ir' + String(maxNum + 1).padStart(5, '0');
+              userMap.set(newId, { ...lu, id: newId });
+              needsPushToCloud = true;
+            } else {
+              userMap.set(lu.id, this._mergeUser(cloudU, lu));
+            }
           }
         }
       });
