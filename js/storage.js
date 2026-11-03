@@ -407,8 +407,8 @@ const DB = {
       }
 
       // 5. Flutterwave config sync
-      const cloudFlw = record.flutterwave_config || record.flutterwaveConfig;
-      if (cloudFlw && typeof cloudFlw === 'object') {
+      const cloudFlw = record.flutterwave_config || record.flutterwaveConfig || {};
+      if (cloudFlw && typeof cloudFlw === 'object' && Object.keys(cloudFlw).length > 0) {
         const localCfg = this.getFlutterwaveConfig();
         if (cloudFlw.updatedAt && (!localCfg.updatedAt || cloudFlw.updatedAt >= localCfg.updatedAt)) {
           localStorage.setItem('sun_flutterwave_config', JSON.stringify({ ...localCfg, ...cloudFlw }));
@@ -416,7 +416,6 @@ const DB = {
       }
 
       // 6. Commission percentage sync
-      const cloudFlw = record.flutterwave_config || record.flutterwaveConfig || {};
       const cloudComm = (cloudFlw && cloudFlw.commission_percentage !== undefined)
         ? cloudFlw.commission_percentage
         : (record.commission_percentage !== undefined ? record.commission_percentage : record.commissionPercentage);
