@@ -123,9 +123,9 @@ const DB = {
       localStorage.setItem('sun_users', JSON.stringify(mergedUsers));
 
       // Merge Transactions (Union by ID, keeping all records and preserving approved/declined statuses)
-      const localTxs = this.getAllTransactions();
+      const localTxs = this.getAllTransactions().filter(t => t && !t.id.startsWith('tx_179364800000'));
       const txMap = new Map();
-      cloudTxs.forEach(t => {
+      cloudTxs.filter(t => t && !t.id.startsWith('tx_179364800000')).forEach(t => {
         if (t && t.id) txMap.set(t.id, t);
       });
       localTxs.forEach(t => {
@@ -286,9 +286,9 @@ const DB = {
       localStorage.setItem('sun_users', JSON.stringify(finalUsers));
 
       // Bidirectional Merge for Transactions
-      const localTxs = this.getAllTransactions();
+      const localTxs = this.getAllTransactions().filter(t => t && !t.id.startsWith('tx_179364800000'));
       const txMap = new Map();
-      cloudTxs.forEach(ct => { if (ct && ct.id) txMap.set(ct.id, ct); });
+      cloudTxs.filter(ct => ct && !ct.id.startsWith('tx_179364800000')).forEach(ct => { if (ct && ct.id) txMap.set(ct.id, ct); });
       localTxs.forEach(lt => {
         if (lt && lt.id) {
           if (!txMap.has(lt.id)) {
