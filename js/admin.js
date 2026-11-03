@@ -578,9 +578,12 @@ const AdminApp = (() => {
 
       const balDisplay = `₦${formatAmount(userBal.balance)}${!isDeposit && userBal.pendingWithdrawn > 0 ? ` <small style="color:var(--color-text-muted); font-size:11.5px;">(Avail: ₦${formatAmount(userBal.availableBalance)})</small>` : ''}`;
       const grossAmt = t.grossAmount || t.amount;
-      const defaultFeeRate = (typeof DB !== 'undefined' && DB.getCommissionRate) ? (DB.getCommissionRate() / 100) : 0.04;
-      const feeAmt = t.fee !== undefined ? t.fee : Math.round(grossAmt * defaultFeeRate * 100) / 100;
-      const netAmt = t.netAmount !== undefined ? t.netAmount : (grossAmt - feeAmt);
+      const currentComm = (typeof DB !== 'undefined' && DB.getCommissionRate) ? DB.getCommissionRate() : 4;
+      const currentFeeRate = currentComm / 100;
+      const isApproved = (t.status === 'approved');
+      const feeRate = (isApproved && t.feeRate !== undefined) ? t.feeRate : currentFeeRate;
+      const feeAmt = (isApproved && t.fee !== undefined) ? t.fee : Math.round(grossAmt * feeRate * 100) / 100;
+      const netAmt = (isApproved && t.netAmount !== undefined) ? t.netAmount : Math.max(0, Math.round((grossAmt - feeAmt) * 100) / 100);
       const feeNote = (!isDeposit && feeAmt > 0)
         ? `<div style="font-size:11px; color:#15803d; font-weight:700; margin-top:2px;">Net: ₦${formatAmount(netAmt)} <span style="color:#b91c1c; font-weight:600;">(Fee: ₦${formatAmount(feeAmt)})</span></div>`
         : '';
@@ -671,12 +674,12 @@ const AdminApp = (() => {
       // Withdrawal / Pay Out with Dynamic Admin Fee
       const grossAmt = t.grossAmount || t.amount;
       const currentComm = (typeof DB !== 'undefined' && DB.getCommissionRate) ? DB.getCommissionRate() : 4;
-      const feeRate = t.feeRate !== undefined ? t.feeRate : (currentComm / 100);
-      const feeAmt = t.fee !== undefined ? t.fee : Math.round(grossAmt * feeRate * 100) / 100;
-      const netAmt = t.netAmount !== undefined ? t.netAmount : Math.max(0, Math.round((grossAmt - feeAmt) * 100) / 100);
+      const feeRate = currentComm / 100;
+      const feeAmt = Math.round(grossAmt * feeRate * 100) / 100;
+      const netAmt = Math.max(0, Math.round((grossAmt - feeAmt) * 100) / 100);
 
       document.querySelectorAll('.comm-rate-badge').forEach(b => {
-        b.textContent = `${Math.round(feeRate * 100)}%`;
+        b.textContent = `${currentComm}%`;
       });
 
       if (feeBox) feeBox.classList.remove('hidden');
@@ -848,9 +851,9 @@ const AdminApp = (() => {
         const t = allTx.find(x => x.id === activeRequestTxId);
         const grossAmt = t ? (t.grossAmount || t.amount) : 0;
         const currentComm = (typeof DB !== 'undefined' && DB.getCommissionRate) ? DB.getCommissionRate() : 4;
-        const feeRate = (t && t.feeRate !== undefined) ? t.feeRate : (currentComm / 100);
-        const feeAmt = t && t.fee !== undefined ? t.fee : Math.round(grossAmt * feeRate * 100) / 100;
-        const netAmt = t && t.netAmount !== undefined ? t.netAmount : Math.max(0, Math.round((grossAmt - feeAmt) * 100) / 100);
+        const feeRate = currentComm / 100;
+        const feeAmt = Math.round(grossAmt * feeRate * 100) / 100;
+        const netAmt = Math.max(0, Math.round((grossAmt - feeAmt) * 100) / 100);
 
         const res = DB.approveTransaction(activeRequestTxId, {
           reviewedBy: 'admin (manual)',
@@ -911,9 +914,9 @@ const AdminApp = (() => {
 
         const grossAmt = t.grossAmount || t.amount;
         const currentComm = (typeof DB !== 'undefined' && DB.getCommissionRate) ? DB.getCommissionRate() : 4;
-        const feeRate = (t && t.feeRate !== undefined) ? t.feeRate : (currentComm / 100);
-        const feeAmt = t.fee !== undefined ? t.fee : Math.round(grossAmt * feeRate * 100) / 100;
-        const netAmt = t.netAmount !== undefined ? t.netAmount : Math.max(0, Math.round((grossAmt - feeAmt) * 100) / 100);
+        const feeRate = currentComm / 100;
+        const feeAmt = Math.round(grossAmt * feeRate * 100) / 100;
+        const netAmt = Math.max(0, Math.round((grossAmt - feeAmt) * 100) / 100);
 
         const originalText = btnFlwText ? btnFlwText.textContent : 'Disburse via Flutterwave Transfer';
         if (btnFlwText) btnFlwText.textContent = `Sending ₦${formatAmount(netAmt)} via Flutterwave...`;
@@ -1970,7 +1973,7 @@ const AdminApp = (() => {
     const flwBadge     = document.getElementById('admin-flw-status-badge');
 
     const defaultPub = 'FLWPUBK-570758bf49301716d7e0133dce781024-X';
-    const defaultSec = 'b1zBtYkgc8TzebSKJAeHyriyI3NsyRPjtMRZhIYI0meRr2BUcrSTRETnCeu4SaQ6mimPJcyXH4PjkWLqgbFKDO';
+    const defaultSec = 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X';
 
     if (flwKeyInp) {
       const cleanPub = (flwCfg.publicKey && !flwCfg.publicKey.includes('@') && flwCfg.publicKey.startsWith('FLWPUBK'))

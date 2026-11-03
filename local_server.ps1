@@ -209,6 +209,88 @@ function Process-ClientRequest($context) {
             return
         }
 
+        # Supabase Proxy Route: /api/supabase/*
+        if ($rawPath.StartsWith("/api/supabase/", [System.StringComparison]::OrdinalIgnoreCase) -or $rawPath -eq "/api/supabase") {
+            $subPath = ""
+            if ($rawPath.Length -gt 14) {
+                $subPath = $rawPath.Substring(14).TrimStart('/')
+            }
+            $query = $request.Url.Query
+            $targetUrl = "https://cmzfqeifdlktavqsoyjt.supabase.co/$subPath$query"
+
+            try {
+                $authHeader = $request.Headers["Authorization"]
+                $apiKey = $request.Headers["apikey"]
+                $prefer = $request.Headers["Prefer"]
+
+                $curlArgs = [System.Collections.Generic.List[string]]::new()
+                $curlArgs.Add("-s")
+                $curlArgs.Add("-w")
+                $curlArgs.Add("---HTTPCODE---%{http_code}")
+                $curlArgs.Add("-X")
+                $curlArgs.Add($method)
+                $curlArgs.Add("-H")
+                $curlArgs.Add("Accept: application/json")
+
+                if ($apiKey) {
+                    $curlArgs.Add("-H")
+                    $curlArgs.Add("apikey: $apiKey")
+                }
+                if ($authHeader) {
+                    $curlArgs.Add("-H")
+                    $curlArgs.Add("Authorization: $authHeader")
+                }
+                if ($prefer) {
+                    $curlArgs.Add("-H")
+                    $curlArgs.Add("Prefer: $prefer")
+                }
+
+                $tempBodyFile = $null
+                if ($method -eq "POST" -or $method -eq "PUT" -or $method -eq "PATCH") {
+                    $curlArgs.Add("-H")
+                    $curlArgs.Add("Content-Type: application/json")
+
+                    $tempBodyFile = [System.IO.Path]::GetTempFileName()
+                    $fs = [System.IO.File]::Create($tempBodyFile)
+                    $request.InputStream.CopyTo($fs)
+                    $fs.Flush()
+                    $fs.Close()
+
+                    $curlArgs.Add("--data-binary")
+                    $curlArgs.Add("@$tempBodyFile")
+                }
+
+                $curlArgs.Add($targetUrl)
+
+                $rawOutput = & "curl.exe" $curlArgs
+
+                if ($tempBodyFile -and [System.IO.File]::Exists($tempBodyFile)) {
+                    try { Remove-Item $tempBodyFile -Force } catch {}
+                }
+
+                $parts = $rawOutput -split "---HTTPCODE---"
+                $respBody = $parts[0]
+                $statusCode = 200
+                if ($parts.Length -gt 1) {
+                    [int]::TryParse($parts[1].Trim(), [ref]$statusCode) | Out-Null
+                }
+
+                $response.StatusCode = $statusCode
+                $response.ContentType = "application/json; charset=utf-8"
+                $respBytes = [System.Text.Encoding]::UTF8.GetBytes($respBody)
+                $response.ContentLength64 = $respBytes.Length
+                $response.OutputStream.Write($respBytes, 0, $respBytes.Length)
+            } catch {
+                $response.StatusCode = 500
+                $errMsg = $_.Exception.Message -replace '"', '\"'
+                $errBytes = [System.Text.Encoding]::UTF8.GetBytes("{`"status`":`"error`",`"message`":`"$errMsg`"}")
+                $response.OutputStream.Write($errBytes, 0, $errBytes.Length)
+            }
+
+            $response.Close()
+            return
+        }
+
         # Static File Serving
         $relPath = [System.Uri]::UnescapeDataString($rawPath).TrimStart('/')
         if ([string]::IsNullOrWhiteSpace($relPath)) {

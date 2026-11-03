@@ -62,6 +62,80 @@ const DB = {
     }, 350);
   },
 
+  // Safe user object merger: NEVER lets empty/null photo or bank clobber real data!
+  _mergeUser(baseUser, updatedUser) {
+    if (!baseUser) return updatedUser || null;
+    if (!updatedUser) return baseUser || null;
+
+    const merged = { ...baseUser, ...updatedUser };
+
+    // Critical: Never overwrite a valid passportPhoto with null, undefined, or empty string!
+    const basePhoto = baseUser.passportPhoto;
+    const updPhoto  = updatedUser.passportPhoto;
+    if (updPhoto && typeof updPhoto === 'string' && updPhoto.length > 50) {
+      merged.passportPhoto = updPhoto;
+    } else if (basePhoto && typeof basePhoto === 'string' && basePhoto.length > 50) {
+      merged.passportPhoto = basePhoto;
+    } else {
+      merged.passportPhoto = null;
+    }
+
+    // Never overwrite registered payoutBank with empty/null
+    const baseBank = baseUser.payoutBank || baseUser.bankDetails;
+    const updBank  = updatedUser.payoutBank || updatedUser.bankDetails;
+    if (updBank && (updBank.accountNumber || updBank.bankName)) {
+      merged.payoutBank = updBank;
+    } else if (baseBank && (baseBank.accountNumber || baseBank.bankName)) {
+      merged.payoutBank = baseBank;
+    }
+
+    // Preserve non-empty phone, email, password, names
+    if (!merged.phone && baseUser.phone) merged.phone = baseUser.phone;
+    if (!merged.email && baseUser.email) merged.email = baseUser.email;
+    if (!merged.password && baseUser.password) merged.password = baseUser.password;
+    if (!merged.firstName && baseUser.firstName) merged.firstName = baseUser.firstName;
+    if (!merged.lastName && baseUser.lastName) merged.lastName = baseUser.lastName;
+
+    return merged;
+  },
+
+  // Secure Supabase API Call (Direct with Local/Edge Server Proxy fallback)
+  async fetchSupabase(endpoint, options = {}) {
+    const cleanEndpoint = endpoint.replace(/^\/+/, '');
+    const directUrl = `${this.SUPABASE.URL}/${cleanEndpoint}`;
+    const proxyUrl  = `/api/supabase/${cleanEndpoint}`;
+
+    const headers = {
+      'apikey': this.SUPABASE.ANON_KEY,
+      'Authorization': `Bearer ${this.SUPABASE.ANON_KEY}`,
+      'Accept': 'application/json',
+      ...(options.headers || {})
+    };
+
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const urls = isLocalhost ? [directUrl, proxyUrl] : [directUrl];
+
+    let lastError = null;
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, { ...options, headers });
+        const rawText = await res.text();
+        let json = null;
+        try { json = JSON.parse(rawText); } catch(e) { json = null; }
+
+        if (!json && res.status >= 400 && url.startsWith('/')) {
+          continue;
+        }
+
+        return { ok: res.ok, status: res.status, data: json, rawText: rawText };
+      } catch (err) {
+        lastError = err;
+        continue;
+      }
+    }
+    throw lastError || new Error('Network error connecting to Supabase database.');
+  },
+
   async syncPush() {
     if (!navigator.onLine) return false;
     try {
@@ -76,16 +150,11 @@ const DB = {
       let cloudResetId = null;
 
       try {
-        const pullRes = await fetch(`${this.SUPABASE.URL}/rest/v1/${this.SUPABASE.TABLE}?id=eq.${this.SUPABASE.SYNC_ID}&select=*`, {
+        const pullRes = await this.fetchSupabase(`rest/v1/${this.SUPABASE.TABLE}?id=eq.${this.SUPABASE.SYNC_ID}&select=*`, {
           method: 'GET',
-          headers: {
-            'apikey': this.SUPABASE.ANON_KEY,
-            'Authorization': `Bearer ${this.SUPABASE.ANON_KEY}`,
-            'Accept': 'application/json',
-          },
         });
-        if (pullRes.ok) {
-          const rows = await pullRes.json();
+        if (pullRes.ok && pullRes.data) {
+          const rows = pullRes.data;
           const rec = (Array.isArray(rows) && rows[0]) ? rows[0] : (rows || {});
           cloudUsers = Array.isArray(rec.users) ? rec.users : [];
           cloudTxs = Array.isArray(rec.transactions) ? rec.transactions : [];
@@ -107,7 +176,7 @@ const DB = {
         return true;
       }
 
-      // Merge Users (Union by ID, keeping all unique accounts and latest updates)
+      // Merge Users (Union by ID, keeping all unique accounts and protecting photos)
       const localUsers = this.getUsers();
       const userMap = new Map();
       cloudUsers.forEach(u => {
@@ -116,7 +185,7 @@ const DB = {
       localUsers.forEach(u => {
         if (u && u.id) {
           const existing = userMap.get(u.id);
-          userMap.set(u.id, existing ? { ...existing, ...u } : u);
+          userMap.set(u.id, existing ? this._mergeUser(existing, u) : u);
         }
       });
       const mergedUsers = Array.from(userMap.values());
@@ -159,11 +228,20 @@ const DB = {
 
       // Merge Commission Rate
       const localComm = this.getCommissionRate();
-      const finalComm = (cloudComm !== undefined && cloudComm !== null && !isNaN(Number(cloudComm))) ? Number(cloudComm) : localComm;
+      const localCommUpdated = localStorage.getItem('sun_commission_updated_at') || '2000-01-01T00:00:00.000Z';
+      const cloudCommUpdated = (cloudFlw && (cloudFlw.commission_updated_at || cloudFlw.updatedAt)) || '2000-01-01T00:00:00.000Z';
+
+      let finalComm = localComm;
+      if (cloudComm !== undefined && cloudComm !== null && !isNaN(Number(cloudComm)) && cloudCommUpdated > localCommUpdated) {
+        finalComm = Number(cloudComm);
+        localStorage.setItem('sun_commission_percentage', String(finalComm));
+        localStorage.setItem('sun_commission_updated_at', cloudCommUpdated);
+      }
 
       // Safely embed commission rate in flutterwave_config JSON to match Supabase schema
       if (mergedFlw && typeof mergedFlw === 'object') {
         mergedFlw.commission_percentage = finalComm;
+        mergedFlw.commission_updated_at = localCommUpdated > cloudCommUpdated ? localCommUpdated : cloudCommUpdated;
       }
 
       const payload = {
@@ -177,11 +255,9 @@ const DB = {
         updated_at: new Date().toISOString(),
       };
 
-      const res = await fetch(`${this.SUPABASE.URL}/rest/v1/${this.SUPABASE.TABLE}?on_conflict=id`, {
+      const res = await this.fetchSupabase(`rest/v1/${this.SUPABASE.TABLE}?on_conflict=id`, {
         method: 'POST',
         headers: {
-          'apikey': this.SUPABASE.ANON_KEY,
-          'Authorization': `Bearer ${this.SUPABASE.ANON_KEY}`,
           'Content-Type': 'application/json',
           'Prefer': 'resolution=merge-duplicates,return=minimal',
         },
@@ -210,20 +286,15 @@ const DB = {
     this.notifySync('syncing');
 
     try {
-      const res = await fetch(`${this.SUPABASE.URL}/rest/v1/${this.SUPABASE.TABLE}?id=eq.${this.SUPABASE.SYNC_ID}&select=*`, {
+      const res = await this.fetchSupabase(`rest/v1/${this.SUPABASE.TABLE}?id=eq.${this.SUPABASE.SYNC_ID}&select=*`, {
         method: 'GET',
-        headers: {
-          'apikey': this.SUPABASE.ANON_KEY,
-          'Authorization': `Bearer ${this.SUPABASE.ANON_KEY}`,
-          'Accept': 'application/json',
-        },
       });
 
       if (!res.ok) {
         throw new Error(`Supabase Sync Pull HTTP ${res.status}`);
       }
 
-      const rows = await res.json();
+      const rows = res.data;
       const record = (Array.isArray(rows) && rows[0]) ? rows[0] : (rows || {});
       const cloudUsers = Array.isArray(record.users) ? record.users : [];
       const cloudTxs   = Array.isArray(record.transactions) ? record.transactions : [];
@@ -278,7 +349,8 @@ const DB = {
             needsPushToCloud = true;
           } else {
             const cloudU = userMap.get(lu.id);
-            userMap.set(lu.id, { ...cloudU, ...lu });
+            // Safe merge: Cloud is authoritative, but photos, banks and local updates are never lost
+            userMap.set(lu.id, this._mergeUser(lu, cloudU));
           }
         }
       });
@@ -344,11 +416,27 @@ const DB = {
       }
 
       // 6. Commission percentage sync
-      const cloudComm = (record.flutterwave_config && record.flutterwave_config.commission_percentage !== undefined)
-        ? record.flutterwave_config.commission_percentage
+      const cloudFlw = record.flutterwave_config || record.flutterwaveConfig || {};
+      const cloudComm = (cloudFlw && cloudFlw.commission_percentage !== undefined)
+        ? cloudFlw.commission_percentage
         : (record.commission_percentage !== undefined ? record.commission_percentage : record.commissionPercentage);
+      const cloudCommUpdated = (cloudFlw && (cloudFlw.commission_updated_at || cloudFlw.updatedAt)) || '';
+      const localCommUpdated = localStorage.getItem('sun_commission_updated_at') || '';
+
       if (cloudComm !== undefined && cloudComm !== null && !isNaN(Number(cloudComm))) {
-        localStorage.setItem('sun_commission_percentage', String(cloudComm));
+        if (!localCommUpdated || !cloudCommUpdated || cloudCommUpdated >= localCommUpdated) {
+          const numComm = Number(cloudComm);
+          localStorage.setItem('sun_commission_percentage', String(numComm));
+          if (cloudCommUpdated) {
+            localStorage.setItem('sun_commission_updated_at', cloudCommUpdated);
+          }
+          // Update dynamic fee badges everywhere in DOM
+          document.querySelectorAll('.comm-rate-badge').forEach(b => {
+            b.textContent = `${numComm}%`;
+          });
+          const adminBadge = document.getElementById('admin-more-commission-badge');
+          if (adminBadge) adminBadge.textContent = `${numComm}%`;
+        }
       }
 
       this._isPulling = false;
@@ -871,7 +959,24 @@ const DB = {
       throw new Error('Commission rate must be a valid percentage between 0% and 100%.');
     }
     const rounded = Math.round(num * 100) / 100;
+    const nowIso = new Date().toISOString();
     localStorage.setItem('sun_commission_percentage', String(rounded));
+    localStorage.setItem('sun_commission_updated_at', nowIso);
+
+    try {
+      const flwCfg = this.getFlutterwaveConfig();
+      flwCfg.commission_percentage = rounded;
+      flwCfg.commission_updated_at = nowIso;
+      flwCfg.updatedAt = nowIso;
+      localStorage.setItem('sun_flutterwave_config', JSON.stringify(flwCfg));
+    } catch (e) {}
+
+    document.querySelectorAll('.comm-rate-badge').forEach(b => {
+      b.textContent = `${rounded}%`;
+    });
+    const adminBadge = document.getElementById('admin-more-commission-badge');
+    if (adminBadge) adminBadge.textContent = `${rounded}%`;
+
     this.scheduleCloudPush();
     return rounded;
   },
