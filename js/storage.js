@@ -3,7 +3,7 @@
 // ============================================
 
 // ---- HARD SYSTEM RESET EPOCH ----
-const SYSTEM_RESET_ID = 'RESET_IR00001_V3';
+const SYSTEM_RESET_ID = 'RESET_IR00001_V4';
 
 (function enforceSystemReset() {
   try {
@@ -393,7 +393,7 @@ const DB = {
               userMap.set(newId, { ...lu, id: newId });
               needsPushToCloud = true;
             } else {
-              userMap.set(lu.id, this._mergeUser(cloudU, lu));
+              userMap.set(lu.id, this._mergeUser(lu, cloudU));
             }
           }
         }
