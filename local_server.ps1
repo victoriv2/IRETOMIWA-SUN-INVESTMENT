@@ -42,9 +42,11 @@ Write-Host ""
 Write-Host "FLUTTERWAVE WHITELIST INSTRUCTION:" -ForegroundColor Cyan
 Write-Host " 1. Open Flutterwave Dashboard: https://dashboard.flutterwave.com" -ForegroundColor White
 Write-Host " 2. Navigate to: Settings -> Business Preferences -> Security" -ForegroundColor White
-Write-Host " 3. Under 'Whitelisted IP Addresses', make sure this IP is added:" -ForegroundColor White
+Write-Host " 3. Ensure 'IP Whitelist' toggle is ENABLED (Turned ON)" -ForegroundColor White
+Write-Host " 4. In 'Whitelisted IP Addresses', add:" -ForegroundColor White
 Write-Host "    $publicIp" -ForegroundColor Yellow
-Write-Host " 4. Ensure Transfer Preferences is set to 'API' or 'Both'." -ForegroundColor White
+Write-Host " 5. Under Transfer Preferences, ensure 'API' or 'Both' is selected." -ForegroundColor White
+Write-Host " 6. Click 'Save Changes'." -ForegroundColor White
 Write-Host ""
 Write-Host "NOTE: When using this local server, all payouts originate from your PC's IP" -ForegroundColor Gray
 Write-Host "      ($publicIp), NOT from Netlify or cloud servers." -ForegroundColor Gray
@@ -138,7 +140,13 @@ function Process-ClientRequest($context) {
                 $webReq = [System.Net.HttpWebRequest]::Create($targetUrl)
                 $webReq.Method = $method
                 $webReq.Timeout = 45000
-                $webReq.UserAgent = "IretomiwaSunLocalProxy/1.0"
+                $incomingUa = $request.Headers["User-Agent"]
+                if ($incomingUa) {
+                    $webReq.UserAgent = $incomingUa
+                } else {
+                    $webReq.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                }
+                $webReq.Accept = "application/json"
 
                 $authHeader = $request.Headers["Authorization"]
                 if ($authHeader) {

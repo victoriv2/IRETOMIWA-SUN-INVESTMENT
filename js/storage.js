@@ -1221,9 +1221,11 @@ const DB = {
         success: false,
         error: (json && json.message)
           ? json.message
-          : (response.status === 502
-              ? 'Flutterwave API gateway temporarily busy (502). Please retry in a few moments.'
-              : (response.status ? `Flutterwave response code ${response.status}` : 'Transfer disbursement failed on Flutterwave.')),
+          : (response.status === 403
+              ? 'Flutterwave Access Denied (403): Ensure IP Whitelisting is turned ON in your Flutterwave dashboard (Settings -> Security) and your PC IP is added.'
+              : (response.status === 502
+                  ? 'Flutterwave API gateway temporarily busy (502). Please retry in a few moments.'
+                  : (response.status ? `Flutterwave response code ${response.status}` : 'Transfer disbursement failed on Flutterwave.'))),
       };
     } catch (err) {
       console.error('Flutterwave transfer error:', err);
