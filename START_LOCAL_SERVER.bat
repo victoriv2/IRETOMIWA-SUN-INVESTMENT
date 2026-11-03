@@ -6,11 +6,13 @@ echo ===========================================================================
 echo           STARTING IRETOMIWA SUN INVESTMENT LOCAL SERVER
 echo ==============================================================================
 echo.
-echo Launching local server with Flutterwave IP proxy...
+echo Initializing server on http://localhost:8080 ...
+echo (Do not close this command window while using the application)
 echo.
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0local_server.ps1"
-if %ERRORLEVEL% NEQ 0 (
-    echo.
-    echo Server stopped or encountered an error.
-    pause
-)
+echo.
+echo ==============================================================================
+echo Local server has stopped.
+echo ==============================================================================
+echo.
+pause
