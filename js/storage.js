@@ -9,26 +9,11 @@ const SYSTEM_RESET_ID = 'RESET_IR00001_V5';
   try {
     const currentEpoch = localStorage.getItem('sun_system_reset_epoch');
     if (currentEpoch !== SYSTEM_RESET_ID) {
-      // Clear ALL local cache, user sessions, tabs, and credentials to start 100% fresh with Supabase
       localStorage.setItem('sun_system_reset_epoch', SYSTEM_RESET_ID);
-      localStorage.setItem('sun_users', '[]');
-      localStorage.setItem('sun_transactions', '[]');
-      localStorage.setItem('sun_custom_categories', '[]');
-      localStorage.removeItem('sun_session');
-      localStorage.removeItem('sun_user_session');
-      localStorage.removeItem('sun_active_user');
-      localStorage.removeItem('sun_user_tab');
-      localStorage.removeItem('sun_admin_session');
-      localStorage.removeItem('sun_admin_tab');
-      localStorage.removeItem('sun_last_reset_at');
+      // Clean up obsolete bridge keys without destroying live user sessions or accounts
       localStorage.removeItem('bridge_users');
       localStorage.removeItem('bridge_transactions');
       localStorage.removeItem('bridge_admin_session');
-      try { sessionStorage.clear(); } catch(e) {}
-      try {
-        document.documentElement.classList.remove('is-user-logged-in');
-        document.documentElement.classList.remove('is-admin-logged-in');
-      } catch(e) {}
     }
   } catch(e) {}
 })();
@@ -528,12 +513,17 @@ const DB = {
         localStorage.setItem('sun_transactions', JSON.stringify(cloudTxs));
         const cloudCats = Array.isArray(record.custom_categories) ? record.custom_categories : [];
         localStorage.setItem('sun_custom_categories', JSON.stringify(cloudCats));
-        localStorage.removeItem('sun_session');
-        localStorage.removeItem('sun_user_session');
-        localStorage.removeItem('sun_active_user');
-        localStorage.removeItem('sun_user_tab');
-        localStorage.removeItem('sun_admin_session');
-        localStorage.removeItem('sun_admin_tab');
+
+        // Only clear session if user account was deleted from cloud
+        const activeUserSession = this.getSession();
+        if (activeUserSession && activeUserSession.userId) {
+          const userExists = cloudUsers.some(u => u.id === activeUserSession.userId);
+          if (!userExists) {
+            localStorage.removeItem('sun_session');
+            localStorage.removeItem('sun_user_session');
+            localStorage.removeItem('sun_active_user');
+          }
+        }
 
         const activeFlw = record.flutterwave_config || record.flutterwaveConfig;
         if (cloudAdmin && cloudAdmin.password) {
@@ -1661,6 +1651,11 @@ const DB = {
     }
   },
 };
+
+// Export DB to window
+try {
+  window.DB = DB;
+} catch(e) {}
 
 // Initialize Authoritative Cloud Sync on boot
 DB.initCloudSync();

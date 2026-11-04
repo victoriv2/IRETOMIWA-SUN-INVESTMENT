@@ -868,16 +868,10 @@ const CustomPicker = (() => {
   };
 })();
 
-// Auto-init on DOM ready or immediately if loaded
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    CustomPicker.init();
-    if (typeof CustomAlert !== 'undefined') CustomAlert.init();
-  });
-} else {
-  CustomPicker.init();
-  if (typeof CustomAlert !== 'undefined') CustomAlert.init();
-}
+// Export to window
+try {
+  window.CustomPicker = CustomPicker;
+} catch(e) {}
 
 // ============================================
 // CUSTOM ALERT & MODULAR DIALOG SYSTEM
@@ -1148,7 +1142,24 @@ const CustomAlert = (() => {
   };
 })();
 
-// Immediately init or on ready
-if (typeof CustomAlert !== 'undefined') {
-  CustomAlert.init();
-}
+// Export to window
+try {
+  window.CustomPicker = CustomPicker;
+  window.CustomAlert = CustomAlert;
+} catch(e) {}
+
+// Auto-init on DOM ready or immediately if loaded
+(() => {
+  let initialized = false;
+  function initPickers() {
+    if (initialized) return;
+    initialized = true;
+    try { if (typeof CustomPicker !== 'undefined') CustomPicker.init(); } catch(e) {}
+    try { if (typeof CustomAlert !== 'undefined') CustomAlert.init(); } catch(e) {}
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPickers);
+  } else {
+    initPickers();
+  }
+})();

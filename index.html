@@ -13,18 +13,9 @@
       var ACTIVE_EPOCH = 'RESET_IR00001_V5';
       if (localStorage.getItem('sun_system_reset_epoch') !== ACTIVE_EPOCH) {
         localStorage.setItem('sun_system_reset_epoch', ACTIVE_EPOCH);
-        localStorage.setItem('sun_users', '[]');
-        localStorage.setItem('sun_transactions', '[]');
-        localStorage.setItem('sun_custom_categories', '[]');
-        localStorage.removeItem('sun_session');
-        localStorage.removeItem('sun_user_session');
-        localStorage.removeItem('sun_active_user');
-        localStorage.removeItem('sun_user_tab');
-        localStorage.removeItem('sun_admin_session');
-        localStorage.removeItem('sun_admin_tab');
         localStorage.removeItem('bridge_users');
         localStorage.removeItem('bridge_transactions');
-        try { sessionStorage.clear(); } catch(e) {}
+        localStorage.removeItem('bridge_admin_session');
       }
 
       var u = localStorage.getItem('sun_session');
@@ -67,7 +58,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261104_SYNC_V60';
+      var APP_BUILD_VER = '20261104_SYNC_V61';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -131,7 +122,7 @@
 
           <div id="login-error" class="form-error hidden"></div>
 
-          <button type="submit" class="btn-primary btn-full" id="login-btn">Sign In</button>
+          <button type="button" class="btn-primary btn-full" id="login-btn">Sign In</button>
         </form>
 
         <p class="auth-switch">Don't have an account? <a href="#" id="goto-signup">Create one</a></p>
@@ -743,7 +734,7 @@
 
           <div id="admin-login-error" class="form-error hidden"></div>
 
-          <button type="submit" class="btn-primary btn-full" id="admin-login-btn">Sign In to Dashboard</button>
+          <button type="button" class="btn-primary btn-full" id="admin-login-btn">Sign In to Dashboard</button>
         </form>
 
         <p class="auth-switch"><a href="#" id="admin-to-user-portal">Return to User Portal</a></p>
@@ -2575,13 +2566,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261104_v60"></script>
-  <script src="js/picker.js?v=20261104_v60"></script>
+  <script src="js/storage.js?v=20261104_v61"></script>
+  <script src="js/picker.js?v=20261104_v61"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261104_v60"></script>
-  <script src="js/auth.js?v=20261104_v60"></script>
-  <script src="js/user.js?v=20261104_v60"></script>
-  <script src="js/admin.js?v=20261104_v60"></script>
-  <script src="js/app.js?v=20261104_v60"></script>
+  <script src="js/export.js?v=20261104_v61"></script>
+  <script src="js/auth.js?v=20261104_v61"></script>
+  <script src="js/user.js?v=20261104_v61"></script>
+  <script src="js/admin.js?v=20261104_v61"></script>
+  <script src="js/app.js?v=20261104_v61"></script>
 </body>
 </html>

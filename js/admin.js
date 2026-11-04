@@ -1042,8 +1042,6 @@ const AdminApp = (() => {
 
                 // Check if rawErr already contains an IP address
                 const ipMatch = rawErr.match(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/);
-                const initialIp = ipMatch ? ipMatch[0] : 'Detecting IP...';
-
                 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
                 const initialIp = ipMatch ? ipMatch[0] : (isLocal ? 'Detecting IP...' : 'Cloud Dynamic IP (AWS)');
 
@@ -2662,54 +2660,74 @@ const AdminApp = (() => {
 
   function initLoginForm() {
     const form = document.getElementById('admin-login-form');
-    if (!form) return;
+    const submitBtn = document.getElementById('admin-login-btn');
+    if (!form && !submitBtn) return;
 
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const errEmail = document.getElementById('err-admin-email');
-      const errPw    = document.getElementById('err-admin-password');
-      const errGen   = document.getElementById('admin-login-error');
-      if (errEmail) errEmail.textContent = '';
-      if (errPw)    errPw.textContent = '';
-      if (errGen)   errGen.classList.add('hidden');
-
-      const emailInput = document.getElementById('admin-email');
-      const pwInput    = document.getElementById('admin-password');
-      const email = emailInput ? emailInput.value.trim() : '';
-      const pw    = pwInput ? pwInput.value : '';
-
-      let valid = true;
-      if (!email) {
-        if (errEmail) errEmail.textContent = 'Admin username or email is required.';
-        valid = false;
+    let isLoggingIn = false;
+    const doAdminLogin = (e) => {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
       }
-      if (!pw) {
-        if (errPw) errPw.textContent = 'Password is required.';
-        valid = false;
-      }
-      if (!valid) return;
+      if (isLoggingIn) return;
+      isLoggingIn = true;
 
-      const admin = DB.getAdmin();
-      const adminEmail = (admin.email || 'admin@suninvestment.com').toLowerCase();
-      const adminUser = (admin.username || 'admin').toLowerCase();
-      const idLower = email.toLowerCase();
-      const isMatchId = (idLower === adminEmail || idLower === adminUser || idLower === 'admin');
-      const isMatchPw = (pw === admin.password || pw === 'Admin@123' || pw === 'adminpassword123');
+      try {
+        const errEmail = document.getElementById('err-admin-email');
+        const errPw    = document.getElementById('err-admin-password');
+        const errGen   = document.getElementById('admin-login-error');
+        if (errEmail) errEmail.textContent = '';
+        if (errPw)    errPw.textContent = '';
+        if (errGen)   errGen.classList.add('hidden');
 
-      if (isMatchId && isMatchPw) {
-        DB.setAdminSession({ role: 'admin' });
-        if (window.App) {
-          App.navigate('admin');
-        } else {
+        const emailInput = document.getElementById('admin-email');
+        const pwInput    = document.getElementById('admin-password');
+        const email = emailInput ? emailInput.value.trim() : '';
+        const pw    = pwInput ? pwInput.value : '';
+
+        let valid = true;
+        if (!email) {
+          if (errEmail) errEmail.textContent = 'Admin username or email is required.';
+          valid = false;
+        }
+        if (!pw) {
+          if (errPw) errPw.textContent = 'Password is required.';
+          valid = false;
+        }
+        if (!valid) {
+          isLoggingIn = false;
+          return;
+        }
+
+        const admin = DB.getAdmin();
+        const adminEmail = (admin.email || 'admin@suninvestment.com').toLowerCase();
+        const adminUser = (admin.username || 'admin').toLowerCase();
+        const idLower = email.toLowerCase();
+        const isMatchId = (idLower === adminEmail || idLower === adminUser || idLower === 'admin');
+        const isMatchPw = (pw === admin.password || pw === 'Admin@123' || pw === 'adminpassword123');
+
+        if (isMatchId && isMatchPw) {
+          localStorage.setItem('sun_active_portal', 'admin');
+          DB.setAdminSession({ role: 'admin' });
           showView('dashboard');
+          if (typeof App !== 'undefined' && App.navigate) {
+            App.navigate('admin');
+          }
+        } else {
+          if (errGen) {
+            errGen.textContent = 'Invalid administrator credentials.';
+            errGen.classList.remove('hidden');
+          }
         }
-      } else {
-        if (errGen) {
-          errGen.textContent = 'Invalid administrator credentials.';
-          errGen.classList.remove('hidden');
-        }
+      } catch (err) {
+        console.error('Admin login error:', err);
+      } finally {
+        isLoggingIn = false;
       }
-    });
+    };
+
+    if (form) form.addEventListener('submit', doAdminLogin);
+    if (submitBtn) submitBtn.addEventListener('click', doAdminLogin);
   }
 
   function initLogout() {
@@ -3457,15 +3475,18 @@ const AdminApp = (() => {
   };
 })();
 
+// Export to window
+try {
+  window.AdminApp = AdminApp;
+} catch(e) {}
+
 // Auto-boot reliably on DOM Ready or immediately if already loaded
 (() => {
   let booted = false;
   function bootAdmin() {
     if (booted) return;
     booted = true;
-    if (!window.App) {
-      AdminApp.initOnce();
-    }
+    AdminApp.initOnce(true);
   }
 
   if (document.readyState === 'loading') {

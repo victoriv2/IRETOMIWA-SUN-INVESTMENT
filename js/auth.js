@@ -308,69 +308,102 @@ const Auth = (() => {
   // ---- LOGIN ----
   function initLogin() {
     const form = document.getElementById('login-form');
-    if (!form) return;
+    const submitBtn = document.getElementById('login-btn');
+    if (!form && !submitBtn) return;
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      clearErrors('err-login-identifier', 'err-login-password');
-      showFormError('login-error', '');
-
-      const identifierInput = document.getElementById('login-identifier');
-      const identifier = identifierInput ? identifierInput.value.trim() : '';
-      const password   = document.getElementById('login-password').value;
-
-      let valid = true;
-      if (!identifier) {
-        setError('err-login-identifier', 'Enter your email address or phone number.');
-        valid = false;
+    let isLoggingIn = false;
+    const doLogin = async (e) => {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
       }
-      if (!password) {
-        setError('err-login-password', 'Password is required.');
-        valid = false;
+      if (isLoggingIn) return;
+      isLoggingIn = true;
+
+      try {
+        clearErrors('err-login-identifier', 'err-login-password');
+        showFormError('login-error', '');
+
+        const identifierInput = document.getElementById('login-identifier');
+        const identifier = identifierInput ? identifierInput.value.trim() : '';
+        const passwordInput = document.getElementById('login-password');
+        const password = passwordInput ? passwordInput.value : '';
+
+        let valid = true;
+        if (!identifier) {
+          setError('err-login-identifier', 'Enter your email address or phone number.');
+          valid = false;
+        }
+        if (!password) {
+          setError('err-login-password', 'Password is required.');
+          valid = false;
+        }
+        if (!valid) {
+          isLoggingIn = false;
+          return;
+        }
+
+        // Check admin login first
+        const admin = DB.getAdmin();
+        const adminEmail = (admin.email || 'admin@suninvestment.com').toLowerCase();
+        const adminUser = (admin.username || 'admin').toLowerCase();
+        const idLower = identifier.toLowerCase();
+        const isMatchId = (idLower === adminEmail || idLower === adminUser || idLower === 'admin');
+        const isMatchPw = (password === admin.password || password === 'Admin@123' || password === 'adminpassword123');
+
+        if (isMatchId && isMatchPw) {
+          localStorage.setItem('sun_active_portal', 'admin');
+          DB.setAdminSession({ role: 'admin' });
+          if (typeof App !== 'undefined' && App.navigate) {
+            App.navigate('admin');
+          } else if (window.AdminApp) {
+            window.AdminApp.showView('dashboard');
+          }
+          isLoggingIn = false;
+          return;
+        }
+
+        // Check user by Email OR Phone number OR Client ID
+        let user = DB.getUserByIdentifier(identifier);
+        if (!user && navigator.onLine) {
+          try {
+            await DB.syncPull();
+            user = DB.getUserByIdentifier(identifier);
+          } catch (err) {}
+        }
+
+        if (!user) {
+          showFormError('login-error', 'Account does not exist with this email or phone number. Please sign up.');
+          isLoggingIn = false;
+          return;
+        }
+
+        const isMatchUserPw = (user.password === password) ||
+          (user.id === 'ir00003' && (password === 'Danilo101...' || password === 'User@12345' || password === 'Danilo101'));
+
+        if (!isMatchUserPw) {
+          showFormError('login-error', 'Incorrect password. Please try again.');
+          isLoggingIn = false;
+          return;
+        }
+
+        localStorage.setItem('sun_active_portal', 'user');
+        DB.setSession({ userId: user.id });
+        if (typeof App !== 'undefined' && App.navigate) {
+          App.navigate('user');
+        } else if (window.UserApp) {
+          window.UserApp.load(user.id);
+        }
+      } catch (err) {
+        console.error('Login error:', err);
+        showFormError('login-error', 'Unable to complete login. Please try again.');
+      } finally {
+        isLoggingIn = false;
       }
-      if (!valid) return;
+    };
 
-      // Check admin login first
-      const admin = DB.getAdmin();
-      const adminEmail = (admin.email || 'admin@suninvestment.com').toLowerCase();
-      const adminUser = (admin.username || 'admin').toLowerCase();
-      const idLower = identifier.toLowerCase();
-      const isMatchId = (idLower === adminEmail || idLower === adminUser || idLower === 'admin');
-      const isMatchPw = (password === admin.password || password === 'Admin@123' || password === 'adminpassword123');
-
-      if (isMatchId && isMatchPw) {
-        localStorage.setItem('sun_active_portal', 'admin');
-        DB.setAdminSession({ role: 'admin' });
-        App.navigate('admin');
-        return;
-      }
-
-      // Check user by Email OR Phone number
-      let user = DB.getUserByIdentifier(identifier);
-      if (!user && navigator.onLine) {
-        try {
-          await DB.syncPull();
-          user = DB.getUserByIdentifier(identifier);
-        } catch (err) {}
-      }
-
-      if (!user) {
-        showFormError('login-error', 'Account does not exist with this email or phone number. Please sign up.');
-        return;
-      }
-
-      const isMatchUserPw = (user.password === password) ||
-        (user.id === 'ir00003' && (password === 'Danilo101...' || password === 'User@12345' || password === 'Danilo101'));
-
-      if (!isMatchUserPw) {
-        showFormError('login-error', 'Incorrect password. Please try again.');
-        return;
-      }
-
-      localStorage.setItem('sun_active_portal', 'user');
-      DB.setSession({ userId: user.id });
-      App.navigate('user');
-    });
+    if (form) form.addEventListener('submit', doLogin);
+    if (submitBtn) submitBtn.addEventListener('click', doLogin);
   }
 
   // ---- Navigation links ----
@@ -397,3 +430,8 @@ const Auth = (() => {
     validateNigerianPhone,
   };
 })();
+
+// Export to window
+try {
+  window.Auth = Auth;
+} catch(e) {}

@@ -84,25 +84,38 @@ const App = (() => {
       if (adminSession) {
         updateUrlState('admin');
         showPage('admin');
-        if (window.AdminApp) {
-          AdminApp.showView('dashboard');
+        try {
+          if (typeof AdminApp !== 'undefined' && AdminApp.showView) {
+            AdminApp.showView('dashboard');
+          }
+        } catch(e) {
+          console.error('AdminApp.showView error:', e);
         }
       } else {
         updateUrlState('adminLogin');
         showPage('adminLogin');
-        if (window.AdminApp) {
-          AdminApp.showView('login');
-        }
+        try {
+          if (typeof AdminApp !== 'undefined' && AdminApp.showView) {
+            AdminApp.showView('login');
+          }
+        } catch(e) {}
       }
       return;
     }
 
     if (destination === 'adminLogin') {
+      const adminSession = DB.getAdminSession();
+      if (adminSession) {
+        navigate('admin');
+        return;
+      }
       updateUrlState('adminLogin');
       showPage('adminLogin');
-      if (window.AdminApp) {
-        AdminApp.showView('login');
-      }
+      try {
+        if (typeof AdminApp !== 'undefined' && AdminApp.showView) {
+          AdminApp.showView('login');
+        }
+      } catch(e) {}
       return;
     }
 
@@ -113,7 +126,26 @@ const App = (() => {
         if (user) {
           updateUrlState('user');
           showPage('user');
-          UserApp.load(session.userId);
+          try {
+            UserApp.load(session.userId);
+          } catch(e) {
+            console.error('UserApp.load error:', e);
+          }
+          return;
+        } else if (navigator.onLine) {
+          // Attempt async sync pull without kicking session immediately
+          DB.syncPull().then(() => {
+            const retryUser = DB.getUserById(session.userId);
+            if (retryUser) {
+              updateUrlState('user');
+              showPage('user');
+              try { UserApp.load(session.userId); } catch(e) {}
+            } else {
+              DB.clearSession();
+              updateUrlState('login');
+              showPage('login');
+            }
+          });
           return;
         } else {
           DB.clearSession();
@@ -236,6 +268,10 @@ const App = (() => {
       }
     }
     if (currentHash === '#admin-login') {
+      if (adminSession) {
+        navigate('admin');
+        return;
+      }
       navigate('adminLogin');
       return;
     }
@@ -271,6 +307,11 @@ const App = (() => {
 
   return { navigate, init, showPage };
 })();
+
+// Export to window
+try {
+  window.App = App;
+} catch(e) {}
 
 // Reliable boot on DOM ready or immediately if already loaded
 (() => {

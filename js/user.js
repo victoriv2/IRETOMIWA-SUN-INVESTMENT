@@ -1888,3 +1888,8 @@ const UserApp = (() => {
     switchTab,
   };
 })();
+
+// Export to window
+try {
+  window.UserApp = UserApp;
+} catch(e) {}
