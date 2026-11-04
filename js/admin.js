@@ -1034,18 +1034,20 @@ const AdminApp = (() => {
                   });
                 }
               } else if (isBlocked) {
+                const isIpErr = rawErr.toLowerCase().includes('ip whitelist') || rawErr.toLowerCase().includes('ip not whitelisted') || rawErr.toLowerCase().includes('ip address');
                 flwErrEl.innerHTML = `
-                  <div style="font-weight: 700; margin-bottom: 6px; color: #991b1b; font-size: 13.5px;">Flutterwave API Payouts Restricted on Account</div>
+                  <div style="font-weight: 700; margin-bottom: 6px; color: #991b1b; font-size: 13.5px;">${isIpErr ? 'Flutterwave IP Whitelist Restriction' : 'Flutterwave API Payouts Restricted on Account'}</div>
                   <div style="margin-bottom: 8px; color: #374151; font-size: 12px; line-height: 1.45;">
-                    Flutterwave returned: <em>"${rawErr}"</em>. Your Flutterwave merchant dashboard currently has API transfers locked.
+                    Flutterwave returned: <em>"${rawErr}"</em>.
                   </div>
                   <div style="background: #ffffff; border: 1.5px solid #fed7aa; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 12px; color: #9a3412;">
-                    <div style="font-weight: 800; margin-bottom: 4px; color: #c2410c;">How to unlock Flutterwave API Payouts:</div>
+                    <div style="font-weight: 800; margin-bottom: 4px; color: #c2410c;">Permanent Fix (No more IP copying):</div>
                     <ol style="margin: 0 0 0 16px; padding: 0; line-height: 1.45;">
                       <li>Log in to <strong>dashboard.flutterwave.com</strong>.</li>
                       <li>Go to <strong>Settings</strong> &rarr; <strong>Business Preferences</strong> &rarr; <strong>Security</strong>.</li>
-                      <li>Under <strong>Transfer Preferences</strong>, select <strong>"API"</strong> or <strong>"Both"</strong> (instead of Dashboard only).</li>
-                      <li>Save changes, then click <strong>Retry API Transfer</strong> below.</li>
+                      <li>Turn <strong>"IP Whitelist" toggle OFF (Disabled)</strong> so changing ISP IPs are never blocked.</li>
+                      <li>Under <strong>Transfer Preferences</strong>, ensure <strong>"API"</strong> or <strong>"Both"</strong> is selected.</li>
+                      <li>Click <strong>Save Changes</strong>, then click <strong>Retry API Transfer</strong> below.</li>
                     </ol>
                   </div>
                   <div style="display: flex; gap: 8px; flex-direction: column;">

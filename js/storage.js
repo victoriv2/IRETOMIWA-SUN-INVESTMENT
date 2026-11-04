@@ -1554,7 +1554,7 @@ const DB = {
         error: (json && json.message)
           ? json.message
           : (response.status === 403
-              ? 'Flutterwave Access Denied (403): Ensure IP Whitelisting is turned ON in your Flutterwave dashboard (Settings -> Security) and your PC IP is added.'
+              ? 'Flutterwave Access Denied (403): IP not whitelisted. Recommended: Turn IP Whitelist OFF in your Flutterwave dashboard (Settings -> Security) to disburse without IP restrictions.'
               : (response.status === 502
                   ? 'Flutterwave API gateway temporarily busy (502). Please retry in a few moments.'
                   : (response.status ? `Flutterwave response code ${response.status}` : 'Transfer disbursement failed on Flutterwave.'))),

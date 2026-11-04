@@ -39,17 +39,18 @@ Write-Host "--------------------------------------------------------------------
 Write-Host " YOUR PC'S PUBLIC IP ADDRESS IS: $publicIp" -ForegroundColor Yellow -BackgroundColor DarkGreen
 Write-Host "------------------------------------------------------------------------------" -ForegroundColor Green
 Write-Host ""
-Write-Host "FLUTTERWAVE WHITELIST INSTRUCTION:" -ForegroundColor Cyan
-Write-Host " 1. Open Flutterwave Dashboard: https://dashboard.flutterwave.com" -ForegroundColor White
-Write-Host " 2. Navigate to: Settings -> Business Preferences -> Security" -ForegroundColor White
-Write-Host " 3. Ensure 'IP Whitelist' toggle is ENABLED (Turned ON)" -ForegroundColor White
-Write-Host " 4. In 'Whitelisted IP Addresses', add:" -ForegroundColor White
-Write-Host "    $publicIp" -ForegroundColor Yellow
-Write-Host " 5. Under Transfer Preferences, ensure 'API' or 'Both' is selected." -ForegroundColor White
-Write-Host " 6. Click 'Save Changes'." -ForegroundColor White
+Write-Host "FLUTTERWAVE CONFIGURATION & IP SETTINGS:" -ForegroundColor Cyan
+Write-Host " [RECOMMENDED] Turn 'IP Whitelist' OFF in Flutterwave Dashboard:" -ForegroundColor Green
+Write-Host "   1. Open: https://dashboard.flutterwave.com" -ForegroundColor White
+Write-Host "   2. Go to: Settings -> Business Preferences -> Security" -ForegroundColor White
+Write-Host "   3. Turn 'IP Whitelist' toggle OFF (Disabled)." -ForegroundColor Green
+Write-Host "   4. Under Transfer Preferences, ensure 'API' or 'Both' is selected." -ForegroundColor White
+Write-Host "   5. Click 'Save Changes'." -ForegroundColor White
+Write-Host "   -> This permanently prevents payouts from failing when your internet IP changes!" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "NOTE: When using this local server, all payouts originate from your PC's IP" -ForegroundColor Gray
-Write-Host "      ($publicIp), NOT from Netlify or cloud servers." -ForegroundColor Gray
+Write-Host " [ALTERNATIVE] If you choose to keep IP Whitelist turned ON:" -ForegroundColor Yellow
+Write-Host "   Your PC's current public IP is: $publicIp" -ForegroundColor Yellow
+Write-Host "   (Note: Nigerian mobile/home ISPs change your IP frequently, requiring manual updates)" -ForegroundColor Gray
 Write-Host "------------------------------------------------------------------------------" -ForegroundColor Green
 Write-Host ""
 
