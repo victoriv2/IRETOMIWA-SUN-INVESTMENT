@@ -1036,29 +1036,59 @@ const AdminApp = (() => {
               } else if (isBlocked) {
                 const isIpErr = rawErr.toLowerCase().includes('ip whitelist') || rawErr.toLowerCase().includes('ip not whitelisted') || rawErr.toLowerCase().includes('ip address');
                 flwErrEl.innerHTML = `
-                  <div style="font-weight: 700; margin-bottom: 6px; color: #991b1b; font-size: 13.5px;">${isIpErr ? 'Flutterwave IP Whitelist Restriction' : 'Flutterwave API Payouts Restricted on Account'}</div>
+                  <div style="font-weight: 700; margin-bottom: 6px; color: #991b1b; font-size: 13.5px;">${isIpErr ? 'Flutterwave IP Whitelist Security Restriction' : 'Flutterwave API Payouts Restricted on Account'}</div>
                   <div style="margin-bottom: 8px; color: #374151; font-size: 12px; line-height: 1.45;">
-                    Flutterwave returned: <em>"${rawErr}"</em>.
+                    Flutterwave requires every API transfer to come from an approved IP address. Because your internet provider changed your IP, Flutterwave blocked this attempt.
                   </div>
-                  <div style="background: #ffffff; border: 1.5px solid #fed7aa; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 12px; color: #9a3412;">
-                    <div style="font-weight: 800; margin-bottom: 4px; color: #c2410c;">Permanent Fix (No more IP copying):</div>
-                    <ol style="margin: 0 0 0 16px; padding: 0; line-height: 1.45;">
-                      <li>Log in to <strong>dashboard.flutterwave.com</strong>.</li>
-                      <li>Go to <strong>Settings</strong> &rarr; <strong>Business Preferences</strong> &rarr; <strong>Security</strong>.</li>
-                      <li>Turn <strong>"IP Whitelist" toggle OFF (Disabled)</strong> so changing ISP IPs are never blocked.</li>
-                      <li>Under <strong>Transfer Preferences</strong>, ensure <strong>"API"</strong> or <strong>"Both"</strong> is selected.</li>
-                      <li>Click <strong>Save Changes</strong>, then click <strong>Retry API Transfer</strong> below.</li>
+                  <div style="background: #ffffff; border: 1.5px solid #fed7aa; border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 12px; color: #9a3412;">
+                    <div style="font-weight: 800; margin-bottom: 6px; color: #c2410c;">Your Current Public IP Address:</div>
+                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                      <span id="flw-detected-ip" style="background: #f1f5f9; padding: 6px 12px; border-radius: 6px; font-family: monospace; font-size: 14px; font-weight: 800; color: #0f172a; border: 1px solid #cbd5e1;">Detecting IP...</span>
+                      <button type="button" id="btn-copy-detected-ip" style="padding: 6px 12px; background: #047857; color: #ffffff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 11.5px;">Copy IP</button>
+                    </div>
+                    <div style="font-weight: 700; margin-bottom: 4px;">Quick Steps to Whitelist (Takes 30 seconds):</div>
+                    <ol style="margin: 0 0 0 16px; padding: 0; line-height: 1.5;">
+                      <li>Click <strong>Copy IP</strong> above.</li>
+                      <li>In Flutterwave: Go to <strong>Settings</strong> &rarr; <strong>Whitelisted IP addresses</strong>.</li>
+                      <li>Click <strong>Add IP address</strong>, paste your IP, and confirm with your OTP.</li>
+                      <li>Click <strong>Retry Flutterwave Transfer</strong> below.</li>
                     </ol>
                   </div>
                   <div style="display: flex; gap: 8px; flex-direction: column;">
                     <button type="button" id="btn-err-retry-api" style="width: 100%; padding: 10px 14px; background: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px;">
-                      Retry Flutterwave API Transfer Now
+                      Retry Flutterwave Transfer Now
                     </button>
                     <button type="button" id="btn-err-fallback-approve" style="width: 100%; padding: 9px 14px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px;">
                       Or Mark as Manual Bank Transfer / Cash
                     </button>
                   </div>
                 `;
+
+                // Auto-detect current public IP address
+                fetch('https://api.ipify.org?format=json')
+                  .then(r => r.json())
+                  .then(d => {
+                    const el = document.getElementById('flw-detected-ip');
+                    if (el && d && d.ip) el.textContent = d.ip;
+                  })
+                  .catch(() => {
+                    const el = document.getElementById('flw-detected-ip');
+                    if (el) el.textContent = 'Check local server window';
+                  });
+
+                const copyIpBtn = document.getElementById('btn-copy-detected-ip');
+                if (copyIpBtn) {
+                  copyIpBtn.addEventListener('click', () => {
+                    const el = document.getElementById('flw-detected-ip');
+                    const ipText = el ? el.textContent.trim() : '';
+                    if (ipText && ipText !== 'Detecting IP...' && ipText !== 'Check local server window') {
+                      navigator.clipboard.writeText(ipText).then(() => {
+                        copyIpBtn.textContent = 'Copied!';
+                        setTimeout(() => { copyIpBtn.textContent = 'Copy IP'; }, 2000);
+                      });
+                    }
+                  });
+                }
                 const retryBtn = document.getElementById('btn-err-retry-api');
                 if (retryBtn) {
                   retryBtn.addEventListener('click', () => {
