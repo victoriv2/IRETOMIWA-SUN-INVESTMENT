@@ -524,9 +524,10 @@ const DB = {
 
       if (cloudResetId && cloudResetId !== localEpoch) {
         localStorage.setItem('sun_system_reset_epoch', cloudResetId);
-        localStorage.setItem('sun_users', '[]');
-        localStorage.setItem('sun_transactions', '[]');
-        localStorage.setItem('sun_custom_categories', '[]');
+        localStorage.setItem('sun_users', JSON.stringify(cloudUsers));
+        localStorage.setItem('sun_transactions', JSON.stringify(cloudTxs));
+        const cloudCats = Array.isArray(record.custom_categories) ? record.custom_categories : [];
+        localStorage.setItem('sun_custom_categories', JSON.stringify(cloudCats));
         localStorage.removeItem('sun_session');
         localStorage.removeItem('sun_user_session');
         localStorage.removeItem('sun_active_user');

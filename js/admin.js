@@ -2680,7 +2680,7 @@ const AdminApp = (() => {
 
       let valid = true;
       if (!email) {
-        if (errEmail) errEmail.textContent = 'Admin email is required.';
+        if (errEmail) errEmail.textContent = 'Admin username or email is required.';
         valid = false;
       }
       if (!pw) {

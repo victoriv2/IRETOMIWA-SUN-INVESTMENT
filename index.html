@@ -67,7 +67,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261104_SYNC_V58';
+      var APP_BUILD_VER = '20261104_SYNC_V60';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -722,8 +722,8 @@
 
         <form id="admin-login-form" novalidate>
           <div class="form-group">
-            <label for="admin-email">Admin Email</label>
-            <input type="email" id="admin-email" placeholder="admin@suninvestment.com" autocomplete="email" />
+            <label for="admin-email">Admin Username or Email</label>
+            <input type="text" id="admin-email" placeholder="admin or admin@suninvestment.com" autocomplete="username" />
             <span class="field-error" id="err-admin-email"></span>
           </div>
 
@@ -2575,13 +2575,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261104_v55"></script>
-  <script src="js/picker.js?v=20261104_v55"></script>
+  <script src="js/storage.js?v=20261104_v60"></script>
+  <script src="js/picker.js?v=20261104_v60"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261104_v55"></script>
-  <script src="js/auth.js?v=20261104_v55"></script>
-  <script src="js/user.js?v=20261104_v55"></script>
-  <script src="js/admin.js?v=20261104_v58"></script>
-  <script src="js/app.js?v=20261104_v55"></script>
+  <script src="js/export.js?v=20261104_v60"></script>
+  <script src="js/auth.js?v=20261104_v60"></script>
+  <script src="js/user.js?v=20261104_v60"></script>
+  <script src="js/admin.js?v=20261104_v60"></script>
+  <script src="js/app.js?v=20261104_v60"></script>
 </body>
 </html>
