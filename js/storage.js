@@ -62,49 +62,246 @@ const DB = {
     }, 350);
   },
 
-  // Safe user object merger: NEVER lets empty/null photo or bank clobber real data!
+  // Clean & normalize Nigerian phone number for unambiguous matching
+  _cleanPhone(phone) {
+    if (!phone) return '';
+    return String(phone).trim().replace(/^\+?234/, '0').replace(/\D/g, '');
+  },
+
+  // Safe user object merger: timestamp-aware, protecting photos, bank details, and identity
   _mergeUser(baseUser, updatedUser) {
     if (!baseUser) return updatedUser || null;
     if (!updatedUser) return baseUser || null;
 
     // Critical identity guard: If both have phones and they don't match, they are different clients!
-    const p1 = (baseUser.phone || '').trim().replace(/^\+234/, '0');
-    const p2 = (updatedUser.phone || '').trim().replace(/^\+234/, '0');
+    const p1 = this._cleanPhone(baseUser.phone);
+    const p2 = this._cleanPhone(updatedUser.phone);
     if (p1 && p2 && p1 !== p2) {
       // Do NOT overwrite baseUser with a completely different person's info!
       return baseUser;
     }
 
-    const merged = { ...baseUser, ...updatedUser };
+    const tBase = baseUser.updatedAt || baseUser.joinedAt || '1970-01-01T00:00:00.000Z';
+    const tUpd  = updatedUser.updatedAt || updatedUser.joinedAt || '1970-01-01T00:00:00.000Z';
+    const isUpdNewer = (tUpd >= tBase);
+    const primary = isUpdNewer ? updatedUser : baseUser;
+    const fallback = isUpdNewer ? baseUser : updatedUser;
 
-    // Critical: Never overwrite a valid passportPhoto with null, undefined, or empty string!
+    const merged = { ...fallback, ...primary };
+
+    // Photo merger: pick the newest photo by photoUpdatedAt / updatedAt, never clobber with blank
     const basePhoto = baseUser.passportPhoto;
     const updPhoto  = updatedUser.passportPhoto;
-    if (updPhoto && typeof updPhoto === 'string' && updPhoto.length > 50) {
+    const hasBasePhoto = Boolean(basePhoto && typeof basePhoto === 'string' && basePhoto.length > 50);
+    const hasUpdPhoto  = Boolean(updPhoto && typeof updPhoto === 'string' && updPhoto.length > 50);
+    const tBasePhoto = baseUser.photoUpdatedAt || baseUser.updatedAt || '1970-01-01T00:00:00.000Z';
+    const tUpdPhoto  = updatedUser.photoUpdatedAt || updatedUser.updatedAt || '1970-01-01T00:00:00.000Z';
+
+    if (hasBasePhoto && hasUpdPhoto) {
+      if (tBasePhoto > tUpdPhoto) {
+        merged.passportPhoto = basePhoto;
+        merged.photoUpdatedAt = tBasePhoto;
+      } else {
+        merged.passportPhoto = updPhoto;
+        merged.photoUpdatedAt = tUpdPhoto;
+      }
+    } else if (hasUpdPhoto) {
       merged.passportPhoto = updPhoto;
-    } else if (basePhoto && typeof basePhoto === 'string' && basePhoto.length > 50) {
+      merged.photoUpdatedAt = tUpdPhoto;
+    } else if (hasBasePhoto) {
       merged.passportPhoto = basePhoto;
+      merged.photoUpdatedAt = tBasePhoto;
     } else {
       merged.passportPhoto = null;
     }
 
-    // Never overwrite registered payoutBank with empty/null
+    // Bank details merger
     const baseBank = baseUser.payoutBank || baseUser.bankDetails;
     const updBank  = updatedUser.payoutBank || updatedUser.bankDetails;
-    if (updBank && (updBank.accountNumber || updBank.bankName)) {
+    const hasBaseBank = Boolean(baseBank && (baseBank.accountNumber || baseBank.bankName));
+    const hasUpdBank  = Boolean(updBank && (updBank.accountNumber || updBank.bankName));
+    const tBaseBank = (baseBank && baseBank.updatedAt) || baseUser.updatedAt || '1970-01-01T00:00:00.000Z';
+    const tUpdBank  = (updBank && updBank.updatedAt) || updatedUser.updatedAt || '1970-01-01T00:00:00.000Z';
+
+    if (hasBaseBank && hasUpdBank) {
+      merged.payoutBank = (tBaseBank > tUpdBank) ? baseBank : updBank;
+    } else if (hasUpdBank) {
       merged.payoutBank = updBank;
-    } else if (baseBank && (baseBank.accountNumber || baseBank.bankName)) {
+    } else if (hasBaseBank) {
       merged.payoutBank = baseBank;
     }
 
     // Preserve non-empty phone, email, password, names
-    if (!merged.phone && baseUser.phone) merged.phone = baseUser.phone;
-    if (!merged.email && baseUser.email) merged.email = baseUser.email;
-    if (!merged.password && baseUser.password) merged.password = baseUser.password;
-    if (!merged.firstName && baseUser.firstName) merged.firstName = baseUser.firstName;
-    if (!merged.lastName && baseUser.lastName) merged.lastName = baseUser.lastName;
+    if (!merged.phone && fallback.phone) merged.phone = fallback.phone;
+    if (!merged.email && fallback.email) merged.email = fallback.email;
+    if (!merged.password && fallback.password) merged.password = fallback.password;
+    if (!merged.firstName && fallback.firstName) merged.firstName = fallback.firstName;
+    if (!merged.lastName && fallback.lastName) merged.lastName = fallback.lastName;
+    merged.updatedAt = (tUpd > tBase) ? tUpd : tBase;
 
     return merged;
+  },
+
+  // High-performance image compressor for passport photos (JPEG <= 80 KB)
+  compressImage(file, maxDimension = 480, maxQuality = 0.82) {
+    return new Promise((resolve, reject) => {
+      if (!file) return reject(new Error('No file provided'));
+      if (!file.type || !file.type.match(/^image\//)) return reject(new Error('Selected file is not an image'));
+
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Failed to read image file'));
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('Failed to load image for compression'));
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+
+          let quality = maxQuality;
+          let dataUrl = canvas.toDataURL('image/jpeg', quality);
+          while (dataUrl.length > 110000 && quality > 0.45) {
+            quality -= 0.1;
+            dataUrl = canvas.toDataURL('image/jpeg', quality);
+          }
+
+          const sizeKB = Math.round((dataUrl.length * 3) / 4 / 1024);
+          resolve({ dataUrl, sizeKB });
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  },
+
+  // Unified resolution engine for offline/online synchronization (no clobbering, no ID collision)
+  _resolveUserAndTransactionSync(cloudUsers, localUsers, cloudTxs, localTxs) {
+    const cloudByPhone = new Map();
+    const cloudById = new Map();
+    (cloudUsers || []).forEach(cu => {
+      if (!cu) return;
+      if (cu.id) cloudById.set(cu.id, cu);
+      const cp = this._cleanPhone(cu.phone);
+      if (cp) cloudByPhone.set(cp, cu);
+    });
+
+    const userMap = new Map();
+    cloudById.forEach((cu, id) => userMap.set(id, { ...cu }));
+
+    const idRemap = new Map();
+
+    (localUsers || []).forEach(lu => {
+      if (!lu) return;
+      const lp = this._cleanPhone(lu.phone);
+
+      // A: Does cloud already have this person by phone?
+      if (lp && cloudByPhone.has(lp)) {
+        const canonical = cloudByPhone.get(lp);
+        const canonId = canonical.id;
+        if (lu.id && lu.id !== canonId) {
+          idRemap.set(lu.id, canonId);
+        }
+        const merged = this._mergeUser(userMap.get(canonId) || canonical, lu);
+        userMap.set(canonId, merged);
+        return;
+      }
+
+      // B: Check if lu.id collides with an existing cloud ID of a DIFFERENT person
+      if (lu.id && userMap.has(lu.id)) {
+        const existing = userMap.get(lu.id);
+        const ep = this._cleanPhone(existing.phone);
+        if (lp && ep && lp !== ep) {
+          let maxNum = 0;
+          userMap.forEach((usr, uid) => {
+            const match = (uid || '').match(/^ir(\d+)$/i);
+            if (match) {
+              const n = parseInt(match[1], 10);
+              if (!isNaN(n) && n > maxNum) maxNum = n;
+            }
+          });
+          const newId = 'ir' + String(maxNum + 1).padStart(5, '0');
+          idRemap.set(lu.id, newId);
+          userMap.set(newId, { ...lu, id: newId });
+          return;
+        } else {
+          const merged = this._mergeUser(existing, lu);
+          userMap.set(lu.id, merged);
+          return;
+        }
+      }
+
+      // C: Brand new user with unique ID
+      if (lu.id) {
+        userMap.set(lu.id, { ...lu });
+      }
+    });
+
+    // Remap local transactions if any user ID changed
+    const remappedLocalTxs = (localTxs || []).map(t => {
+      if (!t) return t;
+      if (t.userId && idRemap.has(t.userId)) {
+        return { ...t, userId: idRemap.get(t.userId) };
+      }
+      return t;
+    });
+
+    // Remap active session if user ID changed
+    const currentSession = this.getSession();
+    if (currentSession && currentSession.userId && idRemap.has(currentSession.userId)) {
+      currentSession.userId = idRemap.get(currentSession.userId);
+      this.setSession(currentSession);
+    }
+
+    // Merge transactions by ID
+    const txMap = new Map();
+    (cloudTxs || []).filter(t => t && !t.id.startsWith('tx_179364800000')).forEach(ct => {
+      if (ct && ct.id) txMap.set(ct.id, ct);
+    });
+
+    remappedLocalTxs.filter(t => t && !t.id.startsWith('tx_179364800000')).forEach(lt => {
+      if (!lt || !lt.id) return;
+      if (!txMap.has(lt.id)) {
+        txMap.set(lt.id, lt);
+      } else {
+        const ct = txMap.get(lt.id);
+        const isLocalReviewed = lt.status === 'approved' || lt.status === 'declined';
+        const isCloudReviewed = ct.status === 'approved' || ct.status === 'declined';
+        const tLocal = lt.reviewedAt || lt.updatedAt || lt.createdAt || '';
+        const tCloud = ct.reviewedAt || ct.updatedAt || ct.createdAt || '';
+
+        if (isLocalReviewed && !isCloudReviewed) {
+          txMap.set(lt.id, { ...ct, ...lt });
+        } else if (isCloudReviewed && !isLocalReviewed) {
+          txMap.set(lt.id, { ...lt, ...ct });
+        } else if (tLocal > tCloud) {
+          txMap.set(lt.id, { ...ct, ...lt });
+        } else {
+          txMap.set(lt.id, { ...lt, ...ct });
+        }
+      }
+    });
+
+    return {
+      mergedUsers: Array.from(userMap.values()),
+      mergedTxs: Array.from(txMap.values()),
+      idRemap
+    };
   },
 
   // Secure Supabase API Call (Direct with Local/Edge Server Proxy fallback)
@@ -184,60 +381,15 @@ const DB = {
         return true;
       }
 
-      // Merge Users (Union by ID, keeping all unique accounts and protecting photos)
+      // Merge users & transactions cleanly using unified resolution (zero clobbering, ID remap & photo safety)
       const localUsers = this.getUsers();
-      const userMap = new Map();
-      cloudUsers.forEach(u => {
-        if (u && u.id) userMap.set(u.id, u);
-      });
-      localUsers.forEach(u => {
-        if (u && u.id) {
-          const existing = userMap.get(u.id);
-          if (existing) {
-            const p1 = (existing.phone || '').trim().replace(/^\+234/, '0');
-            const p2 = (u.phone || '').trim().replace(/^\+234/, '0');
-            if (p1 && p2 && p1 !== p2) {
-              // ID collision detected between different clients! Reassign local user to next sequential ID
-              let maxNum = 0;
-              userMap.forEach(usr => {
-                const match = (usr.id || '').match(/^ir(\d+)$/i);
-                if (match) {
-                  const n = parseInt(match[1], 10);
-                  if (!isNaN(n) && n > maxNum) maxNum = n;
-                }
-              });
-              const newId = 'ir' + String(maxNum + 1).padStart(5, '0');
-              userMap.set(newId, { ...u, id: newId });
-            } else {
-              userMap.set(u.id, this._mergeUser(existing, u));
-            }
-          } else {
-            userMap.set(u.id, u);
-          }
-        }
-      });
-      const mergedUsers = Array.from(userMap.values());
-      localStorage.setItem('sun_users', JSON.stringify(mergedUsers));
+      const localTxs = this.getAllTransactions();
+      const resolution = this._resolveUserAndTransactionSync(cloudUsers, localUsers, cloudTxs, localTxs);
 
-      // Merge Transactions (Union by ID, keeping all records and preserving approved/declined statuses)
-      const localTxs = this.getAllTransactions().filter(t => t && !t.id.startsWith('tx_179364800000'));
-      const txMap = new Map();
-      cloudTxs.filter(t => t && !t.id.startsWith('tx_179364800000')).forEach(t => {
-        if (t && t.id) txMap.set(t.id, t);
-      });
-      localTxs.forEach(t => {
-        if (t && t.id) {
-          const existing = txMap.get(t.id);
-          if (existing) {
-            const isLocalReviewed = t.status === 'approved' || t.status === 'declined';
-            const isCloudReviewed = existing.status === 'approved' || existing.status === 'declined';
-            txMap.set(t.id, isLocalReviewed ? { ...existing, ...t } : (isCloudReviewed ? { ...t, ...existing } : { ...existing, ...t }));
-          } else {
-            txMap.set(t.id, t);
-          }
-        }
-      });
-      const mergedTxs = Array.from(txMap.values());
+      const mergedUsers = resolution.mergedUsers;
+      const mergedTxs = resolution.mergedTxs;
+
+      localStorage.setItem('sun_users', JSON.stringify(mergedUsers));
       localStorage.setItem('sun_transactions', JSON.stringify(mergedTxs));
 
       // Merge custom categories
@@ -367,59 +519,19 @@ const DB = {
 
       // Bidirectional Merge: Cloud is authoritative, but NEVER delete locally created accounts that haven't synced yet
       const localUsers = this.getUsers();
-      const userMap = new Map();
-      cloudUsers.forEach(cu => { if (cu && cu.id) userMap.set(cu.id, cu); });
-      let needsPushToCloud = false;
-      localUsers.forEach(lu => {
-        if (lu && lu.id) {
-          if (!userMap.has(lu.id)) {
-            userMap.set(lu.id, lu);
-            needsPushToCloud = true;
-          } else {
-            const cloudU = userMap.get(lu.id);
-            const p1 = (cloudU.phone || '').trim().replace(/^\+234/, '0');
-            const p2 = (lu.phone || '').trim().replace(/^\+234/, '0');
-            if (p1 && p2 && p1 !== p2) {
-              // ID collision detected! Local user has an ID assigned that cloud already gave to someone else.
-              let maxNum = 0;
-              userMap.forEach(usr => {
-                const match = (usr.id || '').match(/^ir(\d+)$/i);
-                if (match) {
-                  const n = parseInt(match[1], 10);
-                  if (!isNaN(n) && n > maxNum) maxNum = n;
-                }
-              });
-              const newId = 'ir' + String(maxNum + 1).padStart(5, '0');
-              userMap.set(newId, { ...lu, id: newId });
-              needsPushToCloud = true;
-            } else {
-              userMap.set(lu.id, this._mergeUser(lu, cloudU));
-            }
-          }
-        }
-      });
-      const finalUsers = Array.from(userMap.values());
-      localStorage.setItem('sun_users', JSON.stringify(finalUsers));
+      const localTxs = this.getAllTransactions();
+      const resolution = this._resolveUserAndTransactionSync(cloudUsers, localUsers, cloudTxs, localTxs);
 
-      // Bidirectional Merge for Transactions
-      const localTxs = this.getAllTransactions().filter(t => t && !t.id.startsWith('tx_179364800000'));
-      const txMap = new Map();
-      cloudTxs.filter(ct => ct && !ct.id.startsWith('tx_179364800000')).forEach(ct => { if (ct && ct.id) txMap.set(ct.id, ct); });
-      localTxs.forEach(lt => {
-        if (lt && lt.id) {
-          if (!txMap.has(lt.id)) {
-            txMap.set(lt.id, lt);
-            needsPushToCloud = true;
-          } else {
-            const cloudT = txMap.get(lt.id);
-            const isLocalReviewed = lt.status === 'approved' || lt.status === 'declined';
-            const isCloudReviewed = cloudT.status === 'approved' || cloudT.status === 'declined';
-            txMap.set(lt.id, isLocalReviewed ? { ...cloudT, ...lt } : (isCloudReviewed ? { ...lt, ...cloudT } : { ...cloudT, ...lt }));
-          }
-        }
-      });
-      const finalTxs = Array.from(txMap.values());
+      const finalUsers = resolution.mergedUsers;
+      const finalTxs = resolution.mergedTxs;
+
+      localStorage.setItem('sun_users', JSON.stringify(finalUsers));
       localStorage.setItem('sun_transactions', JSON.stringify(finalTxs));
+
+      // If local had un-synced data or ID remappings, schedule a cloud push to sync Supabase
+      if (resolution.idRemap.size > 0 || finalUsers.length > cloudUsers.length || finalTxs.length > cloudTxs.length) {
+        this.scheduleCloudPush();
+      }
 
       // Validate active user session against merged users
       const currentSession = this.getSession();
@@ -651,6 +763,12 @@ const DB = {
     }
     if (fieldsToUpdate.lastName) {
       fieldsToUpdate.lastName = this.formatName(fieldsToUpdate.lastName);
+    }
+
+    const nowISO = new Date().toISOString();
+    fieldsToUpdate.updatedAt = nowISO;
+    if (fieldsToUpdate.passportPhoto) {
+      fieldsToUpdate.photoUpdatedAt = nowISO;
     }
 
     users[idx] = { ...users[idx], ...fieldsToUpdate };

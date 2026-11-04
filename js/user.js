@@ -1099,17 +1099,88 @@ const UserApp = (() => {
     const btn = document.getElementById('btn-edit-profile');
     if (!btn) return;
 
+    let pendingPhotoDataUrl = null;
+
     btn.addEventListener('click', () => {
       const user = DB.getUserById(currentUserId);
       if (!user) return;
+      pendingPhotoDataUrl = null;
       document.getElementById('edit-firstname').value = user.firstName;
       document.getElementById('edit-lastname').value  = user.lastName;
       document.getElementById('edit-email').value     = user.email;
       document.getElementById('edit-phone').value     = user.phone;
       document.getElementById('edit-profile-error').classList.add('hidden');
       document.getElementById('edit-profile-success').classList.add('hidden');
+
+      const previewEl = document.getElementById('edit-profile-photo-preview');
+      const initialsEl = document.getElementById('edit-profile-photo-initials');
+      const statusEl = document.getElementById('user-photo-status');
+      if (statusEl) statusEl.style.display = 'none';
+
+      if (previewEl && initialsEl) {
+        if (user.passportPhoto) {
+          previewEl.src = user.passportPhoto;
+          previewEl.style.display = 'block';
+          initialsEl.style.display = 'none';
+        } else {
+          previewEl.style.display = 'none';
+          initialsEl.style.display = 'inline';
+          const i1 = (user.firstName || '').charAt(0);
+          const i2 = (user.lastName || '').charAt(0);
+          initialsEl.textContent = (i1 + i2).toUpperCase() || 'U';
+        }
+      }
+
       openModal('modal-edit-profile');
     });
+
+    // Wire photo change button
+    const photoBtn = document.getElementById('btn-user-change-photo');
+    const photoInput = document.getElementById('user-photo-input');
+    const photoStatus = document.getElementById('user-photo-status');
+
+    if (photoBtn && photoInput) {
+      photoBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        photoInput.click();
+      });
+
+      photoInput.addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+
+        if (photoStatus) {
+          photoStatus.textContent = 'Compressing image...';
+          photoStatus.style.display = 'block';
+          photoStatus.style.color = 'var(--primary)';
+        }
+
+        try {
+          const res = await DB.compressImage(file, 480, 0.85);
+          pendingPhotoDataUrl = res.dataUrl;
+
+          const previewEl = document.getElementById('edit-profile-photo-preview');
+          const initialsEl = document.getElementById('edit-profile-photo-initials');
+          if (previewEl) {
+            previewEl.src = res.dataUrl;
+            previewEl.style.display = 'block';
+          }
+          if (initialsEl) initialsEl.style.display = 'none';
+
+          if (photoStatus) {
+            photoStatus.textContent = `New photo ready (${res.sizeKB} KB). Click Save Changes to apply.`;
+            photoStatus.style.color = '#166534';
+          }
+        } catch (err) {
+          if (photoStatus) {
+            photoStatus.textContent = 'Error processing photo: ' + (err.message || 'Unknown error');
+            photoStatus.style.color = '#dc2626';
+          }
+        } finally {
+          photoInput.value = '';
+        }
+      });
+    }
 
     // Auto-capitalize first and last name on blur in profile edit
     ['edit-firstname', 'edit-lastname'].forEach(id => {
@@ -1198,7 +1269,14 @@ const UserApp = (() => {
         return;
       }
 
-      DB.updateUser(currentUserId, { firstName, lastName, email, phone });
+      const updatePayload = { firstName, lastName, email, phone };
+      if (pendingPhotoDataUrl) {
+        updatePayload.passportPhoto = pendingPhotoDataUrl;
+        updatePayload.photoUpdatedAt = new Date().toISOString();
+      }
+
+      DB.updateUser(currentUserId, updatePayload);
+      pendingPhotoDataUrl = null;
       renderMoreUserInfo();
       document.getElementById('edit-profile-success').textContent = 'Profile updated successfully.';
       document.getElementById('edit-profile-success').classList.remove('hidden');

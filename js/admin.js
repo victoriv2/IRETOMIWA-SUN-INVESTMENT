@@ -3236,6 +3236,67 @@ const AdminApp = (() => {
     });
   }
 
+  function initAdminChangePhoto() {
+    const btn = document.getElementById('btn-admin-change-photo');
+    const input = document.getElementById('admin-photo-input');
+    const status = document.getElementById('admin-photo-status');
+    if (!btn || !input) return;
+
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      input.click();
+    });
+
+    input.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file || !currentViewedUserId) return;
+
+      if (status) {
+        status.textContent = 'Compressing image...';
+        status.style.display = 'block';
+        status.style.color = 'var(--primary)';
+      }
+
+      try {
+        const compressed = await DB.compressImage(file, 480, 0.85);
+        const nowISO = new Date().toISOString();
+        DB.updateUser(currentViewedUserId, {
+          passportPhoto: compressed.dataUrl,
+          photoUpdatedAt: nowISO,
+          updatedAt: nowISO
+        });
+
+        const photoEl = document.getElementById('vp-photo');
+        const initEl = document.getElementById('vp-initials');
+        if (photoEl) {
+          photoEl.src = compressed.dataUrl;
+          photoEl.style.display = 'block';
+        }
+        if (initEl) initEl.style.display = 'none';
+
+        if (status) {
+          status.textContent = `Photo updated (${compressed.sizeKB} KB) & syncing!`;
+          status.style.color = '#166534';
+          setTimeout(() => { status.style.display = 'none'; }, 3000);
+        }
+
+        if (typeof DB.syncPush === 'function') {
+          DB.syncPush();
+        }
+
+        renderUsersList();
+      } catch (err) {
+        console.error('Photo upload error:', err);
+        if (status) {
+          status.textContent = 'Failed to process image: ' + (err.message || 'Unknown error');
+          status.style.color = '#dc2626';
+        }
+      } finally {
+        input.value = '';
+      }
+    });
+  }
+
   // ============================================
   // BOOTSTRAP
   // ============================================
@@ -3258,6 +3319,7 @@ const AdminApp = (() => {
     initModalCloseHandlers();
     initCopyViewProfileId();
     initCopyApproveAccountNumber();
+    initAdminChangePhoto();
     updatePendingBadge();
 
     // Ensure admin credentials exist
