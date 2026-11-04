@@ -3,7 +3,7 @@
 // ============================================
 
 // ---- HARD SYSTEM RESET EPOCH ----
-const SYSTEM_RESET_ID = 'RESET_IR00001_V4';
+const SYSTEM_RESET_ID = 'RESET_IR00001_V5';
 
 (function enforceSystemReset() {
   try {
@@ -285,15 +285,15 @@ const DB = {
         const tLocal = lt.reviewedAt || lt.updatedAt || lt.createdAt || '';
         const tCloud = ct.reviewedAt || ct.updatedAt || ct.createdAt || '';
 
+        // Cloud transaction takes precedence for core properties (userId, amount, type, status)
+        // Local can only contribute local review status if cloud is still pending
+        const mergedTx = { ...lt, ...ct };
         if (isLocalReviewed && !isCloudReviewed) {
-          txMap.set(lt.id, { ...ct, ...lt });
-        } else if (isCloudReviewed && !isLocalReviewed) {
-          txMap.set(lt.id, { ...lt, ...ct });
-        } else if (tLocal > tCloud) {
-          txMap.set(lt.id, { ...ct, ...lt });
-        } else {
-          txMap.set(lt.id, { ...lt, ...ct });
+          mergedTx.status = lt.status;
+          mergedTx.reviewedAt = lt.reviewedAt;
+          mergedTx.reviewedBy = lt.reviewedBy;
         }
+        txMap.set(lt.id, mergedTx);
       }
     });
 

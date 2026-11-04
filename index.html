@@ -10,7 +10,7 @@
   <script>
     // Instant session check on load to prevent login flicker/re-auth prompt
     try {
-      var ACTIVE_EPOCH = 'RESET_IR00001_V4';
+      var ACTIVE_EPOCH = 'RESET_IR00001_V5';
       if (localStorage.getItem('sun_system_reset_epoch') !== ACTIVE_EPOCH) {
         localStorage.setItem('sun_system_reset_epoch', ACTIVE_EPOCH);
         localStorage.setItem('sun_users', '[]');
@@ -67,7 +67,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261104_SYNC_V51';
+      var APP_BUILD_VER = '20261104_SYNC_V52';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
