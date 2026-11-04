@@ -872,7 +872,283 @@ const CustomPicker = (() => {
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     CustomPicker.init();
+    if (typeof CustomAlert !== 'undefined') CustomAlert.init();
   });
 } else {
   CustomPicker.init();
+  if (typeof CustomAlert !== 'undefined') CustomAlert.init();
+}
+
+// ============================================
+// CUSTOM ALERT & MODULAR DIALOG SYSTEM
+// Eliminates browser native alert() dialogs with a modern, high-contrast,
+// responsive modal matching Iretomiwa Sun Investment design standards.
+// Strictly NO EMOJIS!
+// ============================================
+const CustomAlert = (() => {
+  let activeOnConfirm = null;
+  let activeOnCancel = null;
+
+  function getEl(id) {
+    return document.getElementById(id);
+  }
+
+  function detectType(title, message) {
+    const t = (title + ' ' + message).toLowerCase();
+    if (t.includes('success') || t.includes('approved') || t.includes('complete') || t.includes('disbursed')) return 'success';
+    if (t.includes('error') || t.includes('failed') || t.includes('invalid') || t.includes('denied')) return 'error';
+    if (t.includes('warning') || t.includes('please') || t.includes('caution') || t.includes('required')) return 'warning';
+    return 'info';
+  }
+
+  function defaultTitle(type) {
+    if (type === 'success') return 'Success';
+    if (type === 'warning') return 'Notice';
+    if (type === 'error') return 'Action Failed';
+    return 'Notice';
+  }
+
+  function escapeHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function parseTextAlert(text) {
+    const lines = String(text || '').split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length === 0) return { message: '' };
+
+    let title = '';
+    let amount = null;
+    let details = [];
+    let message = '';
+
+    const firstLine = lines[0];
+    if (firstLine.includes(':')) {
+      title = 'Notice';
+    } else {
+      title = firstLine;
+      lines.shift();
+    }
+
+    lines.forEach(line => {
+      const colonIdx = line.indexOf(':');
+      if (colonIdx > 0 && colonIdx < line.length - 1) {
+        const k = line.substring(0, colonIdx).trim();
+        const v = line.substring(colonIdx + 1).trim();
+        if (k.toLowerCase() === 'amount' && !amount) {
+          amount = v;
+        } else {
+          const isBadge = k.toLowerCase() === 'status' || v.toLowerCase().includes('approved');
+          details.push({ label: k, value: v, isBadge: isBadge });
+        }
+      } else {
+        if (!message) {
+          message = line;
+        } else {
+          message += ' ' + line;
+        }
+      }
+    });
+
+    return {
+      type: detectType(title, message),
+      title: title,
+      amount: amount,
+      details: details,
+      message: message
+    };
+  }
+
+  function show(options) {
+    let opts = options;
+    if (typeof opts === 'string') {
+      opts = parseTextAlert(opts);
+    }
+    if (!opts || typeof opts !== 'object') {
+      opts = { message: String(opts || '') };
+    }
+
+    const type = opts.type || detectType(opts.title || '', opts.message || '');
+    const title = opts.title || defaultTitle(type);
+    const message = opts.message || '';
+    const amount = opts.amount || null;
+    const details = Array.isArray(opts.details) ? opts.details : [];
+    const confirmText = opts.confirmText || 'Done';
+    const cancelText = opts.cancelText || null;
+    activeOnConfirm = typeof opts.onConfirm === 'function' ? opts.onConfirm : null;
+    activeOnCancel = typeof opts.onCancel === 'function' ? opts.onCancel : null;
+
+    const modal = getEl('modal-custom-alert');
+    if (!modal) return;
+
+    // Icons
+    const iconWrap = getEl('custom-alert-icon-wrap');
+    const iconSuccess = getEl('custom-alert-icon-success');
+    const iconInfo = getEl('custom-alert-icon-info');
+    const iconWarning = getEl('custom-alert-icon-warning');
+    const iconError = getEl('custom-alert-icon-error');
+
+    if (iconSuccess) iconSuccess.classList.add('hidden');
+    if (iconInfo) iconInfo.classList.add('hidden');
+    if (iconWarning) iconWarning.classList.add('hidden');
+    if (iconError) iconError.classList.add('hidden');
+
+    if (iconWrap) {
+      if (type === 'success') {
+        iconWrap.style.background = '#dcfce7';
+        iconWrap.style.color = '#16a34a';
+        if (iconSuccess) iconSuccess.classList.remove('hidden');
+      } else if (type === 'warning') {
+        iconWrap.style.background = '#fef3c7';
+        iconWrap.style.color = '#d97706';
+        if (iconWarning) iconWarning.classList.remove('hidden');
+      } else if (type === 'error') {
+        iconWrap.style.background = '#fee2e2';
+        iconWrap.style.color = '#dc2626';
+        if (iconError) iconError.classList.remove('hidden');
+      } else {
+        iconWrap.style.background = '#e0f2fe';
+        iconWrap.style.color = '#0284c7';
+        if (iconInfo) iconInfo.classList.remove('hidden');
+      }
+    }
+
+    // Title
+    const titleEl = getEl('custom-alert-title');
+    if (titleEl) {
+      titleEl.textContent = title;
+    }
+
+    // Amount pill
+    const amountEl = getEl('custom-alert-amount-pill');
+    if (amountEl) {
+      if (amount) {
+        amountEl.textContent = amount;
+        amountEl.classList.remove('hidden');
+      } else {
+        amountEl.classList.add('hidden');
+      }
+    }
+
+    // Message
+    const msgEl = getEl('custom-alert-message');
+    if (msgEl) {
+      if (message) {
+        msgEl.textContent = message;
+        msgEl.classList.remove('hidden');
+      } else {
+        msgEl.classList.add('hidden');
+      }
+    }
+
+    // Details card
+    const detailsCard = getEl('custom-alert-details-card');
+    if (detailsCard) {
+      if (details.length > 0) {
+        let html = '<div style="display: flex; flex-direction: column; gap: 8px;">';
+        details.forEach(item => {
+          const lbl = escapeHtml(item.label || '');
+          const val = escapeHtml(item.value || '');
+          if (item.isBadge) {
+            html += `
+              <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #e2e8f0; padding-bottom: 6px;">
+                <span style="color: #64748b; font-weight: 600;">${lbl}</span>
+                <span style="background: #dcfce7; color: #15803d; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700; text-transform: uppercase;">${val}</span>
+              </div>`;
+          } else {
+            const valStyle = item.highlight ? 'font-weight: 800; color: #0f172a;' : 'color: #334155; font-weight: 600;';
+            html += `
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 6px;">
+                <span style="color: #64748b; font-weight: 500; min-width: 90px;">${lbl}</span>
+                <span style="text-align: right; word-break: break-word; ${valStyle}">${val}</span>
+              </div>`;
+          }
+        });
+        html += '</div>';
+        detailsCard.innerHTML = html;
+        detailsCard.classList.remove('hidden');
+      } else {
+        detailsCard.innerHTML = '';
+        detailsCard.classList.add('hidden');
+      }
+    }
+
+    // Action buttons
+    const btnConfirm = getEl('btn-custom-alert-confirm');
+    const btnCancel = getEl('btn-custom-alert-cancel');
+    if (btnConfirm) btnConfirm.textContent = confirmText;
+    if (btnCancel) {
+      if (cancelText) {
+        btnCancel.textContent = cancelText;
+        btnCancel.classList.remove('hidden');
+      } else {
+        btnCancel.classList.add('hidden');
+      }
+    }
+
+    modal.classList.remove('hidden');
+    if (btnConfirm) btnConfirm.focus();
+  }
+
+  function close(isConfirmed = false) {
+    const modal = getEl('modal-custom-alert');
+    if (modal) modal.classList.add('hidden');
+    if (isConfirmed && activeOnConfirm) {
+      try { activeOnConfirm(); } catch (e) { console.error(e); }
+    } else if (!isConfirmed && activeOnCancel) {
+      try { activeOnCancel(); } catch (e) { console.error(e); }
+    }
+    activeOnConfirm = null;
+    activeOnCancel = null;
+  }
+
+  function init() {
+    const btnConfirm = getEl('btn-custom-alert-confirm');
+    const btnCancel = getEl('btn-custom-alert-cancel');
+    const modal = getEl('modal-custom-alert');
+
+    if (btnConfirm) {
+      btnConfirm.addEventListener('click', () => close(true));
+    }
+    if (btnCancel) {
+      btnCancel.addEventListener('click', () => close(false));
+    }
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) close(false);
+      });
+    }
+
+    document.addEventListener('keydown', (e) => {
+      const m = getEl('modal-custom-alert');
+      if (m && !m.classList.contains('hidden')) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          close(false);
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          close(true);
+        }
+      }
+    });
+
+    // Override browser native window.alert globally
+    window.alert = function(msg) {
+      show(msg);
+    };
+  }
+
+  return {
+    init,
+    show,
+    close
+  };
+})();
+
+// Immediately init or on ready
+if (typeof CustomAlert !== 'undefined') {
+  CustomAlert.init();
 }

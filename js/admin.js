@@ -968,16 +968,33 @@ const AdminApp = (() => {
             renderPayoutsTab();
             renderMoreTab();
 
-            // Notify admin with full details
-            alert(
-              `Payout Disbursed Successfully!\n\n` +
-              `Amount: ₦${formatAmount(netAmt)}\n` +
-              `Recipient: ${res.accountName || clientName}\n` +
-              `Bank: ${destBank.bankName || 'Bank'} (${destBank.accountNumber})\n` +
-              `Transfer ID: #${res.transferId}\n` +
-              `Reference: ${res.reference || ''}\n\n` +
-              `Transaction has been approved and saved to database.`
-            );
+            // Notify admin with custom modular receipt modal (no native browser alert)
+            if (typeof CustomAlert !== 'undefined') {
+              CustomAlert.show({
+                type: 'success',
+                title: 'Payout Disbursed Successfully',
+                amount: `₦${formatAmount(netAmt)}`,
+                details: [
+                  { label: 'Recipient', value: res.accountName || clientName, highlight: true },
+                  { label: 'Bank', value: `${destBank.bankName || 'Bank'} (${destBank.accountNumber})` },
+                  { label: 'Transfer ID', value: `#${res.transferId}` },
+                  { label: 'Reference', value: res.reference || '-' },
+                  { label: 'Status', value: 'Approved & Saved to Database', isBadge: true }
+                ],
+                message: 'Transaction has been approved and saved to database.',
+                confirmText: 'Done'
+              });
+            } else {
+              alert(
+                `Payout Disbursed Successfully!\n\n` +
+                `Amount: ₦${formatAmount(netAmt)}\n` +
+                `Recipient: ${res.accountName || clientName}\n` +
+                `Bank: ${destBank.bankName || 'Bank'} (${destBank.accountNumber})\n` +
+                `Transfer ID: #${res.transferId}\n` +
+                `Reference: ${res.reference || ''}\n\n` +
+                `Transaction has been approved and saved to database.`
+              );
+            }
           } else {
             if (flwErrEl) {
               const rawErr = res.error || 'Transfer failed';
