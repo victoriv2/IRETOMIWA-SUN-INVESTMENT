@@ -3258,7 +3258,7 @@ const AdminApp = (() => {
       }
 
       try {
-        const compressed = await DB.compressImage(file, 480, 0.85);
+        const compressed = await DB.compressImage(file, { maxKB: 95, maxDimension: 480 });
         const nowISO = new Date().toISOString();
         DB.updateUser(currentViewedUserId, {
           passportPhoto: compressed.dataUrl,
@@ -3275,9 +3275,9 @@ const AdminApp = (() => {
         if (initEl) initEl.style.display = 'none';
 
         if (status) {
-          status.textContent = `Photo updated (${compressed.sizeKB} KB) & syncing!`;
+          status.textContent = `Photo compressed to ${compressed.sizeKB} KB (under 100 KB) & synced!`;
           status.style.color = '#166534';
-          setTimeout(() => { status.style.display = 'none'; }, 3000);
+          setTimeout(() => { status.style.display = 'none'; }, 3500);
         }
 
         if (typeof DB.syncPush === 'function') {

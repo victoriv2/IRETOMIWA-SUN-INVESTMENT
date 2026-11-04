@@ -130,74 +130,12 @@ const Auth = (() => {
       }
     });
 
-    // ---- PASSPORT PHOTOGRAPH COMPRESSOR (Strictly <= 100 KB) ----
-    function compressPassportImage(file) {
-      return new Promise((resolve, reject) => {
-        if (!file) return reject(new Error('No file selected.'));
-        if (!file.type || !file.type.startsWith('image/')) {
-          return reject(new Error('Selected file is not an image format.'));
-        }
-
-        const reader = new FileReader();
-        reader.onerror = () => reject(new Error('Unable to read selected image.'));
-        reader.onload = (e) => {
-          const img = new Image();
-          img.onerror = () => reject(new Error('Corrupted or invalid image file.'));
-          img.onload = () => {
-            try {
-              let width = img.width;
-              let height = img.height;
-              const maxDim = 500;
-              if (width > maxDim || height > maxDim) {
-                if (width > height) {
-                  height = Math.round((height * maxDim) / width);
-                  width = maxDim;
-                } else {
-                  width = Math.round((width * maxDim) / height);
-                  height = maxDim;
-                }
-              }
-
-              const canvas = document.createElement('canvas');
-              canvas.width = width;
-              canvas.height = height;
-              const ctx = canvas.getContext('2d');
-              ctx.fillStyle = '#ffffff';
-              ctx.fillRect(0, 0, width, height);
-              ctx.drawImage(img, 0, 0, width, height);
-
-              let quality = 0.85;
-              let dataUrl = canvas.toDataURL('image/jpeg', quality);
-              let sizeBytes = Math.round((dataUrl.length - 23) * 0.75);
-
-              while (sizeBytes > 95 * 1024 && quality > 0.2) {
-                quality -= 0.1;
-                dataUrl = canvas.toDataURL('image/jpeg', quality);
-                sizeBytes = Math.round((dataUrl.length - 23) * 0.75);
-              }
-
-              if (sizeBytes > 98 * 1024) {
-                canvas.width = Math.round(width * 0.75);
-                canvas.height = Math.round(height * 0.75);
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                dataUrl = canvas.toDataURL('image/jpeg', 0.65);
-                sizeBytes = Math.round((dataUrl.length - 23) * 0.75);
-              }
-
-              resolve({
-                dataUrl: dataUrl,
-                sizeKB: Math.max(1, Math.round(sizeBytes / 1024)),
-              });
-            } catch (err) {
-              reject(err);
-            }
-          };
-          img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-      });
+    // ---- PASSPORT PHOTOGRAPH COMPRESSOR (Strictly <= 100 KB via DB.compressImage) ----
+    async function compressPassportImage(file) {
+      if (typeof DB !== 'undefined' && typeof DB.compressImage === 'function') {
+        return await DB.compressImage(file, { maxKB: 95, maxDimension: 480 });
+      }
+      throw new Error('Database compressor module is not loaded.');
     }
 
     let selectedPassportDataUrl = '';
@@ -239,7 +177,7 @@ const Auth = (() => {
             passportHolder.style.display = 'none';
           }
           if (passportBadge) {
-            passportBadge.textContent = `✓ ${compressed.sizeKB} KB (Compressed)`;
+            passportBadge.textContent = `${compressed.sizeKB} KB (Compressed under 100 KB)`;
             passportBadge.style.color = '#166534';
             passportBadge.style.background = '#dcfce7';
           }

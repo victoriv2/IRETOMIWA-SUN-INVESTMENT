@@ -1156,7 +1156,7 @@ const UserApp = (() => {
         }
 
         try {
-          const res = await DB.compressImage(file, 480, 0.85);
+          const res = await DB.compressImage(file, { maxKB: 95, maxDimension: 480 });
           pendingPhotoDataUrl = res.dataUrl;
 
           const previewEl = document.getElementById('edit-profile-photo-preview');
@@ -1168,7 +1168,7 @@ const UserApp = (() => {
           if (initialsEl) initialsEl.style.display = 'none';
 
           if (photoStatus) {
-            photoStatus.textContent = `New photo ready (${res.sizeKB} KB). Click Save Changes to apply.`;
+            photoStatus.textContent = `New photo compressed to ${res.sizeKB} KB (under 100 KB). Click Save Changes to apply.`;
             photoStatus.style.color = '#166534';
           }
         } catch (err) {
