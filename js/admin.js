@@ -1044,73 +1044,106 @@ const AdminApp = (() => {
                 const ipMatch = rawErr.match(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/);
                 const initialIp = ipMatch ? ipMatch[0] : 'Detecting IP...';
 
-                flwErrEl.innerHTML = `
-                  <div style="font-weight: 700; margin-bottom: 6px; color: #991b1b; font-size: 13.5px;">${isIpErr ? 'Flutterwave IP Whitelist Security Restriction' : 'Flutterwave API Payouts Restricted on Account'}</div>
-                  <div style="margin-bottom: 8px; color: #374151; font-size: 12px; line-height: 1.45;">
-                    Flutterwave requires your PC's IP address to be whitelisted before processing API transfers.
-                  </div>
-                  <div style="background: #ffffff; border: 1.5px solid #fed7aa; border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 12px; color: #9a3412;">
-                    <div style="font-weight: 800; margin-bottom: 6px; color: #c2410c;">Your Current Public IP Address:</div>
-                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
-                      <span id="flw-detected-ip" style="background: #f1f5f9; padding: 6px 12px; border-radius: 6px; font-family: monospace; font-size: 14px; font-weight: 800; color: #0f172a; border: 1px solid #cbd5e1;">${initialIp}</span>
-                      <button type="button" id="btn-copy-detected-ip" style="padding: 6px 14px; background: #047857; color: #ffffff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 12px;">Copy IP</button>
+                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                const initialIp = ipMatch ? ipMatch[0] : (isLocal ? 'Detecting IP...' : 'Cloud Dynamic IP (AWS)');
+
+                if (!isLocal) {
+                  // Netlify / Cloud Environment Explanation
+                  flwErrEl.innerHTML = `
+                    <div style="font-weight: 700; margin-bottom: 6px; color: #991b1b; font-size: 13.5px;">Flutterwave IP Whitelist Restriction on Netlify Cloud</div>
+                    <div style="margin-bottom: 8px; color: #374151; font-size: 12px; line-height: 1.45;">
+                      Flutterwave blocked this transfer because the request originated from Netlify's cloud server (${ipMatch ? `IP <strong>${ipMatch[0]}</strong>` : 'AWS cloud IP'}), not from your PC. Cloud IPs rotate on AWS and cannot be permanently whitelisted.
                     </div>
-                    <div style="font-weight: 700; margin-bottom: 4px;">Quick Steps to Whitelist (Takes 30 seconds):</div>
-                    <ol style="margin: 0 0 0 16px; padding: 0; line-height: 1.55;">
-                      <li>Click <strong>Copy IP</strong> above.</li>
-                      <li>In Flutterwave: Go to <strong>Settings</strong> &rarr; <strong>Whitelisted IP addresses</strong>.</li>
-                      <li>Click <strong>Add IP address</strong>, paste the IP, and confirm with your OTP.</li>
-                      <li>Click <strong>Retry Flutterwave Transfer</strong> below.</li>
-                    </ol>
-                  </div>
-                  <div style="display: flex; gap: 8px; flex-direction: column;">
-                    <button type="button" id="btn-err-retry-api" style="width: 100%; padding: 10px 14px; background: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px;">
-                      Retry Flutterwave Transfer Now
-                    </button>
-                    <button type="button" id="btn-err-fallback-approve" style="width: 100%; padding: 9px 14px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px;">
-                      Or Mark as Manual Bank Transfer / Cash
-                    </button>
-                  </div>
-                `;
+                    <div style="background: #ffffff; border: 1.5px solid #fed7aa; border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 12px; color: #9a3412;">
+                      <div style="font-weight: 800; margin-bottom: 6px; color: #c2410c;">How to Disburse Payouts Successfully:</div>
+                      <div style="margin-bottom: 10px;">
+                        <strong>1. Use Local Server on your PC (Recommended):</strong><br>
+                        Open <a href="http://localhost:8080/#admin" target="_blank" style="color: #2563eb; font-weight: 700; text-decoration: underline;">http://localhost:8080/#admin</a> on your PC. On localhost, transfers disburse directly from your whitelisted PC IP and succeed immediately.
+                      </div>
+                      <div>
+                        <strong>2. Or Approve as Manual Transfer:</strong><br>
+                        If you send the funds manually using your mobile banking app (OPay, Kuda, GTB), click <em>"Mark as Manual Bank Transfer"</em> below to approve and update the client passbook in Supabase.
+                      </div>
+                    </div>
+                    <div style="display: flex; gap: 8px; flex-direction: column;">
+                      <button type="button" id="btn-err-fallback-approve" style="width: 100%; padding: 11px 14px; background: #15803d; color: #ffffff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px;">
+                        Mark as Manual Bank Transfer / Cash
+                      </button>
+                      <button type="button" id="btn-err-retry-api" style="width: 100%; padding: 9px 14px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px;">
+                        Retry Flutterwave Transfer
+                      </button>
+                    </div>
+                  `;
+                } else {
+                  // Localhost Environment
+                  flwErrEl.innerHTML = `
+                    <div style="font-weight: 700; margin-bottom: 6px; color: #991b1b; font-size: 13.5px;">${isIpErr ? 'Flutterwave IP Whitelist Security Restriction' : 'Flutterwave API Payouts Restricted on Account'}</div>
+                    <div style="margin-bottom: 8px; color: #374151; font-size: 12px; line-height: 1.45;">
+                      Flutterwave requires your PC's IP address to be whitelisted before processing API transfers.
+                    </div>
+                    <div style="background: #ffffff; border: 1.5px solid #fed7aa; border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 12px; color: #9a3412;">
+                      <div style="font-weight: 800; margin-bottom: 6px; color: #c2410c;">Your Current Public IP Address:</div>
+                      <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
+                        <span id="flw-detected-ip" style="background: #f1f5f9; padding: 6px 12px; border-radius: 6px; font-family: monospace; font-size: 14px; font-weight: 800; color: #0f172a; border: 1px solid #cbd5e1;">${initialIp}</span>
+                        <button type="button" id="btn-copy-detected-ip" style="padding: 6px 14px; background: #047857; color: #ffffff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 12px;">Copy IP</button>
+                      </div>
+                      <div style="font-weight: 700; margin-bottom: 4px;">Quick Steps to Whitelist (Takes 30 seconds):</div>
+                      <ol style="margin: 0 0 0 16px; padding: 0; line-height: 1.55;">
+                        <li>Click <strong>Copy IP</strong> above.</li>
+                        <li>In Flutterwave: Go to <strong>Settings</strong> &rarr; <strong>Whitelisted IP addresses</strong>.</li>
+                        <li>Click <strong>Add IP address</strong>, paste the IP, and confirm with your OTP.</li>
+                        <li>Click <strong>Retry Flutterwave Transfer</strong> below.</li>
+                      </ol>
+                    </div>
+                    <div style="display: flex; gap: 8px; flex-direction: column;">
+                      <button type="button" id="btn-err-retry-api" style="width: 100%; padding: 10px 14px; background: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px;">
+                        Retry Flutterwave Transfer Now
+                      </button>
+                      <button type="button" id="btn-err-fallback-approve" style="width: 100%; padding: 9px 14px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px;">
+                        Or Mark as Manual Bank Transfer / Cash
+                      </button>
+                    </div>
+                  `;
+
+                  // Auto-detect public IP on localhost
+                  if (!ipMatch) {
+                    fetch('https://api.ipify.org?format=json')
+                      .then(r => r.json())
+                      .then(d => {
+                        const el = document.getElementById('flw-detected-ip');
+                        if (el && d && d.ip) el.textContent = d.ip;
+                      })
+                      .catch(() => {
+                        fetch('https://icanhazip.com')
+                          .then(r => r.text())
+                          .then(txt => {
+                            const el = document.getElementById('flw-detected-ip');
+                            if (el && txt) el.textContent = txt.trim();
+                          })
+                          .catch(() => {
+                            const el = document.getElementById('flw-detected-ip');
+                            if (el) el.textContent = 'Check local server window';
+                          });
+                      });
+                  }
+
+                  const copyIpBtn = document.getElementById('btn-copy-detected-ip');
+                  if (copyIpBtn) {
+                    copyIpBtn.addEventListener('click', () => {
+                      const el = document.getElementById('flw-detected-ip');
+                      const ipText = el ? el.textContent.trim() : '';
+                      if (ipText && ipText !== 'Detecting IP...' && ipText !== 'Check local server window') {
+                        navigator.clipboard.writeText(ipText).then(() => {
+                          copyIpBtn.textContent = 'Copied!';
+                          setTimeout(() => { copyIpBtn.textContent = 'Copy IP'; }, 2000);
+                        });
+                      }
+                    });
+                  }
+                }
 
                 // Smooth scroll directly to the error and IP box
                 try { flwErrEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
-
-                // If not extracted from error message, auto-detect asynchronously
-                if (!ipMatch) {
-                  fetch('https://api.ipify.org?format=json')
-                    .then(r => r.json())
-                    .then(d => {
-                      const el = document.getElementById('flw-detected-ip');
-                      if (el && d && d.ip) el.textContent = d.ip;
-                    })
-                    .catch(() => {
-                      fetch('https://icanhazip.com')
-                        .then(r => r.text())
-                        .then(txt => {
-                          const el = document.getElementById('flw-detected-ip');
-                          if (el && txt) el.textContent = txt.trim();
-                        })
-                        .catch(() => {
-                          const el = document.getElementById('flw-detected-ip');
-                          if (el) el.textContent = 'Check local server window';
-                        });
-                    });
-                }
-
-                const copyIpBtn = document.getElementById('btn-copy-detected-ip');
-                if (copyIpBtn) {
-                  copyIpBtn.addEventListener('click', () => {
-                    const el = document.getElementById('flw-detected-ip');
-                    const ipText = el ? el.textContent.trim() : '';
-                    if (ipText && ipText !== 'Detecting IP...' && ipText !== 'Check local server window') {
-                      navigator.clipboard.writeText(ipText).then(() => {
-                        copyIpBtn.textContent = 'Copied!';
-                        setTimeout(() => { copyIpBtn.textContent = 'Copy IP'; }, 2000);
-                      });
-                    }
-                  });
-                }
                 const retryBtn = document.getElementById('btn-err-retry-api');
                 if (retryBtn) {
                   retryBtn.addEventListener('click', () => {

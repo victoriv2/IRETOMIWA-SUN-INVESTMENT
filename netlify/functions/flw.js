@@ -59,6 +59,10 @@ exports.handler = async (event) => {
   }
 
   try {
+    const clientIp = event.headers['x-nf-client-connection-ip'] || 
+                     event.headers['client-ip'] || 
+                     event.headers['x-forwarded-for'] || '';
+
     const fetchOptions = {
       method: event.httpMethod,
       headers: {
@@ -66,6 +70,12 @@ exports.handler = async (event) => {
         'Accept': 'application/json',
       },
     };
+
+    if (clientIp) {
+      fetchOptions.headers['X-Forwarded-For'] = clientIp;
+      fetchOptions.headers['X-Real-IP'] = clientIp.split(',')[0].trim();
+      fetchOptions.headers['CF-Connecting-IP'] = clientIp.split(',')[0].trim();
+    }
 
     if (authHeader) {
       fetchOptions.headers['Authorization'] = authHeader;
