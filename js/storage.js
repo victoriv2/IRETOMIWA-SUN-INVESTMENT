@@ -1774,6 +1774,9 @@ const DB = {
     };
 
     this.saveUserDedicatedAccount(userId, accountData);
+    try {
+      this.reconcileDedicatedDeposits();
+    } catch(e) {}
     return accountData;
   },
 
@@ -1789,7 +1792,7 @@ const DB = {
       const usersWithDedicated = users.filter(u => u.dedicatedAccount && u.dedicatedAccount.accountNumber);
       if (!usersWithDedicated || usersWithDedicated.length === 0) return;
 
-      const res = await this.fetchFlutterwave('transactions?status=successful', { method: 'GET' });
+      const res = await this.fetchFlutterwave('transactions?status=successful&limit=100', { method: 'GET' });
       const json = res.json;
       if (!json || json.status !== 'success' || !Array.isArray(json.data)) return;
 

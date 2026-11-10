@@ -58,7 +58,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261110_RECON_V69';
+      var APP_BUILD_VER = '20261110_RECON_V71';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -80,8 +80,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261102_v36" />
-  <link rel="stylesheet" href="css/auth.css?v=20261102_v36" />
+  <link rel="stylesheet" href="css/global.css?v=20261110_v71" />
+  <link rel="stylesheet" href="css/auth.css?v=20261110_v71" />
   <style>
     /* Gentle pre-boot session hints - JavaScript has full priority without !important blocking */
     html.is-user-logged-in #page-login { display: none; }
@@ -591,14 +591,14 @@
         <div class="more-container">
           <div class="more-user-info">
             <div class="more-avatar" style="position: relative; overflow: hidden;">
-              <span class="more-avatar-initials" id="more-user-initials">DA</span>
+              <span class="more-avatar-initials" id="more-user-initials">--</span>
               <img id="more-user-photo" src="" alt="Passport Photo" class="clickable-image-preview" style="display: none; width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" title="Click to view full photo" />
             </div>
-            <p class="more-user-name" id="more-user-name">User Name</p>
+            <p class="more-user-name" id="more-user-name">--</p>
             <!-- Large Prominent Client ID with One-Tap Copy Button -->
             <div class="user-id-badge-container">
               <span class="user-id-prefix">ID:</span>
-              <span id="more-user-id" class="user-id-value">ir00001</span>
+              <span id="more-user-id" class="user-id-value">--</span>
               <button type="button" id="btn-copy-user-id" class="btn-copy-id" title="Copy Client ID">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
@@ -2821,13 +2821,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261110_v69"></script>
-  <script src="js/picker.js?v=20261110_v69"></script>
+  <script src="js/storage.js?v=20261110_v71"></script>
+  <script src="js/picker.js?v=20261110_v71"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261110_v69"></script>
-  <script src="js/auth.js?v=20261110_v69"></script>
-  <script src="js/user.js?v=20261110_v69"></script>
-  <script src="js/admin.js?v=20261110_v69"></script>
-  <script src="js/app.js?v=20261110_v69"></script>
+  <script src="js/export.js?v=20261110_v71"></script>
+  <script src="js/auth.js?v=20261110_v71"></script>
+  <script src="js/user.js?v=20261110_v71"></script>
+  <script src="js/admin.js?v=20261110_v71"></script>
+  <script src="js/app.js?v=20261110_v71"></script>
 </body>
 </html>

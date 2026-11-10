@@ -2107,21 +2107,25 @@ const UserApp = (() => {
       currentUserId = userId;
       activePeriod = 'day';
 
+      // 1. Immediately start clock and live date so header is never stuck at --:--
+      startClock();
+
+      // 2. Safely restore user tab
       let savedTab = 'home';
       try {
         savedTab = localStorage.getItem('sun_user_tab') || 'home';
       } catch(e) {}
-      switchTab(savedTab);
 
       selectedFilterDate = todayISO();
-      updateFilterButtons();
-      renderSavingsList();
-      renderTotal();
-      renderMoreUserInfo();
-      renderDedicatedAccountCard();
-      startClock();
+      try { updateFilterButtons(); } catch(e) { console.warn('updateFilterButtons error:', e); }
+      try { renderSavingsList(); } catch(e) { console.warn('renderSavingsList error:', e); }
+      try { renderTotal(); } catch(e) { console.warn('renderTotal error:', e); }
+      try { renderMoreUserInfo(); } catch(e) { console.warn('renderMoreUserInfo error:', e); }
+      try { renderDedicatedAccountCard(); } catch(e) { console.warn('renderDedicatedAccountCard error:', e); }
 
-      checkPendingFlutterwaveRedirect();
+      try { switchTab(savedTab); } catch(e) { console.warn('switchTab error:', e); }
+
+      try { checkPendingFlutterwaveRedirect(); } catch(e) { console.warn('checkPendingFlutterwaveRedirect error:', e); }
     },
 
     initOnce() {
@@ -2143,10 +2147,11 @@ const UserApp = (() => {
       const uid = currentUserId || (DB.getSession() ? DB.getSession().userId : null);
       if (uid) {
         currentUserId = uid;
-        renderSavingsList();
-        renderTotal();
-        renderMoreUserInfo();
-        renderDedicatedAccountCard();
+        startClock();
+        try { renderSavingsList(); } catch(e) {}
+        try { renderTotal(); } catch(e) {}
+        try { renderMoreUserInfo(); } catch(e) {}
+        try { renderDedicatedAccountCard(); } catch(e) {}
       }
     },
 
