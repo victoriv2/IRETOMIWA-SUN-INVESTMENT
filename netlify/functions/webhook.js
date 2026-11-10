@@ -35,6 +35,13 @@ exports.handler = async (event) => {
     return { statusCode: 405, headers: corsHeaders, body: 'Method Not Allowed' };
   }
 
+  // Optional Secret Hash verification
+  const secretHashEnv = process.env.FLW_SECRET_HASH;
+  const incomingHash = event.headers['verif-hash'] || event.headers['Verif-Hash'] || '';
+  if (secretHashEnv && incomingHash && incomingHash !== secretHashEnv) {
+    return { statusCode: 401, headers: corsHeaders, body: JSON.stringify({ error: 'Unauthorized secret hash' }) };
+  }
+
   let payload = null;
   try {
     let rawBody = event.body;
