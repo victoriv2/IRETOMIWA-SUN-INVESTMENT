@@ -930,6 +930,31 @@ const DB = {
     all.push(tx);
     localStorage.setItem('sun_transactions', JSON.stringify(all));
     this.scheduleCloudPush();
+
+    // Auto-dispatch instant Admin notification if request is pending review
+    if (assignedStatus === 'pending') {
+      try {
+        const u = this.getUserById(userId);
+        const clientName = u ? `${this.formatName(u.firstName)} ${this.formatName(u.lastName)}` : 'Client';
+        this.dispatchAdminPendingNotification({
+          type: tx.type,
+          clientName: clientName,
+          clientId: userId,
+          clientPhone: u ? u.phone : '',
+          amount: tx.amount,
+          netAmount: tx.netAmount,
+          fee: tx.fee,
+          bankName: destinationBank ? (destinationBank.bankName || '') : '',
+          accountNumber: destinationBank ? (destinationBank.accountNumber || '') : '',
+          accountName: destinationBank ? (destinationBank.accountName || '') : '',
+          note: tx.note,
+          timestamp: tx.createdAt
+        });
+      } catch (notifErr) {
+        console.warn('Pending admin alert notice:', notifErr);
+      }
+    }
+
     return tx;
   },
 
@@ -1844,6 +1869,52 @@ const DB = {
       }
     } catch (err) {
       console.warn('Dedicated reconciliation notice:', err);
+    }
+  },
+
+  // ---- ADMIN NOTIFICATION CONFIGURATION & DISPATCH ----
+  getNotificationConfig() {
+    try {
+      const raw = localStorage.getItem('sun_notification_config');
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return {
+      pushEnabled: true,
+      soundEnabled: true,
+      vibrateEnabled: true,
+      telegramEnabled: false,
+      telegramBotToken: '',
+      telegramChatId: ''
+    };
+  },
+
+  saveNotificationConfig(cfg) {
+    const current = this.getNotificationConfig();
+    const updated = { ...current, ...cfg };
+    localStorage.setItem('sun_notification_config', JSON.stringify(updated));
+    return updated;
+  },
+
+  async dispatchAdminPendingNotification(payload) {
+    if (!navigator.onLine) return;
+    try {
+      const cfg = this.getNotificationConfig();
+      const body = {
+        ...payload,
+        telegramConfig: (cfg.telegramEnabled && cfg.telegramBotToken && cfg.telegramChatId) ? {
+          botToken: cfg.telegramBotToken,
+          chatId: cfg.telegramChatId
+        } : null
+      };
+
+      // Call Netlify serverless notifier in background
+      fetch('/.netlify/functions/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }).catch(() => {});
+    } catch (e) {
+      console.warn('Dispatch admin notification notice:', e);
     }
   },
 

@@ -340,6 +340,11 @@ const AdminApp = (() => {
     if (cardCounter) {
       cardCounter.textContent = count;
     }
+
+    // Check for newly arrived pending requests and alert admin
+    if (typeof AdminNotificationService !== 'undefined') {
+      AdminNotificationService.checkPendingRequests();
+    }
   }
 
   // ---- ADMIN EDIT BANK DETAILS (correct wrong bank on a pending withdrawal) ----
@@ -2174,6 +2179,11 @@ const AdminApp = (() => {
 
     // Fetch live Flutterwave wallet balance
     fetchAndRenderFlwBalance();
+
+    // Render device notification preferences
+    if (typeof renderNotificationSettings === 'function') {
+      renderNotificationSettings();
+    }
   }
 
   // Flutterwave Admin Settings Form Handler
@@ -2270,6 +2280,342 @@ const AdminApp = (() => {
 
       renderMoreTab();
     });
+  }
+
+  // ============================================
+  // ADMIN REALTIME DEVICE NOTIFICATION SYSTEM
+  // ============================================
+  const AdminNotificationService = {
+    _audioCtx: null,
+    _alertTimer: null,
+
+    // Synthesized Cash Chime using Web Audio API (Offline, zero network delay, clean dual chime)
+    playCashChime() {
+      try {
+        const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtxClass) return;
+        if (!this._audioCtx) {
+          this._audioCtx = new AudioCtxClass();
+        }
+        if (this._audioCtx.state === 'suspended') {
+          this._audioCtx.resume();
+        }
+
+        const ctx = this._audioCtx;
+        const now = ctx.currentTime;
+
+        // Note 1: E5 (659.25 Hz)
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(659.25, now);
+        gain1.gain.setValueAtTime(0.001, now);
+        gain1.gain.exponentialRampToValueAtTime(0.25, now + 0.03);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.29);
+
+        // Note 2: B5 (987.77 Hz)
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'triangle';
+        osc2.frequency.setValueAtTime(987.77, now + 0.12);
+        gain2.gain.setValueAtTime(0.001, now + 0.12);
+        gain2.gain.exponentialRampToValueAtTime(0.35, now + 0.15);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(now + 0.12);
+        osc2.stop(now + 0.66);
+      } catch (e) {
+        console.warn('Audio chime notice:', e);
+      }
+    },
+
+    // Phone vibration pattern
+    vibrateDevice() {
+      if ('vibrate' in navigator) {
+        try {
+          navigator.vibrate([250, 100, 250]);
+        } catch (e) {}
+      }
+    },
+
+    // Request browser push notification permission
+    async requestPermission() {
+      if (!('Notification' in window)) {
+        this.updatePermissionBadge();
+        return 'unsupported';
+      }
+      try {
+        const perm = await Notification.requestPermission();
+        this.updatePermissionBadge();
+        return perm;
+      } catch (e) {
+        this.updatePermissionBadge();
+        return Notification.permission;
+      }
+    },
+
+    updatePermissionBadge() {
+      const badge = document.getElementById('admin-push-permission-badge');
+      if (!badge) return;
+      if (!('Notification' in window)) {
+        badge.textContent = 'Not Supported';
+        badge.className = 'status-badge status-badge--declined';
+        return;
+      }
+      const perm = Notification.permission;
+      if (perm === 'granted') {
+        badge.textContent = 'Active (Allowed)';
+        badge.className = 'status-badge status-badge--approved';
+      } else if (perm === 'denied') {
+        badge.textContent = 'Blocked in Browser';
+        badge.className = 'status-badge status-badge--declined';
+      } else {
+        badge.textContent = 'Click to Enable';
+        badge.className = 'status-badge status-badge--pending';
+      }
+    },
+
+    // Show floating in-app banner
+    showFloatingBanner(title, body) {
+      const banner = document.getElementById('admin-floating-alert-banner');
+      const titleEl = document.getElementById('admin-floating-alert-title');
+      const bodyEl = document.getElementById('admin-floating-alert-body');
+      if (!banner) return;
+
+      if (titleEl) titleEl.textContent = title;
+      if (bodyEl) bodyEl.textContent = body;
+
+      banner.classList.remove('hidden');
+
+      if (this._alertTimer) clearTimeout(this._alertTimer);
+      this._alertTimer = setTimeout(() => {
+        banner.classList.add('hidden');
+      }, 15000);
+    },
+
+    // Trigger full notification (chime + vibrate + push + floating banner)
+    triggerAlert({ title, body, sound = true, vibrate = true, push = true }) {
+      const cfg = DB.getNotificationConfig();
+
+      if (sound && cfg.soundEnabled) {
+        this.playCashChime();
+      }
+
+      if (vibrate && cfg.vibrateEnabled) {
+        this.vibrateDevice();
+      }
+
+      this.showFloatingBanner(title, body);
+
+      if (push && cfg.pushEnabled && 'Notification' in window && Notification.permission === 'granted') {
+        try {
+          const n = new Notification(title, {
+            body,
+            icon: 'icons/icon-192.png',
+            badge: 'icons/icon-192.png',
+            tag: 'admin-pending-alert',
+            renotify: true
+          });
+          n.onclick = () => {
+            window.focus();
+            if (typeof AdminApp !== 'undefined') {
+              AdminApp.switchTab('requests');
+            }
+            n.close();
+          };
+        } catch (e) {
+          console.warn('Native notification notice:', e);
+        }
+      }
+    },
+
+    // Scan DB for pending requests and notify for newly discovered ones
+    checkPendingRequests() {
+      const adminSession = DB.getAdminSession();
+      if (!adminSession) return;
+
+      const pending = DB.getPendingRequests();
+      if (!pending || pending.length === 0) return;
+
+      let notifiedIds = [];
+      try {
+        const raw = localStorage.getItem('sun_notified_pending_ids');
+        if (raw) notifiedIds = JSON.parse(raw);
+      } catch (e) {}
+
+      const newRequests = pending.filter(p => !notifiedIds.includes(p.id));
+      if (newRequests.length === 0) return;
+
+      // Update stored notified IDs
+      const updatedIds = Array.from(new Set([...notifiedIds, ...newRequests.map(r => r.id)]));
+      try {
+        localStorage.setItem('sun_notified_pending_ids', JSON.stringify(updatedIds));
+      } catch (e) {}
+
+      const latest = newRequests[0];
+      const u = DB.getUserById(latest.userId);
+      const clientName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Client';
+      const isWithdrawal = (latest.type === 'withdraw' || latest.type === 'withdrawal' || latest.type === 'payout');
+      const actionName = isWithdrawal ? 'Withdrawal' : 'Deposit';
+      const formattedAmt = '₦' + formatAmount(latest.amount);
+
+      let title = `New ${actionName} Request: ${formattedAmt}`;
+      let bodyText = `${clientName} | Bank: ${latest.bankName || 'Savings Account'}`;
+      if (newRequests.length > 1) {
+        bodyText += ` (+${newRequests.length - 1} other pending)`;
+      }
+
+      this.triggerAlert({
+        title,
+        body: bodyText,
+        sound: true,
+        vibrate: true,
+        push: true
+      });
+    }
+  };
+
+  function renderNotificationSettings() {
+    AdminNotificationService.updatePermissionBadge();
+    const cfg = DB.getNotificationConfig();
+
+    const pushChk = document.getElementById('toggle-admin-push-notif');
+    const soundChk = document.getElementById('toggle-admin-sound-notif');
+    const vibChk = document.getElementById('toggle-admin-vibrate-notif');
+    const tgChk = document.getElementById('toggle-admin-telegram-notif');
+    const tgFields = document.getElementById('admin-telegram-fields');
+    const tgToken = document.getElementById('admin-telegram-bot-token');
+    const tgChat = document.getElementById('admin-telegram-chat-id');
+
+    if (pushChk) pushChk.checked = cfg.pushEnabled !== false;
+    if (soundChk) soundChk.checked = cfg.soundEnabled !== false;
+    if (vibChk) vibChk.checked = cfg.vibrateEnabled !== false;
+    if (tgChk) {
+      tgChk.checked = cfg.telegramEnabled === true;
+      if (tgFields) {
+        if (cfg.telegramEnabled) tgFields.classList.remove('hidden');
+        else tgFields.classList.add('hidden');
+      }
+    }
+    if (tgToken) tgToken.value = cfg.telegramBotToken || '';
+    if (tgChat) tgChat.value = cfg.telegramChatId || '';
+  }
+
+  function initAdminNotifications() {
+    renderNotificationSettings();
+
+    const pushChk = document.getElementById('toggle-admin-push-notif');
+    const tgChk = document.getElementById('toggle-admin-telegram-notif');
+    const tgFields = document.getElementById('admin-telegram-fields');
+    const saveBtn = document.getElementById('btn-save-notif-config');
+    const testBtn = document.getElementById('btn-test-admin-notif');
+    const msgBox = document.getElementById('admin-notif-msg');
+    const bannerViewBtn = document.getElementById('btn-admin-floating-view');
+    const bannerDismissBtn = document.getElementById('btn-admin-floating-dismiss');
+    const banner = document.getElementById('admin-floating-alert-banner');
+
+    if (pushChk) {
+      pushChk.addEventListener('change', async () => {
+        if (pushChk.checked) {
+          if ('Notification' in window && Notification.permission !== 'granted') {
+            const result = await AdminNotificationService.requestPermission();
+            if (result !== 'granted') {
+              pushChk.checked = false;
+            }
+          }
+        }
+      });
+    }
+
+    if (tgChk && tgFields) {
+      tgChk.addEventListener('change', () => {
+        if (tgChk.checked) tgFields.classList.remove('hidden');
+        else tgFields.classList.add('hidden');
+      });
+    }
+
+    if (saveBtn) {
+      saveBtn.addEventListener('click', () => {
+        const pushEnabled = document.getElementById('toggle-admin-push-notif')?.checked !== false;
+        const soundEnabled = document.getElementById('toggle-admin-sound-notif')?.checked !== false;
+        const vibrateEnabled = document.getElementById('toggle-admin-vibrate-notif')?.checked !== false;
+        const telegramEnabled = document.getElementById('toggle-admin-telegram-notif')?.checked === true;
+        const botToken = document.getElementById('admin-telegram-bot-token')?.value.trim() || '';
+        const chatId = document.getElementById('admin-telegram-chat-id')?.value.trim() || '';
+
+        DB.saveNotificationConfig({
+          pushEnabled,
+          soundEnabled,
+          vibrateEnabled,
+          telegramEnabled,
+          telegramBotToken: botToken,
+          telegramChatId: chatId
+        });
+
+        if (msgBox) {
+          msgBox.textContent = 'Device alert settings saved successfully!';
+          msgBox.style.background = '#dcfce7';
+          msgBox.style.color = '#15803d';
+          msgBox.style.border = '1px solid #bbf7d0';
+          msgBox.classList.remove('hidden');
+          setTimeout(() => msgBox.classList.add('hidden'), 3500);
+        }
+      });
+    }
+
+    if (testBtn) {
+      testBtn.addEventListener('click', async () => {
+        // 1. Play audio chime
+        AdminNotificationService.playCashChime();
+
+        // 2. Vibrate device
+        AdminNotificationService.vibrateDevice();
+
+        // 3. Request permission if not yet decided, then show push
+        if ('Notification' in window && Notification.permission === 'default') {
+          await AdminNotificationService.requestPermission();
+        }
+
+        // 4. Trigger alert
+        AdminNotificationService.triggerAlert({
+          title: 'Notification Test: Online',
+          body: 'Audio chime, vibration, and push notification are active for this device.',
+          sound: true,
+          vibrate: true,
+          push: true
+        });
+
+        // 5. Test telegram dispatch
+        DB.dispatchAdminPendingNotification({ isTest: true });
+
+        if (msgBox) {
+          msgBox.textContent = 'Test alert fired! Audio chime played, vibration triggered, and push dispatched.';
+          msgBox.style.background = '#e0f2fe';
+          msgBox.style.color = '#0369a1';
+          msgBox.style.border = '1px solid #bae6fd';
+          msgBox.classList.remove('hidden');
+          setTimeout(() => msgBox.classList.add('hidden'), 4000);
+        }
+      });
+    }
+
+    if (bannerViewBtn) {
+      bannerViewBtn.addEventListener('click', () => {
+        if (banner) banner.classList.add('hidden');
+        switchTab('requests');
+      });
+    }
+
+    if (bannerDismissBtn) {
+      bannerDismissBtn.addEventListener('click', () => {
+        if (banner) banner.classList.add('hidden');
+      });
+    }
   }
 
   // Admin Change Password Modal
@@ -3489,6 +3835,7 @@ const AdminApp = (() => {
     initAdminChangePassword();
     initAdminFactoryReset();
     initAdminFlutterwaveSettings();
+    initAdminNotifications();
     initAdminExports();
     initLogout();
     initModalCloseHandlers();
@@ -3496,7 +3843,33 @@ const AdminApp = (() => {
     initCopyDedicatedAccountNumber();
     initCopyApproveAccountNumber();
     initAdminChangePhoto();
+
+    // Baseline existing pending IDs so initial dashboard load does not sound old alerts
+    if (!localStorage.getItem('sun_notified_pending_ids')) {
+      try {
+        const initialPending = DB.getPendingRequests();
+        const ids = initialPending.map(p => p.id);
+        localStorage.setItem('sun_notified_pending_ids', JSON.stringify(ids));
+      } catch (e) {}
+    }
+
     updatePendingBadge();
+
+    // Realtime notification monitor (checks every 12 seconds & on cloud sync)
+    setInterval(() => {
+      if (typeof AdminNotificationService !== 'undefined') {
+        AdminNotificationService.checkPendingRequests();
+      }
+    }, 12000);
+
+    if (typeof DB !== 'undefined' && DB.onSync) {
+      DB.onSync(() => {
+        if (typeof AdminNotificationService !== 'undefined') {
+          AdminNotificationService.checkPendingRequests();
+        }
+        updatePendingBadge();
+      });
+    }
 
     // Ensure admin credentials exist
     DB.getAdmin();
