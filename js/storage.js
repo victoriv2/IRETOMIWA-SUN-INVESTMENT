@@ -1606,6 +1606,79 @@ const DB = {
     return (user && user.payoutBank) ? user.payoutBank : null;
   },
 
+  // ---- DEDICATED PERMANENT VIRTUAL ACCOUNT (FLUTTERWAVE) ----
+  getUserDedicatedAccount(userId) {
+    const user = this.getUserById(userId);
+    return (user && user.dedicatedAccount) ? user.dedicatedAccount : null;
+  },
+
+  saveUserDedicatedAccount(userId, accountData) {
+    const users = this.getUsers();
+    const idx = users.findIndex(u => u.id === userId);
+    if (idx === -1) return false;
+    users[idx].dedicatedAccount = accountData;
+    this.saveUsers(users);
+    this.scheduleCloudPush();
+    return true;
+  },
+
+  async generateFlutterwaveDedicatedAccount({ userId, bvn, nin, email, phone, firstName, lastName }) {
+    const user = this.getUserById(userId);
+    if (!user) throw new Error('User account not found.');
+
+    const cleanBvn = String(bvn || '').trim().replace(/\D/g, '');
+    const cleanNin = String(nin || '').trim().replace(/\D/g, '');
+    const idVal = cleanBvn || cleanNin;
+    if (!idVal || (idVal.length !== 11)) {
+      throw new Error('Valid 11-digit BVN or NIN is required by Central Bank regulations.');
+    }
+
+    const cleanPhone = String(phone || user.phone || '').trim().replace(/\D/g, '');
+    const userEmail = (email || user.email || `${userId.toLowerCase()}@suninvestment.com`).trim().toLowerCase();
+    const fName = (firstName || user.firstName || 'Client').trim();
+    const lName = (lastName || user.lastName || '').trim();
+    const fullName = `${fName} ${lName}`.trim();
+
+    const txRef = `VA_${userId.toUpperCase()}_${Date.now()}`;
+
+    const payload = {
+      email: userEmail,
+      is_permanent: true,
+      bvn: idVal,
+      tx_ref: txRef,
+      phonenumber: cleanPhone,
+      firstname: fName,
+      lastname: lName,
+      narration: fullName
+    };
+
+    const res = await this.fetchFlutterwave('virtual-account-numbers', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+
+    const json = res.json || {};
+    if (!res.ok || json.status !== 'success' || !json.data) {
+      const errMsg = (json && (json.message || json.error)) || 'Could not generate virtual account with Flutterwave.';
+      throw new Error(errMsg);
+    }
+
+    const d = json.data;
+    const accountData = {
+      accountNumber: d.account_number,
+      bankName: d.bank_name || 'Wema Bank',
+      accountName: fullName,
+      flwRef: d.flw_ref || '',
+      orderRef: d.order_ref || '',
+      bvnMasked: '*******' + idVal.slice(-4),
+      status: d.account_status || 'active',
+      createdAt: d.created_at || new Date().toISOString()
+    };
+
+    this.saveUserDedicatedAccount(userId, accountData);
+    return accountData;
+  },
+
   // ---- FACTORY RESET SYSTEM ----
   async factoryReset() {
     const resetTimestamp = new Date().toISOString();

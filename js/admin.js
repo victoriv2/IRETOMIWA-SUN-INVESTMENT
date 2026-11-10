@@ -170,8 +170,9 @@ const AdminApp = (() => {
               ${photoHtml}
               <div>
                 <div style="font-weight:700; color:#0f172a;">${escapeHtml(fullName)}</div>
-                <div style="margin-top:2px;">
+                <div style="margin-top:2px; display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
                   <span style="font-size:11px; font-weight:800; color:#1e40af; background:#dbeafe; padding:1px 6px; border-radius:4px; letter-spacing:0.3px;">${escapeHtml(u.id || '')}</span>
+                  ${u.dedicatedAccount && u.dedicatedAccount.accountNumber ? `<span style="font-size:11px; font-weight:700; color:#166534; background:#dcfce7; padding:1px 6px; border-radius:4px; font-family:monospace;" title="Dedicated ${escapeHtml(u.dedicatedAccount.bankName || 'Wema Bank')} Account">${escapeHtml(u.dedicatedAccount.accountNumber)}</span>` : ''}
                 </div>
               </div>
             </div>
@@ -232,6 +233,36 @@ const AdminApp = (() => {
     if (wthEl) wthEl.textContent = '₦' + formatAmount(userBal.totalWithdrawn);
     if (balEl) balEl.textContent = '₦' + formatAmount(userBal.balance);
     if (jnEl) jnEl.textContent = joined;
+
+    // Dedicated Virtual Account in Admin Profile Modal
+    const dedActiveBlock = document.getElementById('vp-dedicated-active-block');
+    const dedNoneBlock   = document.getElementById('vp-dedicated-none-block');
+    const dedBadge       = document.getElementById('vp-dedicated-status-badge');
+    const dedBank        = document.getElementById('vp-dedicated-bank');
+    const dedNum         = document.getElementById('vp-dedicated-number');
+    const dedName        = document.getElementById('vp-dedicated-name');
+
+    const dedicated = DB.getUserDedicatedAccount(userId);
+    if (dedicated && dedicated.accountNumber) {
+      if (dedActiveBlock) dedActiveBlock.style.display = 'block';
+      if (dedNoneBlock)   dedNoneBlock.style.display   = 'none';
+      if (dedBadge) {
+        dedBadge.textContent = 'Active';
+        dedBadge.style.background = '#dcfce7';
+        dedBadge.style.color = '#15803d';
+      }
+      if (dedBank) dedBank.textContent = dedicated.bankName || 'Wema Bank';
+      if (dedNum)  dedNum.textContent  = dedicated.accountNumber;
+      if (dedName) dedName.textContent = dedicated.accountName || (DB.formatName(user.firstName) + ' ' + DB.formatName(user.lastName));
+    } else {
+      if (dedActiveBlock) dedActiveBlock.style.display = 'none';
+      if (dedNoneBlock)   dedNoneBlock.style.display   = 'block';
+      if (dedBadge) {
+        dedBadge.textContent = 'Not Generated';
+        dedBadge.style.background = '#f1f5f9';
+        dedBadge.style.color = '#64748b';
+      }
+    }
 
     if (photoEl && initEl) {
       if (user.passportPhoto) {
@@ -3336,6 +3367,28 @@ const AdminApp = (() => {
     });
   }
 
+  function initCopyDedicatedAccountNumber() {
+    const btn = document.getElementById('btn-copy-vp-dedicated');
+    const numEl = document.getElementById('vp-dedicated-number');
+    if (!btn || !numEl) return;
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const text = (numEl.textContent || '').trim();
+      if (!text || text === '-') return;
+      copyTextToClipboard(text, () => {
+        const span = btn.querySelector('.copy-text');
+        const origText = span ? span.textContent : 'Copy';
+        btn.classList.add('copied');
+        if (span) span.textContent = 'Copied!';
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          if (span) span.textContent = origText;
+        }, 1800);
+      });
+    });
+  }
+
   function initCopyApproveAccountNumber() {
     const btn = document.getElementById('btn-copy-approve-acc');
     const accEl = document.getElementById('approve-account-number');
@@ -3440,6 +3493,7 @@ const AdminApp = (() => {
     initLogout();
     initModalCloseHandlers();
     initCopyViewProfileId();
+    initCopyDedicatedAccountNumber();
     initCopyApproveAccountNumber();
     initAdminChangePhoto();
     updatePendingBadge();

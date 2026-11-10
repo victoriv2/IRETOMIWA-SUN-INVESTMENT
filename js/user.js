@@ -404,6 +404,7 @@ const UserApp = (() => {
       initialsEl.textContent = (i1 + i2).toUpperCase() || 'U';
     }
     updateMoreTabBankSummary();
+    updateMoreTabDedicatedSummary();
   }
 
   // ---- Save / Payout Form & Flutterwave Bank Transfer ----
@@ -1496,6 +1497,253 @@ const UserApp = (() => {
     }
   }
 
+  // ---- DEDICATED PERMANENT SAVINGS ACCOUNT ----
+  function renderDedicatedAccountCard() {
+    const wrap = document.getElementById('user-dedicated-account-card-wrap');
+    if (!wrap || !currentUserId) return;
+    const user = DB.getUserById(currentUserId);
+    if (!user) return;
+
+    const dedicated = DB.getUserDedicatedAccount(currentUserId);
+    if (dedicated && dedicated.accountNumber) {
+      const fullName = `${DB.formatName(user.firstName)} ${DB.formatName(user.lastName)}`.trim();
+      wrap.innerHTML = `
+        <div class="dedicated-account-card">
+          <div class="dedicated-card-badge">Permanent Dedicated Savings Account</div>
+          <div class="dedicated-card-body">
+            <div class="dedicated-card-row">
+              <span class="dedicated-label">Bank Name</span>
+              <span class="dedicated-val">${escapeHtml(dedicated.bankName || 'Wema Bank')}</span>
+            </div>
+            <div class="dedicated-card-row dedicated-account-highlight">
+              <div>
+                <span class="dedicated-label">Account Number</span>
+                <span class="dedicated-acc-num">${escapeHtml(dedicated.accountNumber)}</span>
+              </div>
+              <button type="button" class="btn-copy-dedicated" id="btn-copy-home-dedicated">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                <span class="copy-text">Copy</span>
+              </button>
+            </div>
+            <div class="dedicated-card-row">
+              <span class="dedicated-label">Account Name (Personal)</span>
+              <span class="dedicated-val">${escapeHtml(dedicated.accountName || fullName)}</span>
+            </div>
+          </div>
+          <div class="dedicated-card-footer">
+            <span class="dedicated-dot"></span>
+            <span>Transfer anytime from your bank app (OPay, PalmPay, GTBank, etc.). Balance records automatically.</span>
+          </div>
+        </div>
+      `;
+
+      const copyBtn = document.getElementById('btn-copy-home-dedicated');
+      if (copyBtn) {
+        copyBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          copyTextToClipboard(dedicated.accountNumber, () => {
+            const span = copyBtn.querySelector('.copy-text');
+            copyBtn.classList.add('copied');
+            if (span) span.textContent = 'Copied!';
+            setTimeout(() => {
+              copyBtn.classList.remove('copied');
+              if (span) span.textContent = 'Copy';
+            }, 1800);
+          });
+        });
+      }
+    } else {
+      wrap.innerHTML = `
+        <div class="dedicated-promo-banner">
+          <div class="dedicated-promo-content">
+            <div class="dedicated-promo-title">Permanent Savings Account</div>
+            <div class="dedicated-promo-sub">Get your personal Nigerian bank account. Transfer money anytime from OPay, PalmPay, or your bank and your savings update automatically without logging in.</div>
+          </div>
+          <button type="button" class="btn-primary btn-mini" id="btn-promo-open-dedicated" style="background:#f3a812; color:#06391a; font-weight:800; border:none; padding:8px 14px; border-radius:6px; cursor:pointer;">
+            Generate Account
+          </button>
+        </div>
+      `;
+
+      const promoBtn = document.getElementById('btn-promo-open-dedicated');
+      if (promoBtn) {
+        promoBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          openDedicatedAccountModal();
+        });
+      }
+    }
+  }
+
+  function updateMoreTabDedicatedSummary() {
+    const subEl = document.getElementById('more-user-dedicated-sub');
+    if (!subEl || !currentUserId) return;
+    const dedicated = DB.getUserDedicatedAccount(currentUserId);
+    if (dedicated && dedicated.accountNumber) {
+      subEl.textContent = `${dedicated.bankName}   ${dedicated.accountNumber}`;
+      subEl.style.color = 'var(--primary)';
+      subEl.style.fontWeight = '600';
+    } else {
+      subEl.textContent = 'Generate your permanent account number';
+      subEl.style.color = 'var(--text-muted)';
+      subEl.style.fontWeight = 'normal';
+    }
+  }
+
+  function openDedicatedAccountModal() {
+    if (!currentUserId) return;
+    const user = DB.getUserById(currentUserId);
+    if (!user) return;
+
+    const modal = document.getElementById('modal-user-dedicated-account');
+    const formView = document.getElementById('dedicated-account-form-view');
+    const activeView = document.getElementById('dedicated-account-active-view');
+    const fnInput = document.getElementById('dedicated-form-fullname');
+    const bvnInput = document.getElementById('dedicated-form-bvn');
+    const phoneInput = document.getElementById('dedicated-form-phone');
+    const errBox = document.getElementById('dedicated-account-error');
+    const succBox = document.getElementById('dedicated-account-success');
+    const errBvn = document.getElementById('err-dedicated-bvn');
+    const errPhone = document.getElementById('err-dedicated-phone');
+
+    if (errBox) errBox.classList.add('hidden');
+    if (succBox) succBox.classList.add('hidden');
+    if (errBvn) errBvn.textContent = '';
+    if (errPhone) errPhone.textContent = '';
+
+    const fullName = `${DB.formatName(user.firstName)} ${DB.formatName(user.lastName)}`.trim();
+    if (fnInput) fnInput.value = fullName;
+    if (phoneInput) phoneInput.value = user.phone || '';
+    if (bvnInput) bvnInput.value = '';
+
+    const dedicated = DB.getUserDedicatedAccount(currentUserId);
+    if (dedicated && dedicated.accountNumber) {
+      // Show active account view
+      if (formView) formView.classList.add('hidden');
+      if (activeView) activeView.classList.remove('hidden');
+
+      const bankEl = document.getElementById('modal-dedicated-bank-name');
+      const numEl  = document.getElementById('modal-dedicated-acc-num');
+      const nameEl = document.getElementById('modal-dedicated-acc-name');
+      if (bankEl) bankEl.textContent = dedicated.bankName || 'Wema Bank';
+      if (numEl)  numEl.textContent  = dedicated.accountNumber || '';
+      if (nameEl) nameEl.textContent = dedicated.accountName || fullName;
+    } else {
+      // Show form view
+      if (formView) formView.classList.remove('hidden');
+      if (activeView) activeView.classList.add('hidden');
+    }
+
+    if (modal) modal.classList.remove('hidden');
+  }
+
+  function initDedicatedAccountModal() {
+    const moreBtn = document.getElementById('btn-user-dedicated-account');
+    if (moreBtn) {
+      moreBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        openDedicatedAccountModal();
+      });
+    }
+
+    // Modal copy button
+    const modalCopyBtn = document.getElementById('btn-modal-copy-dedicated');
+    if (modalCopyBtn) {
+      modalCopyBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const dedicated = DB.getUserDedicatedAccount(currentUserId);
+        if (dedicated && dedicated.accountNumber) {
+          copyTextToClipboard(dedicated.accountNumber, () => {
+            const span = modalCopyBtn.querySelector('.copy-text');
+            modalCopyBtn.classList.add('copied');
+            if (span) span.textContent = 'Copied!';
+            setTimeout(() => {
+              modalCopyBtn.classList.remove('copied');
+              if (span) span.textContent = 'Copy';
+            }, 1800);
+          });
+        }
+      });
+    }
+
+    // Generate submit button
+    const submitBtn = document.getElementById('btn-submit-generate-dedicated');
+    if (submitBtn) {
+      submitBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (!currentUserId) return;
+        const user = DB.getUserById(currentUserId);
+        if (!user) return;
+
+        const bvnInput = document.getElementById('dedicated-form-bvn');
+        const phoneInput = document.getElementById('dedicated-form-phone');
+        const errBox = document.getElementById('dedicated-account-error');
+        const succBox = document.getElementById('dedicated-account-success');
+        const errBvn = document.getElementById('err-dedicated-bvn');
+        const errPhone = document.getElementById('err-dedicated-phone');
+
+        if (errBox) errBox.classList.add('hidden');
+        if (succBox) succBox.classList.add('hidden');
+        if (errBvn) errBvn.textContent = '';
+        if (errPhone) errPhone.textContent = '';
+
+        const rawBvn = bvnInput ? bvnInput.value.trim().replace(/\D/g, '') : '';
+        const rawPhone = phoneInput ? phoneInput.value.trim().replace(/\D/g, '') : '';
+
+        let valid = true;
+        if (!rawBvn || rawBvn.length !== 11) {
+          if (errBvn) errBvn.textContent = 'Please enter a valid 11-digit BVN or NIN.';
+          valid = false;
+        }
+        if (!rawPhone || rawPhone.length < 10) {
+          if (errPhone) errPhone.textContent = 'Please enter a valid phone number.';
+          valid = false;
+        }
+        if (!valid) return;
+
+        const origText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Generating Account...';
+
+        try {
+          const accountData = await DB.generateFlutterwaveDedicatedAccount({
+            userId: user.id,
+            bvn: rawBvn,
+            phone: rawPhone,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email
+          });
+
+          if (succBox) {
+            succBox.textContent = `Account created successfully with ${accountData.bankName}!`;
+            succBox.classList.remove('hidden');
+          }
+
+          renderDedicatedAccountCard();
+          updateMoreTabDedicatedSummary();
+
+          setTimeout(() => {
+            openDedicatedAccountModal();
+          }, 1000);
+        } catch (err) {
+          console.error('Dedicated account generation failed:', err);
+          if (errBox) {
+            errBox.textContent = err.message || 'Could not generate virtual account. Please check your BVN/NIN and try again.';
+            errBox.classList.remove('hidden');
+          }
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = origText;
+        }
+      });
+    }
+  }
+
   // ---- Change Password Modal ----
   function initChangePassword() {
     const btn = document.getElementById('btn-change-password');
@@ -1855,6 +2103,7 @@ const UserApp = (() => {
       renderSavingsList();
       renderTotal();
       renderMoreUserInfo();
+      renderDedicatedAccountCard();
       startClock();
 
       checkPendingFlutterwaveRedirect();
@@ -1866,6 +2115,7 @@ const UserApp = (() => {
       initSaveForm();
       initEditProfile();
       initUserBankDetailsModal();
+      initDedicatedAccountModal();
       initChangePassword();
       initLogout();
       initModalClose();
@@ -1881,6 +2131,7 @@ const UserApp = (() => {
         renderSavingsList();
         renderTotal();
         renderMoreUserInfo();
+        renderDedicatedAccountCard();
       }
     },
 

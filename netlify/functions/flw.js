@@ -45,7 +45,6 @@ exports.handler = async (event) => {
     }
   }
 
-  const pathParam = (event.queryStringParameters && event.queryStringParameters.path) || '';
   const cleanPath = pathParam.replace(/^\/+/, '');
   const targetUrl = `https://api.flutterwave.com/v3/${cleanPath}`;
 

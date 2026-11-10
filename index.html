@@ -58,7 +58,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261104_SYNC_V61';
+      var APP_BUILD_VER = '20261110_SYNC_V63';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -351,6 +351,9 @@
         <!-- Pending Requests Notice -->
         <div id="user-pending-notice" class="hidden"></div>
 
+        <!-- Dedicated Permanent Savings Account Banner / Card -->
+        <div id="user-dedicated-account-card-wrap" class="dedicated-card-container"></div>
+
         <!-- Unified Date Filter: dd Month yyyy -->
         <div class="unified-date-bar">
           <button type="button" class="date-step-btn" id="user-date-prev" title="Previous Day" aria-label="Previous Day">
@@ -617,6 +620,24 @@
                 </svg>
               </span>
               <span class="more-menu-label">Edit Profile</span>
+              <span class="more-menu-arrow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </span>
+            </button>
+
+            <button class="more-menu-item" id="btn-user-dedicated-account">
+              <span class="more-menu-icon" style="color: #047857; background: #ecfdf5;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="5" width="20" height="14" rx="2"/>
+                  <line x1="2" y1="10" x2="22" y2="10"/>
+                </svg>
+              </span>
+              <div style="flex: 1; text-align: left;">
+                <span class="more-menu-label" style="display: block;">Dedicated Savings Account</span>
+                <span id="more-user-dedicated-sub" style="display: block; font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Permanent account for instant deposits</span>
+              </div>
               <span class="more-menu-arrow">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="9 18 15 12 9 6"/>
@@ -1709,6 +1730,101 @@
     </div>
   </div>
 
+  <!-- MODAL: Dedicated Permanent Savings Account -->
+  <div id="modal-user-dedicated-account" class="modal-overlay hidden">
+    <div class="modal-card" style="max-width: 460px;">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:6px; background:#ecfdf5; color:#047857;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          </span>
+          <h3 class="modal-title">Dedicated Savings Account</h3>
+        </div>
+        <button class="modal-close" data-modal="modal-user-dedicated-account" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- State 1: Generation Form -->
+      <div id="dedicated-account-form-view">
+        <div style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 8px; padding: 12px; margin-bottom: 16px; font-size: 12px; color: #166534; line-height: 1.5;">
+          <div style="font-weight: 800; margin-bottom: 4px; color: #14532d;">Easy Deposit Without Logging In</div>
+          Generate a permanent Nigerian bank account in your name. Any time you transfer money from your banking app (OPay, PalmPay, GTBank, Kuda, Zenith, etc.) to this account, your savings balance will update automatically.
+        </div>
+
+        <form id="user-dedicated-account-form" novalidate>
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label style="font-weight: 700; font-size: 12.5px;">Account Name (Permanent)</label>
+            <input type="text" id="dedicated-form-fullname" readonly tabindex="-1" style="background: #f8fafc; font-weight: 700; color: #0f172a; cursor: not-allowed;" />
+            <span style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 2px;">Your dedicated account will carry your personal name above.</span>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label for="dedicated-form-bvn" style="font-weight: 700; font-size: 12.5px;">BVN or NIN (11 Digits)</label>
+            <input type="tel" id="dedicated-form-bvn" maxlength="11" placeholder="Enter 11-digit BVN or NIN" autocomplete="off" />
+            <span style="font-size: 11px; color: #64748b; display: block; margin-top: 2px;">Required by Central Bank of Nigeria (CBN) regulations to issue a personal virtual account.</span>
+            <span class="field-error" id="err-dedicated-bvn"></span>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label for="dedicated-form-phone" style="font-weight: 700; font-size: 12.5px;">Linked Phone Number</label>
+            <input type="tel" id="dedicated-form-phone" maxlength="11" placeholder="e.g. 08012345678" />
+            <span class="field-error" id="err-dedicated-phone"></span>
+          </div>
+
+          <div id="dedicated-account-error" class="form-error hidden" style="margin-bottom: 12px;"></div>
+          <div id="dedicated-account-success" class="form-success hidden" style="margin-bottom: 12px;"></div>
+
+          <button type="button" class="btn-primary btn-full" id="btn-submit-generate-dedicated" style="padding: 12px; font-weight: 700;">
+            Generate Permanent Account
+          </button>
+        </form>
+      </div>
+
+      <!-- State 2: Active Account View -->
+      <div id="dedicated-account-active-view" class="hidden">
+        <div class="dedicated-account-card" style="margin-bottom: 16px;">
+          <div class="dedicated-card-badge">Permanent Active Account</div>
+          <div class="dedicated-card-body">
+            <div class="dedicated-card-row">
+              <span class="dedicated-label">Bank Name</span>
+              <span class="dedicated-val" id="modal-dedicated-bank-name">-</span>
+            </div>
+            <div class="dedicated-card-row dedicated-account-highlight">
+              <div>
+                <span class="dedicated-label">Account Number</span>
+                <span class="dedicated-acc-num" id="modal-dedicated-acc-num">-</span>
+              </div>
+              <button type="button" class="btn-copy-dedicated" id="btn-modal-copy-dedicated">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                <span class="copy-text">Copy</span>
+              </button>
+            </div>
+            <div class="dedicated-card-row">
+              <span class="dedicated-label">Account Name</span>
+              <span class="dedicated-val" id="modal-dedicated-acc-name">-</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; font-size: 12.5px; line-height: 1.5; color: #334155;">
+          <div style="font-weight: 800; color: #095426; margin-bottom: 6px;">How to Save Anytime:</div>
+          <ol style="margin-left: 18px; padding-left: 0;">
+            <li>Open your bank app (OPay, PalmPay, GTBank, Zenith, Access, Kuda, etc.).</li>
+            <li>Send any amount to your account number above.</li>
+            <li>Your account name will be verified automatically as your personal name.</li>
+            <li>Your savings balance will credit automatically within seconds.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: Change Password -->
   <div id="modal-change-password" class="modal-overlay hidden">
     <div class="modal-card">
@@ -1837,6 +1953,36 @@
           <div class="profile-field">
             <span class="profile-field-label">Member Since</span>
             <span class="profile-field-value" id="vp-joined"></span>
+          </div>
+          <div class="profile-field" style="grid-column: 1 / -1; background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 10px; padding: 14px; margin-top: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span class="profile-field-label" style="font-weight: 800; color: #166534; font-size: 13px;">Dedicated Permanent Savings Account</span>
+              <span id="vp-dedicated-status-badge" style="font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; background: #dcfce7; color: #15803d;">Active</span>
+            </div>
+            <div id="vp-dedicated-active-block" style="display: none;">
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 8px;">
+                <div>
+                  <div style="font-size: 11px; color: #475569; font-weight: 600;">Bank Name</div>
+                  <div id="vp-dedicated-bank" style="font-size: 14px; font-weight: 700; color: #0f172a;">-</div>
+                </div>
+                <div>
+                  <div style="font-size: 11px; color: #475569; font-weight: 600;">Account Number</div>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span id="vp-dedicated-number" style="font-family: monospace; font-size: 15px; font-weight: 800; color: #095426;">-</span>
+                    <button type="button" id="btn-copy-vp-dedicated" class="btn-copy-id" title="Copy Account Number" style="padding: 2px 6px;">
+                      <span class="copy-text">Copy</span>
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <div style="font-size: 11px; color: #475569; font-weight: 600;">Account Name (Personal)</div>
+                  <div id="vp-dedicated-name" style="font-size: 13.5px; font-weight: 700; color: #0f172a;">-</div>
+                </div>
+              </div>
+            </div>
+            <div id="vp-dedicated-none-block" style="font-size: 12px; color: #64748b; font-style: italic;">
+              Client has not generated a dedicated permanent account number yet.
+            </div>
           </div>
         </div>
 
@@ -2566,13 +2712,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261104_v61"></script>
-  <script src="js/picker.js?v=20261104_v61"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261104_v61"></script>
-  <script src="js/auth.js?v=20261104_v61"></script>
-  <script src="js/user.js?v=20261104_v61"></script>
-  <script src="js/admin.js?v=20261104_v61"></script>
-  <script src="js/app.js?v=20261104_v61"></script>
+  <script src="js/storage.js?v=20261110_v63"></script>
+  <script src="js/picker.js?v=20261110_v63"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="js/export.js?v=20261110_v63"></script>
+  <script src="js/auth.js?v=20261110_v63"></script>
+  <script src="js/user.js?v=20261110_v63"></script>
+  <script src="js/admin.js?v=20261110_v63"></script>
+  <script src="js/app.js?v=20261110_v63"></script>
 </body>
 </html>
