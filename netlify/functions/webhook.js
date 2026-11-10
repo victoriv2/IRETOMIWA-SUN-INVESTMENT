@@ -144,19 +144,21 @@ exports.handler = async (event) => {
       };
     }
 
-    // 3. Deduplication check: Has this transaction already been credited?
-    const alreadyCredited = transactions.some(t => {
-      const tRefs = [
-        t.reference,
-        t.flutterwaveRef,
-        t.flwId ? String(t.flwId) : null,
-        t.id
-      ].map(r => String(r || '').trim());
+    // 3. Deduplication check: Has this specific transaction already been credited?
+    const canonicalId = data.id || flwRef || Date.now();
+    const newTxId = 'tx_flw_va_' + String(canonicalId).replace(/[^a-zA-Z0-9_-]/g, '');
 
-      const isRefMatch = (flwRef && tRefs.includes(flwRef)) || 
-                         (txRef && tRefs.includes(txRef)) || 
-                         (data.id && tRefs.includes(String(data.id)));
-      return isRefMatch && t.userId === matchedUser.id;
+    // For dedicated virtual accounts, tx_ref (e.g. VA_IR00003_...) identifies the virtual account,
+    // not the individual transaction. Only flw_ref and data.id uniquely identify a payment.
+    const isVirtualAccountTx = txRef.startsWith('VA_') || txRef.startsWith('URF_') || !!accNum;
+
+    const alreadyCredited = transactions.some(t => {
+      if (t.userId !== matchedUser.id) return false;
+      if (t.id === newTxId) return true;
+      if (data.id && (String(t.flwId) === String(data.id) || t.id.includes(String(data.id)))) return true;
+      if (flwRef && (t.reference === flwRef || t.flutterwaveRef === flwRef)) return true;
+      if (!isVirtualAccountTx && txRef && (t.reference === txRef || t.flutterwaveRef === txRef)) return true;
+      return false;
     });
 
     if (alreadyCredited) {
@@ -168,8 +170,6 @@ exports.handler = async (event) => {
     }
 
     // 4. Create and append the new deposit transaction with deterministic ID
-    const canonicalId = data.id || flwRef || txRef || Date.now();
-    const newTxId = 'tx_flw_va_' + String(canonicalId).replace(/[^a-zA-Z0-9_-]/g, '');
     const bankName = data.meta?.bankname || data.account?.bank_name || 'Bank Transfer';
     const originator = data.meta?.originatorname ? ` from ${data.meta.originatorname}` : '';
     const txTime = data.created_at || new Date().toISOString();
@@ -180,8 +180,8 @@ exports.handler = async (event) => {
       type: 'deposit',
       amount: amount,
       method: 'bank_transfer',
-      reference: flwRef || txRef || newTxId,
-      flutterwaveRef: txRef || flwRef || newTxId,
+      reference: flwRef || String(data.id) || newTxId,
+      flutterwaveRef: isVirtualAccountTx ? (flwRef || String(data.id)) : (txRef || flwRef || newTxId),
       flwId: data.id || null,
       notes: noteText,
       note: noteText,

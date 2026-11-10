@@ -1,3 +1,6 @@
-/api/flw/*  https://api.flutterwave.com/v3/:splat  200!
-/admin/*    /admin/index.html   200
-/*          /index.html         200
+/api/flw/*     https://api.flutterwave.com/v3/:splat  200!
+/webhook       /.netlify/functions/webhook             200
+/flw-webhook   /.netlify/functions/webhook             200
+/api/webhook   /.netlify/functions/webhook             200
+/admin/*       /admin/index.html   200
+/*             /index.html         200

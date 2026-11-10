@@ -305,16 +305,35 @@ const DB = {
         const ct = txMap.get(lt.id);
         const isLocalReviewed = lt.status === 'approved' || lt.status === 'declined';
         const isCloudReviewed = ct.status === 'approved' || ct.status === 'declined';
-        const tLocal = lt.reviewedAt || lt.updatedAt || lt.createdAt || '';
-        const tCloud = ct.reviewedAt || ct.updatedAt || ct.createdAt || '';
 
-        // Cloud transaction takes precedence for core properties (userId, amount, type, status)
-        // Local can only contribute local review status if cloud is still pending
+        // A reviewed status (approved/declined) always takes precedence over pending
         const mergedTx = { ...lt, ...ct };
         if (isLocalReviewed && !isCloudReviewed) {
           mergedTx.status = lt.status;
-          mergedTx.reviewedAt = lt.reviewedAt;
-          mergedTx.reviewedBy = lt.reviewedBy;
+          mergedTx.reviewedAt = lt.reviewedAt || new Date().toISOString();
+          mergedTx.reviewedBy = lt.reviewedBy || 'admin';
+          if (lt.paymentGateway) mergedTx.paymentGateway = lt.paymentGateway;
+          if (lt.flutterwaveTransferId) mergedTx.flutterwaveTransferId = lt.flutterwaveTransferId;
+          if (lt.flwId) mergedTx.flwId = lt.flwId;
+          if (lt.flutterwaveRef) mergedTx.flutterwaveRef = lt.flutterwaveRef;
+          if (lt.fee !== undefined) mergedTx.fee = lt.fee;
+          if (lt.netAmount !== undefined) mergedTx.netAmount = lt.netAmount;
+          if (lt.grossAmount !== undefined) mergedTx.grossAmount = lt.grossAmount;
+          if (lt.note) mergedTx.note = lt.note;
+          if (lt.declineReason) mergedTx.declineReason = lt.declineReason;
+        } else if (isCloudReviewed && !isLocalReviewed) {
+          mergedTx.status = ct.status;
+          mergedTx.reviewedAt = ct.reviewedAt || new Date().toISOString();
+          mergedTx.reviewedBy = ct.reviewedBy || 'admin';
+          if (ct.paymentGateway) mergedTx.paymentGateway = ct.paymentGateway;
+          if (ct.flutterwaveTransferId) mergedTx.flutterwaveTransferId = ct.flutterwaveTransferId;
+          if (ct.flwId) mergedTx.flwId = ct.flwId;
+          if (ct.flutterwaveRef) mergedTx.flutterwaveRef = ct.flutterwaveRef;
+          if (ct.fee !== undefined) mergedTx.fee = ct.fee;
+          if (ct.netAmount !== undefined) mergedTx.netAmount = ct.netAmount;
+          if (ct.grossAmount !== undefined) mergedTx.grossAmount = ct.grossAmount;
+          if (ct.note) mergedTx.note = ct.note;
+          if (ct.declineReason) mergedTx.declineReason = ct.declineReason;
         }
         txMap.set(lt.id, mergedTx);
       }
@@ -331,12 +350,13 @@ const DB = {
       if (seenTxIds.has(t.id)) return;
 
       // Extract all gateway reference signatures for this transaction
+      // Exclude virtual account prefixes (VA_, URF_) because they represent the account order, not a single transfer
       const gatewayRefs = [
         t.reference,
         t.flutterwaveRef,
         t.flwId ? String(t.flwId) : null,
         t.flutterwaveTransferId ? String(t.flutterwaveTransferId) : null
-      ].filter(r => r && typeof r === 'string' && r.trim().length > 0 && r !== 'null' && r !== 'undefined');
+      ].filter(r => r && typeof r === 'string' && r.trim().length > 0 && r !== 'null' && r !== 'undefined' && !r.startsWith('VA_') && !r.startsWith('URF_'));
 
       // Check if any gateway reference has already been added for this user
       let isDuplicate = false;
@@ -963,8 +983,9 @@ const DB = {
     const tx = all.find(t => t.id === txId);
     if (!tx) return { success: false, error: 'Transaction not found.' };
 
-    // If it's a withdrawal, verify user has enough balance
-    if (tx.type === 'withdrawal' || tx.type === 'payout') {
+    // If it's a withdrawal, verify user has enough balance (unless already disbursed by Flutterwave transfer)
+    const isFlwDisbursed = !!(reviewMeta.paymentGateway === 'flutterwave' || reviewMeta.flutterwaveTransferId);
+    if (!isFlwDisbursed && (tx.type === 'withdrawal' || tx.type === 'payout')) {
       const userBal = this.getUserBalance(tx.userId);
       if (tx.amount > userBal.balance) {
         return {
@@ -1816,16 +1837,17 @@ const DB = {
         if (!targetUser) return;
 
         // Check if this transfer is already recorded in transactions
-        const canonicalId = ft.id || ftRef || txRef;
+        const canonicalId = ft.id || ftRef;
         const newTxId = 'tx_flw_va_' + String(canonicalId).replace(/[^a-zA-Z0-9_-]/g, '');
+        const isVirtualAccountTx = txRef.startsWith('VA_') || txRef.startsWith('URF_') || !!accNum;
+
         const alreadyInLedger = localTxs.some(lt => {
-          const ltRefs = [
-            lt.reference,
-            lt.flutterwaveRef,
-            lt.flwId ? String(lt.flwId) : null,
-            lt.id
-          ].map(r => String(r || '').trim());
-          return (ltRefs.includes(ftRef) || (txRef && ltRefs.includes(txRef)) || (ft.id && ltRefs.includes(String(ft.id))) || lt.id === newTxId);
+          if (lt.userId !== targetUser.id) return false;
+          if (lt.id === newTxId) return true;
+          if (ft.id && (String(lt.flwId) === String(ft.id) || lt.id.includes(String(ft.id)))) return true;
+          if (ftRef && (lt.reference === ftRef || lt.flutterwaveRef === ftRef)) return true;
+          if (!isVirtualAccountTx && txRef && (lt.reference === txRef || lt.flutterwaveRef === txRef)) return true;
+          return false;
         });
 
         if (!alreadyInLedger) {
@@ -1839,8 +1861,8 @@ const DB = {
             type: 'deposit',
             amount: ftAmount,
             method: 'bank_transfer',
-            reference: ftRef || txRef || newTxId,
-            flutterwaveRef: txRef || ftRef || newTxId,
+            reference: ftRef || String(ft.id) || newTxId,
+            flutterwaveRef: isVirtualAccountTx ? (ftRef || String(ft.id)) : (txRef || ftRef || newTxId),
             flwId: ft.id || null,
             notes: noteText,
             note: noteText,
