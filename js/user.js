@@ -2049,7 +2049,10 @@ const UserApp = (() => {
         currentUserId = targetUserId;
         const targetTxRef = txRef || (pending ? pending.txRef : null) || ('SUN-DEP-' + targetUserId + '-' + Date.now());
         const existingTxs = DB.getTransactions(targetUserId);
-        const alreadyRecorded = existingTxs.some(t => t.flutterwaveRef === targetTxRef || (transactionId && t.flwId == transactionId));
+        const alreadyRecorded = existingTxs.some(t => {
+          const refs = [t.reference, t.flutterwaveRef, t.flwId ? String(t.flwId) : null, t.id].map(r => String(r || '').trim());
+          return (refs.includes(targetTxRef) || (transactionId && refs.includes(String(transactionId))));
+        });
 
         const depositAmount = (pending && pending.amount > 0) ? pending.amount : (parseFloat(urlParams.get('amount')) || 0);
 

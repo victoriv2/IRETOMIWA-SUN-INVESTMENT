@@ -146,8 +146,17 @@ exports.handler = async (event) => {
 
     // 3. Deduplication check: Has this transaction already been credited?
     const alreadyCredited = transactions.some(t => {
-      const refMatch = (flwRef && t.reference === flwRef) || (txRef && t.reference === txRef);
-      return refMatch && t.userId === matchedUser.id;
+      const tRefs = [
+        t.reference,
+        t.flutterwaveRef,
+        t.flwId ? String(t.flwId) : null,
+        t.id
+      ].map(r => String(r || '').trim());
+
+      const isRefMatch = (flwRef && tRefs.includes(flwRef)) || 
+                         (txRef && tRefs.includes(txRef)) || 
+                         (data.id && tRefs.includes(String(data.id)));
+      return isRefMatch && t.userId === matchedUser.id;
     });
 
     if (alreadyCredited) {
@@ -158,8 +167,9 @@ exports.handler = async (event) => {
       };
     }
 
-    // 4. Create and append the new deposit transaction
-    const newTxId = 'tx_flw_va_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+    // 4. Create and append the new deposit transaction with deterministic ID
+    const canonicalId = data.id || flwRef || txRef || Date.now();
+    const newTxId = 'tx_flw_va_' + String(canonicalId).replace(/[^a-zA-Z0-9_-]/g, '');
     const bankName = data.meta?.bankname || data.account?.bank_name || 'Bank Transfer';
     const originator = data.meta?.originatorname ? ` from ${data.meta.originatorname}` : '';
     const txTime = data.created_at || new Date().toISOString();
@@ -171,6 +181,8 @@ exports.handler = async (event) => {
       amount: amount,
       method: 'bank_transfer',
       reference: flwRef || txRef || newTxId,
+      flutterwaveRef: txRef || flwRef || newTxId,
+      flwId: data.id || null,
       notes: noteText,
       note: noteText,
       category: 'General Savings',

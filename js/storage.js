@@ -320,9 +320,60 @@ const DB = {
       }
     });
 
+    // Deduplicate merged transactions by external payment gateway references:
+    // (reference, flutterwaveRef, flwId, flutterwaveTransferId)
+    const finalTxs = [];
+    const seenRefs = new Set();
+    const seenTxIds = new Set();
+
+    Array.from(txMap.values()).forEach(t => {
+      if (!t || !t.id) return;
+      if (seenTxIds.has(t.id)) return;
+
+      // Extract all gateway reference signatures for this transaction
+      const gatewayRefs = [
+        t.reference,
+        t.flutterwaveRef,
+        t.flwId ? String(t.flwId) : null,
+        t.flutterwaveTransferId ? String(t.flutterwaveTransferId) : null
+      ].filter(r => r && typeof r === 'string' && r.trim().length > 0 && r !== 'null' && r !== 'undefined');
+
+      // Check if any gateway reference has already been added for this user
+      let isDuplicate = false;
+      for (const ref of gatewayRefs) {
+        const userRefKey = `${t.userId || ''}_${ref}`;
+        if (seenRefs.has(userRefKey)) {
+          isDuplicate = true;
+          break;
+        }
+      }
+
+      if (isDuplicate) {
+        // If this version has richer details (e.g. from Bank name or originator), find and upgrade existing
+        const existingIdx = finalTxs.findIndex(x => {
+          return x.userId === t.userId && gatewayRefs.some(ref => {
+            return x.reference === ref || x.flutterwaveRef === ref || String(x.flwId) === ref || String(x.flutterwaveTransferId) === ref;
+          });
+        });
+        if (existingIdx !== -1) {
+          const oldTx = finalTxs[existingIdx];
+          if (t.note && (t.note.includes('from') || !oldTx.note || oldTx.note.length < t.note.length)) {
+            finalTxs[existingIdx] = { ...oldTx, ...t, id: oldTx.id };
+          }
+        }
+        return;
+      }
+
+      gatewayRefs.forEach(ref => {
+        seenRefs.add(`${t.userId || ''}_${ref}`);
+      });
+      seenTxIds.add(t.id);
+      finalTxs.push(t);
+    });
+
     return {
       mergedUsers: Array.from(userMap.values()),
-      mergedTxs: Array.from(txMap.values()),
+      mergedTxs: finalTxs,
       idRemap
     };
   },
@@ -644,21 +695,19 @@ const DB = {
   },
 
   initCloudSync() {
-    this.syncPull();
-    setTimeout(() => { this.reconcileDedicatedDeposits(); }, 2000);
-    window.addEventListener('online', () => {
-      this.syncPull();
+    this.syncPull(() => {
       this.reconcileDedicatedDeposits();
     });
+    window.addEventListener('online', () => {
+      this.syncPull(() => { this.reconcileDedicatedDeposits(); });
+    });
     window.addEventListener('focus', () => {
-      this.syncPull();
-      this.reconcileDedicatedDeposits();
+      this.syncPull(() => { this.reconcileDedicatedDeposits(); });
     });
     // Auto sync poll every 20 seconds
     setInterval(() => {
       if (navigator.onLine && !document.hidden) {
-        this.syncPull();
-        this.reconcileDedicatedDeposits();
+        this.syncPull(() => { this.reconcileDedicatedDeposits(); });
       }
     }, 20000);
   },
@@ -1742,9 +1791,16 @@ const DB = {
         if (!targetUser) return;
 
         // Check if this transfer is already recorded in transactions
+        const canonicalId = ft.id || ftRef || txRef;
+        const newTxId = 'tx_flw_va_' + String(canonicalId).replace(/[^a-zA-Z0-9_-]/g, '');
         const alreadyInLedger = localTxs.some(lt => {
-          return (lt.reference && (lt.reference === ftRef || lt.reference === txRef)) ||
-                 (lt.id && (lt.id === ftRef || lt.id === ('tx_flw_va_' + ft.id)));
+          const ltRefs = [
+            lt.reference,
+            lt.flutterwaveRef,
+            lt.flwId ? String(lt.flwId) : null,
+            lt.id
+          ].map(r => String(r || '').trim());
+          return (ltRefs.includes(ftRef) || (txRef && ltRefs.includes(txRef)) || (ft.id && ltRefs.includes(String(ft.id))) || lt.id === newTxId);
         });
 
         if (!alreadyInLedger) {
@@ -1753,12 +1809,14 @@ const DB = {
           const noteText = `Direct transfer to dedicated account (${bankName})${originator}`;
           const txTime = ft.created_at || new Date().toISOString();
           const newTx = {
-            id: 'tx_flw_va_' + (ft.id || Date.now()) + '_' + Math.floor(Math.random() * 1000),
+            id: newTxId,
             userId: targetUser.id,
             type: 'deposit',
             amount: ftAmount,
             method: 'bank_transfer',
-            reference: ftRef || txRef,
+            reference: ftRef || txRef || newTxId,
+            flutterwaveRef: txRef || ftRef || newTxId,
+            flwId: ft.id || null,
             notes: noteText,
             note: noteText,
             category: 'General Savings',
