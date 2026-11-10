@@ -1807,12 +1807,16 @@ const DB = {
 
         const ftRef = String(ft.flw_ref || ft.id || '').trim();
         const txRef = String(ft.tx_ref || '').trim();
+        let meta = ft.meta;
+        if (typeof meta === 'string') {
+          try { meta = JSON.parse(meta); } catch(e) {}
+        }
         const accNum = String(
           ft.account?.account_number || 
           ft.account_number || 
-          ft.meta?.virtualaccountnumber || 
-          ft.meta?.virtual_account_number || 
-          ft.meta?.accountnumber || 
+          meta?.virtualaccountnumber || 
+          meta?.virtual_account_number || 
+          meta?.accountnumber || 
           ''
         ).trim();
         const customerEmail = String(ft.customer?.email || '').trim().toLowerCase();
@@ -1830,11 +1834,21 @@ const DB = {
             targetUser = users.find(u => (u.id || '').toLowerCase() === potentialId);
           }
         }
+        // Check by customer phone (matching standard 10 trailing digits across 234 / 0 prefixes)
         if (!targetUser && customerPhone && customerPhone.length >= 10) {
-          targetUser = users.find(u => u.phone && u.phone.replace(/\D/g, '') === customerPhone);
+          const custTen = customerPhone.slice(-10);
+          targetUser = users.find(u => {
+            const uPhone = (u.phone || '').replace(/\D/g, '');
+            return uPhone.length >= 10 && uPhone.slice(-10) === custTen;
+          });
         }
         if (!targetUser && customerEmail && customerEmail.includes('@')) {
           targetUser = users.find(u => u.email && u.email.trim().toLowerCase() === customerEmail);
+        }
+        // Check by synthetic user email (e.g. ir00010@suninvestment.com)
+        if (!targetUser && customerEmail && customerEmail.includes('@suninvestment.com')) {
+          const idPart = customerEmail.split('@')[0].toLowerCase();
+          targetUser = users.find(u => (u.id || '').toLowerCase() === idPart);
         }
 
         if (!targetUser) return;
