@@ -626,11 +626,6 @@ const DB = {
       this._isPulling = false;
       this.notifySync('synced');
 
-      // If local storage had unsynced records, push merged state up to Supabase immediately
-      if (needsPushToCloud) {
-        this.scheduleCloudPush();
-      }
-
       // Refresh active views with clean database data
       if (window.UserApp && typeof window.UserApp.refresh === 'function') {
         window.UserApp.refresh();
@@ -650,12 +645,20 @@ const DB = {
 
   initCloudSync() {
     this.syncPull();
-    window.addEventListener('online', () => this.syncPull());
-    window.addEventListener('focus',  () => this.syncPull());
+    setTimeout(() => { this.reconcileDedicatedDeposits(); }, 2000);
+    window.addEventListener('online', () => {
+      this.syncPull();
+      this.reconcileDedicatedDeposits();
+    });
+    window.addEventListener('focus', () => {
+      this.syncPull();
+      this.reconcileDedicatedDeposits();
+    });
     // Auto sync poll every 20 seconds
     setInterval(() => {
       if (navigator.onLine && !document.hidden) {
         this.syncPull();
+        this.reconcileDedicatedDeposits();
       }
     }, 20000);
   },
@@ -952,7 +955,7 @@ const DB = {
       const status = t.status || 'approved'; // existing legacy records default to approved
       const isPayout = (t.type === 'withdrawal' || t.type === 'payout');
 
-      if (status === 'approved') {
+      if (status === 'approved' || status === 'successful') {
         if (isPayout) {
           totalWithdrawn += amt;
         } else {
@@ -1023,7 +1026,7 @@ const DB = {
       const status = t.status || 'approved';
       const isPayout = (t.type === 'withdrawal' || t.type === 'payout');
 
-      if (status === 'approved') {
+      if (status === 'approved' || status === 'successful') {
         if (isPayout) {
           totalWithdrawn += amt;
         } else {
@@ -1677,6 +1680,109 @@ const DB = {
 
     this.saveUserDedicatedAccount(userId, accountData);
     return accountData;
+  },
+
+  // ---- DEDICATED VIRTUAL ACCOUNT RECONCILIATION ----
+  // Self-healing backup that checks Flutterwave transactions directly so no deposit is ever missed
+  async reconcileDedicatedDeposits() {
+    if (!navigator.onLine) return;
+    try {
+      const flwConfig = this.getFlutterwaveConfig();
+      if (!flwConfig || !flwConfig.secretKey) return;
+
+      const users = this.getUsers();
+      const usersWithDedicated = users.filter(u => u.dedicatedAccount && u.dedicatedAccount.accountNumber);
+      if (!usersWithDedicated || usersWithDedicated.length === 0) return;
+
+      const res = await this.fetchFlutterwave('transactions?status=successful', { method: 'GET' });
+      const json = res.json;
+      if (!json || json.status !== 'success' || !Array.isArray(json.data)) return;
+
+      const flwTxs = json.data;
+      const localTxs = this.getAllTransactions();
+      let hasNewTx = false;
+
+      flwTxs.forEach(ft => {
+        if ((ft.status || '').toLowerCase() !== 'successful') return;
+        const ftAmount = parseFloat(ft.amount || ft.charged_amount || 0);
+        if (isNaN(ftAmount) || ftAmount <= 0) return;
+
+        const ftRef = String(ft.flw_ref || ft.id || '').trim();
+        const txRef = String(ft.tx_ref || '').trim();
+        const accNum = String(
+          ft.account?.account_number || 
+          ft.account_number || 
+          ft.meta?.virtualaccountnumber || 
+          ft.meta?.virtual_account_number || 
+          ft.meta?.accountnumber || 
+          ''
+        ).trim();
+        const customerEmail = String(ft.customer?.email || '').trim().toLowerCase();
+        const customerPhone = String(ft.customer?.phone_number || '').trim().replace(/\D/g, '');
+
+        // Match user by account number, tx_ref prefix, phone, or email
+        let targetUser = null;
+        if (accNum) {
+          targetUser = usersWithDedicated.find(u => u.dedicatedAccount && u.dedicatedAccount.accountNumber === accNum);
+        }
+        if (!targetUser && txRef.startsWith('VA_')) {
+          const parts = txRef.split('_');
+          if (parts.length >= 2) {
+            const potentialId = parts[1].toLowerCase();
+            targetUser = users.find(u => (u.id || '').toLowerCase() === potentialId);
+          }
+        }
+        if (!targetUser && customerPhone && customerPhone.length >= 10) {
+          targetUser = users.find(u => u.phone && u.phone.replace(/\D/g, '') === customerPhone);
+        }
+        if (!targetUser && customerEmail && customerEmail.includes('@')) {
+          targetUser = users.find(u => u.email && u.email.trim().toLowerCase() === customerEmail);
+        }
+
+        if (!targetUser) return;
+
+        // Check if this transfer is already recorded in transactions
+        const alreadyInLedger = localTxs.some(lt => {
+          return (lt.reference && (lt.reference === ftRef || lt.reference === txRef)) ||
+                 (lt.id && (lt.id === ftRef || lt.id === ('tx_flw_va_' + ft.id)));
+        });
+
+        if (!alreadyInLedger) {
+          const bankName = ft.meta?.bankname || ft.account?.bank_name || 'Bank Transfer';
+          const originator = ft.meta?.originatorname ? ` from ${ft.meta.originatorname}` : '';
+          const newTx = {
+            id: 'tx_flw_va_' + (ft.id || Date.now()) + '_' + Math.floor(Math.random() * 1000),
+            userId: targetUser.id,
+            type: 'deposit',
+            amount: ftAmount,
+            method: 'bank_transfer',
+            reference: ftRef || txRef,
+            notes: `Direct transfer to dedicated account (${bankName})${originator}`,
+            category: 'General Savings',
+            status: 'approved',
+            reviewedAt: ft.created_at || new Date().toISOString(),
+            reviewedBy: 'flutterwave',
+            date: ft.created_at || new Date().toISOString()
+          };
+
+          localTxs.push(newTx);
+          hasNewTx = true;
+        }
+      });
+
+      if (hasNewTx) {
+        localStorage.setItem('sun_transactions', JSON.stringify(localTxs));
+        this.scheduleCloudPush();
+        if (window.UserApp && typeof window.UserApp.refresh === 'function') {
+          window.UserApp.refresh();
+        }
+        if (window.AdminApp && typeof window.AdminApp.refresh === 'function') {
+          window.AdminApp.refresh();
+        }
+      }
+    } catch (err) {
+      console.warn('Dedicated reconciliation notice:', err);
+    }
   },
 
   // ---- FACTORY RESET SYSTEM ----

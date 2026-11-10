@@ -54,7 +54,7 @@ exports.handler = async (event) => {
   }
 
   const data = payload.data || payload;
-  const eventName = payload.event || '';
+  const eventName = payload.event || payload['event.type'] || payload.type || '';
   const status = (data.status || '').toLowerCase();
 
   // We process successful charges (including virtual account transfers)
@@ -77,7 +77,14 @@ exports.handler = async (event) => {
 
   const txRef = String(data.tx_ref || '').trim();
   const flwRef = String(data.flw_ref || data.id || '').trim();
-  const accNum = String(data.account?.account_number || data.account_number || '').trim();
+  const accNum = String(
+    data.account?.account_number || 
+    data.account_number || 
+    data.meta?.virtualaccountnumber || 
+    data.meta?.virtual_account_number || 
+    data.meta?.accountnumber || 
+    ''
+  ).trim();
   const customerEmail = String(data.customer?.email || '').trim().toLowerCase();
   const customerPhone = String(data.customer?.phone_number || '').trim().replace(/\D/g, '');
 
@@ -153,7 +160,8 @@ exports.handler = async (event) => {
 
     // 4. Create and append the new deposit transaction
     const newTxId = 'tx_flw_va_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
-    const bankName = data.account?.bank_name || 'Bank Transfer';
+    const bankName = data.meta?.bankname || data.account?.bank_name || 'Bank Transfer';
+    const originator = data.meta?.originatorname ? ` from ${data.meta.originatorname}` : '';
     const newTx = {
       id: newTxId,
       userId: matchedUser.id,
@@ -161,9 +169,11 @@ exports.handler = async (event) => {
       amount: amount,
       method: 'bank_transfer',
       reference: flwRef || txRef || newTxId,
-      notes: `Direct transfer to dedicated account (${bankName})`,
+      notes: `Direct transfer to dedicated account (${bankName})${originator}`,
       category: 'General Savings',
-      status: 'successful',
+      status: 'approved',
+      reviewedAt: new Date().toISOString(),
+      reviewedBy: 'flutterwave',
       date: data.created_at || new Date().toISOString()
     };
 

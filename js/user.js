@@ -1596,6 +1596,9 @@ const UserApp = (() => {
 
   function openDedicatedAccountModal() {
     if (!currentUserId) return;
+    if (typeof DB !== 'undefined' && DB.reconcileDedicatedDeposits) {
+      DB.reconcileDedicatedDeposits();
+    }
     const user = DB.getUserById(currentUserId);
     if (!user) return;
 
