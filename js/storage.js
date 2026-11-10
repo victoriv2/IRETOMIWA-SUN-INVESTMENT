@@ -1750,6 +1750,8 @@ const DB = {
         if (!alreadyInLedger) {
           const bankName = ft.meta?.bankname || ft.account?.bank_name || 'Bank Transfer';
           const originator = ft.meta?.originatorname ? ` from ${ft.meta.originatorname}` : '';
+          const noteText = `Direct transfer to dedicated account (${bankName})${originator}`;
+          const txTime = ft.created_at || new Date().toISOString();
           const newTx = {
             id: 'tx_flw_va_' + (ft.id || Date.now()) + '_' + Math.floor(Math.random() * 1000),
             userId: targetUser.id,
@@ -1757,12 +1759,14 @@ const DB = {
             amount: ftAmount,
             method: 'bank_transfer',
             reference: ftRef || txRef,
-            notes: `Direct transfer to dedicated account (${bankName})${originator}`,
+            notes: noteText,
+            note: noteText,
             category: 'General Savings',
             status: 'approved',
-            reviewedAt: ft.created_at || new Date().toISOString(),
+            reviewedAt: txTime,
             reviewedBy: 'flutterwave',
-            date: ft.created_at || new Date().toISOString()
+            createdAt: txTime,
+            date: txTime
           };
 
           localTxs.push(newTx);

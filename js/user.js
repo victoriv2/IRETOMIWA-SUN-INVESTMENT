@@ -31,9 +31,9 @@ const UserApp = (() => {
     return new Date().toISOString().slice(0, 10);
   }
 
-  function isoToYMD(iso) { return iso.slice(0, 10); }
-  function isoToYM(iso)  { return iso.slice(0, 7); }
-  function isoToY(iso)   { return iso.slice(0, 4); }
+  function isoToYMD(iso) { return (iso ? String(iso).slice(0, 10) : ''); }
+  function isoToYM(iso)  { return (iso ? String(iso).slice(0, 7) : ''); }
+  function isoToY(iso)   { return (iso ? String(iso).slice(0, 4) : ''); }
 
   const todayDateObj = new Date();
   let selectedDay   = todayDateObj.getDate();
@@ -171,15 +171,16 @@ const UserApp = (() => {
     const savings = DB.getSavings(currentUserId);
 
     return savings.filter(s => {
+      const txDate = s.createdAt || s.date || '';
       if (activePeriod === 'day') {
-        return isoToYMD(s.createdAt) === buildDateISO();
+        return isoToYMD(txDate) === buildDateISO();
       }
       if (activePeriod === 'month') {
         const ym = `${selectedYear}-${pad(selectedMonth + 1)}`;
-        return isoToYM(s.createdAt) === ym;
+        return isoToYM(txDate) === ym;
       }
       if (activePeriod === 'year') {
-        return isoToY(s.createdAt) === ('' + selectedYear);
+        return isoToY(txDate) === ('' + selectedYear);
       }
       return true;
     });
@@ -206,14 +207,14 @@ const UserApp = (() => {
     }
 
     // Sort newest first
-    const sorted = [...filtered].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const sorted = [...filtered].sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0));
 
     container.innerHTML = sorted.map(s => {
-      const d = new Date(s.createdAt);
+      const d = new Date(s.createdAt || s.date || Date.now());
       const dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
       const timeStr = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
       const isPayout = (s.type === 'withdrawal' || s.type === 'payout');
-      const note = s.note || (isPayout ? 'Cash payout' : 'Savings deposit');
+      const note = s.note || s.notes || (isPayout ? 'Cash payout' : 'Savings deposit');
       const status = s.status || 'approved';
       const isPending = (status === 'pending');
       const isDeclined = (status === 'declined');
@@ -329,6 +330,14 @@ const UserApp = (() => {
     if (homeEl) homeEl.classList.toggle('hidden', tab !== 'home');
     if (saveEl) saveEl.classList.toggle('hidden', tab !== 'save');
     if (moreEl) moreEl.classList.toggle('hidden', tab !== 'more');
+
+    if (tab === 'more') {
+      renderMoreUserInfo();
+    } else if (tab === 'home') {
+      renderSavingsList();
+      renderTotal();
+      renderDedicatedAccountCard();
+    }
   }
 
   function initTabs() {
@@ -2128,9 +2137,9 @@ const UserApp = (() => {
     },
 
     refresh() {
-      if (currentUser && currentUser.id) {
-        const freshUser = DB.getUserById(currentUser.id);
-        if (freshUser) currentUser = freshUser;
+      const uid = currentUserId || (DB.getSession() ? DB.getSession().userId : null);
+      if (uid) {
+        currentUserId = uid;
         renderSavingsList();
         renderTotal();
         renderMoreUserInfo();

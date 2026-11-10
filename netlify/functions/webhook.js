@@ -162,6 +162,8 @@ exports.handler = async (event) => {
     const newTxId = 'tx_flw_va_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
     const bankName = data.meta?.bankname || data.account?.bank_name || 'Bank Transfer';
     const originator = data.meta?.originatorname ? ` from ${data.meta.originatorname}` : '';
+    const txTime = data.created_at || new Date().toISOString();
+    const noteText = `Direct transfer to dedicated account (${bankName})${originator}`;
     const newTx = {
       id: newTxId,
       userId: matchedUser.id,
@@ -169,12 +171,14 @@ exports.handler = async (event) => {
       amount: amount,
       method: 'bank_transfer',
       reference: flwRef || txRef || newTxId,
-      notes: `Direct transfer to dedicated account (${bankName})${originator}`,
+      notes: noteText,
+      note: noteText,
       category: 'General Savings',
       status: 'approved',
       reviewedAt: new Date().toISOString(),
       reviewedBy: 'flutterwave',
-      date: data.created_at || new Date().toISOString()
+      createdAt: txTime,
+      date: txTime
     };
 
     transactions.push(newTx);
