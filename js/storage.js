@@ -632,6 +632,14 @@ const DB = {
         }
         if (activeFlw && typeof activeFlw === 'object') {
           localStorage.setItem('sun_flutterwave_config', JSON.stringify(activeFlw));
+          if (Array.isArray(activeFlw.locked_savings)) {
+            localStorage.setItem('sun_locked_savings', JSON.stringify(activeFlw.locked_savings));
+          } else {
+            localStorage.setItem('sun_locked_savings', '[]');
+          }
+          if (activeFlw.lock_penalty_percentage !== undefined) {
+            localStorage.setItem('sun_lock_penalty_percentage', String(activeFlw.lock_penalty_percentage));
+          }
         }
         const cloudComm = record.commission_percentage !== undefined ? record.commission_percentage : record.commissionPercentage;
         if (cloudComm !== undefined && cloudComm !== null && !isNaN(Number(cloudComm))) {
@@ -721,6 +729,36 @@ const DB = {
           });
           const adminBadge = document.getElementById('admin-more-commission-badge');
           if (adminBadge) adminBadge.textContent = `${numComm}%`;
+        }
+      }
+
+      // 7. SafeLock (Locked Savings) & Lock Penalty sync
+      if (cloudFlw && typeof cloudFlw === 'object') {
+        if (cloudFlw.lock_penalty_percentage !== undefined) {
+          const cloudPenalty = parseFloat(cloudFlw.lock_penalty_percentage);
+          if (!isNaN(cloudPenalty) && cloudPenalty >= 0 && cloudPenalty <= 100) {
+            localStorage.setItem('sun_lock_penalty_percentage', String(cloudPenalty));
+            const penaltyBadge = document.getElementById('admin-more-lock-penalty-badge');
+            if (penaltyBadge) penaltyBadge.textContent = `${cloudPenalty}%`;
+          }
+        }
+        if (Array.isArray(cloudFlw.locked_savings)) {
+          const localLocks = this.getAllLocks();
+          const lockMap = new Map();
+          localLocks.forEach(l => { if (l && l.id) lockMap.set(l.id, l); });
+          cloudFlw.locked_savings.forEach(l => {
+            if (l && l.id) {
+              if (!lockMap.has(l.id)) {
+                lockMap.set(l.id, l);
+              } else {
+                const localL = lockMap.get(l.id);
+                if (localL.status === 'active' && l.status !== 'active') {
+                  lockMap.set(l.id, l);
+                }
+              }
+            }
+          });
+          localStorage.setItem('sun_locked_savings', JSON.stringify(Array.from(lockMap.values())));
         }
       }
 
@@ -2251,6 +2289,7 @@ const DB = {
     localStorage.setItem('sun_users', '[]');
     localStorage.setItem('sun_transactions', '[]');
     localStorage.setItem('sun_custom_categories', '[]');
+    localStorage.setItem('sun_locked_savings', '[]');
     localStorage.removeItem('sun_session');
     localStorage.removeItem('sun_user_session');
     localStorage.removeItem('sun_active_user');
