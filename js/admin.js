@@ -798,12 +798,29 @@ const AdminApp = (() => {
       }
 
       const modal = document.getElementById('modal-approve-request');
-      if (modal) modal.classList.remove('hidden');
+      if (modal) {
+        modal.dataset.txId = txId;
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+      }
     } catch (err) {
       console.error('Error in openApproveModal:', err);
       const modal = document.getElementById('modal-approve-request');
-      if (modal) modal.classList.remove('hidden');
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+      }
     }
+  }
+
+  function closeApproveModal() {
+    const modal = document.getElementById('modal-approve-request');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.style.display = 'none';
+      delete modal.dataset.txId;
+    }
+    activeRequestTxId = null;
   }
 
   function openDeclineModal(txId) {
@@ -826,11 +843,73 @@ const AdminApp = (() => {
       if (reasonInput) reasonInput.value = '';
 
       const modal = document.getElementById('modal-decline-request');
-      if (modal) modal.classList.remove('hidden');
+      if (modal) {
+        modal.dataset.txId = txId;
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+      }
+      const confirmBtn = document.getElementById('btn-confirm-decline-request');
+      if (confirmBtn) {
+        confirmBtn.dataset.txId = txId;
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Decline Request';
+      }
     } catch (err) {
       console.error('Error in openDeclineModal:', err);
       const modal = document.getElementById('modal-decline-request');
-      if (modal) modal.classList.remove('hidden');
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+      }
+    }
+  }
+
+  function closeDeclineModal() {
+    const modal = document.getElementById('modal-decline-request');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.style.display = 'none';
+      delete modal.dataset.txId;
+    }
+    const confirmBtn = document.getElementById('btn-confirm-decline-request');
+    if (confirmBtn) {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'Decline Request';
+      delete confirmBtn.dataset.txId;
+    }
+    activeRequestTxId = null;
+  }
+
+  async function handleConfirmDecline() {
+    const modal = document.getElementById('modal-decline-request');
+    const confirmBtn = document.getElementById('btn-confirm-decline-request');
+    const targetTxId = activeRequestTxId || (modal && modal.dataset.txId) || (confirmBtn && confirmBtn.dataset.txId);
+
+    const reasonInput = document.getElementById('decline-reason-input');
+    const reason = reasonInput ? reasonInput.value.trim() : '';
+
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Declining...';
+    }
+
+    if (targetTxId) {
+      DB.declineTransaction(targetTxId, reason);
+    }
+
+    // Immediately close modal & re-render UI with zero delay
+    closeDeclineModal();
+    renderRequestsTab();
+    renderUsersTab();
+    renderReceivedTab();
+    renderPayoutsTab();
+    renderMoreTab();
+
+    // Background push to Supabase
+    try {
+      await DB.syncPush();
+    } catch (syncErr) {
+      console.warn('Decline sync warning:', syncErr);
     }
   }
 
@@ -1304,46 +1383,51 @@ const AdminApp = (() => {
     const btnConfirmDecline = document.getElementById('btn-confirm-decline-request');
     const modalDecline = document.getElementById('modal-decline-request');
 
-    if (btnCancelDecline && modalDecline) {
-      btnCancelDecline.addEventListener('click', () => {
-        modalDecline.classList.add('hidden');
-        activeRequestTxId = null;
-      });
+    if (btnCancelDecline) {
+      btnCancelDecline.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closeDeclineModal();
+      };
+    }
+
+    if (btnConfirmDecline) {
+      btnConfirmDecline.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        handleConfirmDecline();
+      };
     }
 
     if (modalDecline) {
-      modalDecline.addEventListener('click', (e) => {
+      modalDecline.onclick = (e) => {
         if (e.target === modalDecline) {
-          modalDecline.classList.add('hidden');
-          activeRequestTxId = null;
+          closeDeclineModal();
         }
-      });
+      };
     }
 
-    if (btnConfirmDecline && modalDecline) {
-      btnConfirmDecline.addEventListener('click', async () => {
-        if (!activeRequestTxId) return;
-        const reasonInput = document.getElementById('decline-reason-input');
-        const reason = reasonInput ? reasonInput.value.trim() : '';
-
-        DB.declineTransaction(activeRequestTxId, reason);
-
-        try {
-          await DB.syncPush();
-        } catch (syncErr) {
-          console.warn('Decline sync warning:', syncErr);
-        }
-
-        modalDecline.classList.add('hidden');
-        activeRequestTxId = null;
-
-        renderRequestsTab();
-        renderUsersTab();
-        renderReceivedTab();
-        renderPayoutsTab();
-        renderMoreTab();
-      });
-    }
+    // Global click delegation for all modals (guarantees click responsiveness even on dynamic DOM updates)
+    document.addEventListener('click', (e) => {
+      // Cancel / Close Decline Modal
+      if (e.target.closest('#btn-cancel-decline-request') || e.target.closest('#btn-x-close-decline-modal') || e.target.id === 'modal-decline-request') {
+        e.preventDefault();
+        closeDeclineModal();
+        return;
+      }
+      // Confirm Decline
+      if (e.target.closest('#btn-confirm-decline-request')) {
+        e.preventDefault();
+        handleConfirmDecline();
+        return;
+      }
+      // Cancel / Close Approve Modal
+      if (e.target.closest('#btn-cancel-approve-request') || e.target.closest('#btn-cancel-approve-withdrawal') || e.target.closest('#btn-x-close-approve-modal') || e.target.id === 'modal-approve-request') {
+        e.preventDefault();
+        closeApproveModal();
+        return;
+      }
+    });
   }
 
   // ============================================
@@ -4159,6 +4243,11 @@ const AdminApp = (() => {
     initOnce,
     switchTab,
     showView,
+    openApproveModal,
+    openDeclineModal,
+    closeApproveModal,
+    closeDeclineModal,
+    handleConfirmDecline,
   };
 })();
 

@@ -58,7 +58,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261122_MODAL_CLICK_V96';
+      var APP_BUILD_VER = '20261122_MODAL_FIX_V97';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -78,8 +78,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261122_v96" />
-  <link rel="stylesheet" href="css/auth.css?v=20261122_v96" />
+  <link rel="stylesheet" href="css/global.css?v=20261122_v97" />
+  <link rel="stylesheet" href="css/auth.css?v=20261122_v97" />
   <style>
     /* Gentle pre-boot session hints - JavaScript has full priority without !important blocking */
     html.is-user-logged-in #page-login { display: none; }
@@ -3000,7 +3000,8 @@
 
   <!-- MODAL: ADMIN APPROVE REQUEST CONFIRMATION -->
   <div id="modal-approve-request" class="modal-overlay hidden" style="z-index: 1060;">
-    <div class="modal-card" style="max-width: 440px; text-align: center; padding: 24px;">
+    <div class="modal-card" style="max-width: 440px; text-align: center; padding: 24px; position: relative;">
+      <button type="button" class="btn-modal-close" id="btn-x-close-approve-modal" style="position: absolute; top: 12px; right: 14px; background: transparent; border: none; font-size: 24px; color: #9ca3af; cursor: pointer; padding: 4px 8px; line-height: 1;" title="Close">&times;</button>
       <div style="width: 52px; height: 52px; border-radius: 50%; background: #dcfce7; color: #15803d; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;">
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="20 6 9 17 4 12"/>
@@ -3100,7 +3101,8 @@
 
   <!-- MODAL: ADMIN DECLINE REQUEST CONFIRMATION -->
   <div id="modal-decline-request" class="modal-overlay hidden" style="z-index: 1060;">
-    <div class="modal-card" style="max-width: 420px; text-align: center; padding: 24px;">
+    <div class="modal-card" style="max-width: 420px; text-align: center; padding: 24px; position: relative;">
+      <button type="button" class="btn-modal-close" id="btn-x-close-decline-modal" style="position: absolute; top: 12px; right: 14px; background: transparent; border: none; font-size: 24px; color: #9ca3af; cursor: pointer; padding: 4px 8px; line-height: 1;" title="Close">&times;</button>
       <div style="width: 52px; height: 52px; border-radius: 50%; background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="6" x2="6" y2="18"/>
@@ -3118,7 +3120,7 @@
       </div>
 
       <div style="display: flex; gap: 10px; justify-content: center;">
-        <button type="button" class="btn-outline" id="btn-cancel-decline-request" style="flex: 1; padding: 11px 16px; font-weight: 600;">Cancel</button>
+        <button type="button" class="btn-outline" id="btn-cancel-decline-request" style="flex: 1; padding: 11px 16px; font-weight: 600; cursor: pointer;">Cancel</button>
         <button type="button" class="btn-danger" id="btn-confirm-decline-request" style="flex: 1; padding: 11px 16px; background: #dc2626; color: #ffffff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer;">Decline Request</button>
       </div>
     </div>
@@ -3311,13 +3313,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261122_v96"></script>
-  <script src="js/picker.js?v=20261122_v96"></script>
+  <script src="js/storage.js?v=20261122_v97"></script>
+  <script src="js/picker.js?v=20261122_v97"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261122_v96"></script>
-  <script src="js/auth.js?v=20261122_v96"></script>
-  <script src="js/user.js?v=20261122_v96"></script>
-  <script src="js/admin.js?v=20261122_v96"></script>
-  <script src="js/app.js?v=20261122_v96"></script>
+  <script src="js/export.js?v=20261122_v97"></script>
+  <script src="js/auth.js?v=20261122_v97"></script>
+  <script src="js/user.js?v=20261122_v97"></script>
+  <script src="js/admin.js?v=20261122_v97"></script>
+  <script src="js/app.js?v=20261122_v97"></script>
 </body>
 </html>
