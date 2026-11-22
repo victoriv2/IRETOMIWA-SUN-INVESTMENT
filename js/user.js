@@ -252,6 +252,11 @@ const UserApp = (() => {
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     Declined
                   </span>
+                ` : (isPayout && s.disbursementStatus === 'scheduled') ? `
+                  <span class="status-badge" style="background:#ede9fe; color:#6d28d9; border:1px solid #c4b5fd; font-size:11px; font-weight:700;">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    Approved &bull; Scheduled Payout
+                  </span>
                 ` : `
                   <span class="status-badge status-badge--approved">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
@@ -268,7 +273,7 @@ const UserApp = (() => {
               ${isPayout ? '-₦' : '+₦'}${formatAmount(s.amount)}
             </p>
             ${isPayout && (s.fee || s.netAmount) ? `<span style="font-size: 11px; color: #166534; font-weight: 700; display: block;">Net: ₦${formatAmount(s.netAmount || (s.amount * 0.90))}</span>` : ''}
-            ${isPending ? `<span style="font-size: 10px; color: #b45309; font-weight: 700; display: block;">Awaiting Admin</span>` : ''}
+            ${isPending ? `<span style="font-size: 10px; color: #b45309; font-weight: 700; display: block;">Awaiting Admin</span>` : (isPayout && s.disbursementStatus === 'scheduled') ? `<span style="font-size: 10px; color: #6d28d9; font-weight: 700; display: block;">Scheduled Payout</span>` : ''}
           </div>
         </div>`;
     }).join('');
@@ -297,6 +302,10 @@ const UserApp = (() => {
     if (withAvailEl) withAvailEl.textContent = '₦' + formatAmount(balance.availableBalance);
     if (withRetEl) withRetEl.textContent = '-₦' + formatAmount(minRetain);
     if (withMaxEl) withMaxEl.textContent = '₦' + formatAmount(maxWithdrawable);
+
+    const delayHours = (typeof DB !== 'undefined' && DB.getPayoutDelayHours) ? DB.getPayoutDelayHours() : 24;
+    const withDelayEl = document.getElementById('with-processing-delay-label');
+    if (withDelayEl) withDelayEl.textContent = (typeof DB !== 'undefined' && DB.getPayoutDelayLabel) ? DB.getPayoutDelayLabel(delayHours) : `${delayHours} Hours`;
 
     const activeLocks = (typeof DB.getUserActiveLocks === 'function') ? DB.getUserActiveLocks(currentUserId) : [];
     if (homeLockedBadge) {
@@ -1088,7 +1097,7 @@ const UserApp = (() => {
     if (modal) modal.classList.remove('hidden');
   }
 
-  function openPayoutSuccessModal({ gross, fee, net, bankName, accountNumber, balance, isInstant }) {
+  function openPayoutSuccessModal({ gross, fee, net, bankName, accountNumber, balance, isInstant, delayHours }) {
     const modal = document.getElementById('modal-payout-success');
     if (!modal) return;
 
@@ -1100,11 +1109,14 @@ const UserApp = (() => {
     const bankEl  = document.getElementById('succ-payout-bank');
     const balEl   = document.getElementById('succ-payout-balance');
 
+    const dHours = (delayHours !== undefined) ? delayHours : ((typeof DB !== 'undefined' && DB.getPayoutDelayHours) ? DB.getPayoutDelayHours() : 24);
+    const delayLabel = (typeof DB !== 'undefined' && DB.getPayoutDelayLabel) ? DB.getPayoutDelayLabel(dHours) : `${dHours} Hours`;
+
     if (titleEl) titleEl.textContent = isInstant ? 'Payout Disbursed!' : 'Payout Request Submitted!';
     if (descEl) {
       descEl.textContent = isInstant
         ? `₦${formatAmount(net)} has been automatically disbursed to your bank account.`
-        : `Your payout request of ₦${formatAmount(gross)} has been submitted. Awaiting admin approval.`;
+        : `Your payout request of ₦${formatAmount(gross)} has been submitted. Processing window: ${delayLabel}. Scheduled for review and release.`;
     }
     if (grossEl) grossEl.textContent = `₦${formatAmount(gross)}`;
     if (feeEl)   feeEl.textContent   = `-₦${formatAmount(fee)}`;
@@ -1172,6 +1184,10 @@ const UserApp = (() => {
         if (withAvailEl) withAvailEl.textContent = '₦' + formatAmount(avail);
         if (withRetEl) withRetEl.textContent = '-₦' + formatAmount(minRetain);
         if (withMaxEl) withMaxEl.textContent = '₦' + formatAmount(maxWithdrawable);
+
+        const delayH = (typeof DB !== 'undefined' && DB.getPayoutDelayHours) ? DB.getPayoutDelayHours() : 24;
+        const withDelayEl = document.getElementById('with-processing-delay-label');
+        if (withDelayEl) withDelayEl.textContent = (typeof DB !== 'undefined' && DB.getPayoutDelayLabel) ? DB.getPayoutDelayLabel(delayH) : `${delayH} Hours`;
 
         const effectiveMin = Math.min(minWth, maxWithdrawable);
         if (withDest) withDest.classList.remove('hidden');
@@ -1353,6 +1369,10 @@ const UserApp = (() => {
         if (withAvailEl) withAvailEl.textContent = '₦' + formatAmount(avail);
         if (withRetEl) withRetEl.textContent = '-₦' + formatAmount(minRetain);
         if (withMaxEl) withMaxEl.textContent = '₦' + formatAmount(maxWithdrawable);
+
+        const delayH = (typeof DB !== 'undefined' && DB.getPayoutDelayHours) ? DB.getPayoutDelayHours() : 24;
+        const withDelayEl = document.getElementById('with-processing-delay-label');
+        if (withDelayEl) withDelayEl.textContent = (typeof DB !== 'undefined' && DB.getPayoutDelayLabel) ? DB.getPayoutDelayLabel(delayH) : `${delayH} Hours`;
 
         if (maxWithdrawable <= 0) {
           if (errEl) errEl.textContent = `You must maintain a minimum balance of ₦${formatAmount(minRetain)} in your account. Your available balance is ₦${formatAmount(avail)}, so no funds can be withdrawn at this time.`;
@@ -1848,7 +1868,9 @@ const UserApp = (() => {
           : 0;
 
         const flwCfg = (typeof DB !== 'undefined' && DB.getFlutterwaveConfig) ? DB.getFlutterwaveConfig() : {};
-        const isAutoCashoutEnabled = flwCfg && flwCfg.autoCashout === true;
+        const delayHours = (typeof DB !== 'undefined' && DB.getPayoutDelayHours) ? DB.getPayoutDelayHours() : 24;
+        // Payout is only dispatched automatically if admin set processing window to 0 (Instant) AND enabled Auto Cashout
+        const isAutoCashoutEnabled = flwCfg && flwCfg.autoCashout === true && delayHours === 0;
 
         if (isAutoCashoutEnabled && destinationBank.accountNumber && destinationBank.bankCode) {
           DB.disburseFlutterwaveTransfer({
@@ -1936,7 +1958,8 @@ const UserApp = (() => {
             bankName: bName,
             accountNumber: bNum,
             balance: currentBal,
-            isInstant: false
+            isInstant: false,
+            delayHours: delayHours,
           });
         }
       }
@@ -3352,14 +3375,17 @@ const UserApp = (() => {
       initCopyIdButton();
       checkPendingFlutterwaveRedirect();
 
-      // Realtime cross-tab & cloud sync listeners for user view (min balance retention, min withdrawal, commission, balance, transactions)
+      // Realtime cross-tab & cloud sync listeners for user view (payout delay, min balance retention, min withdrawal, commission, balance, transactions)
       window.addEventListener('storage', (e) => {
-        if (!e.key || e.key === 'sun_min_balance_retention' || e.key === 'sun_min_withdrawal_amount' || e.key === 'sun_commission_percentage' || e.key === 'sun_transactions' || e.key === 'sun_users' || e.key === 'sun_locked_savings') {
+        if (!e.key || e.key === 'sun_payout_delay_hours' || e.key === 'sun_min_balance_retention' || e.key === 'sun_min_withdrawal_amount' || e.key === 'sun_commission_percentage' || e.key === 'sun_transactions' || e.key === 'sun_users' || e.key === 'sun_locked_savings') {
           if (typeof DB !== 'undefined' && DB.updateMinWithdrawalDOM) {
             DB.updateMinWithdrawalDOM();
           }
           if (typeof DB !== 'undefined' && DB.updateMinBalanceRetentionDOM) {
             DB.updateMinBalanceRetentionDOM();
+          }
+          if (typeof DB !== 'undefined' && DB.updatePayoutDelayDOM) {
+            DB.updatePayoutDelayDOM();
           }
           try { renderTotal(); } catch(e) {}
           try { renderSavingsList(); } catch(e) {}
@@ -3378,6 +3404,9 @@ const UserApp = (() => {
           if (typeof DB.updateMinBalanceRetentionDOM === 'function') {
             DB.updateMinBalanceRetentionDOM();
           }
+          if (typeof DB.updatePayoutDelayDOM === 'function') {
+            DB.updatePayoutDelayDOM();
+          }
           try { renderTotal(); } catch(e) {}
           try { renderSavingsList(); } catch(e) {}
           try {
@@ -3395,6 +3424,7 @@ const UserApp = (() => {
         startClock();
         try { if (DB.updateMinWithdrawalDOM) DB.updateMinWithdrawalDOM(); } catch(e) {}
         try { if (DB.updateMinBalanceRetentionDOM) DB.updateMinBalanceRetentionDOM(); } catch(e) {}
+        try { if (DB.updatePayoutDelayDOM) DB.updatePayoutDelayDOM(); } catch(e) {}
         try { renderSavingsList(); } catch(e) {}
         try { renderTotal(); } catch(e) {}
         try { renderMoreUserInfo(); } catch(e) {}

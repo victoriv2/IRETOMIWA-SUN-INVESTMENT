@@ -613,8 +613,19 @@ const AdminApp = (() => {
         `;
       } else if (status === 'approved') {
         const isFlw = t.paymentGateway === 'flutterwave';
-        statusHtml = `<span class="status-badge status-badge--approved">${isFlw ? 'Paid &bull; Flutterwave' : 'Approved'}</span>`;
-        actionHtml = `<small style="color:var(--color-text-muted); font-size:11.5px; white-space:nowrap;">${isFlw ? 'Transfer Verified' : 'Reviewed by Admin'} &bull; ${formatDateTime(t.reviewedAt)}</small>`;
+        const isScheduled = t.disbursementStatus === 'scheduled';
+        if (isScheduled) {
+          statusHtml = `<span class="status-badge" style="background:#ede9fe; color:#6d28d9; border:1px solid #c4b5fd;">Scheduled Payout</span>`;
+          actionHtml = `
+            <div style="display:flex; align-items:center; gap:6px;">
+              <small style="color:#6d28d9; font-size:11.5px; white-space:nowrap;">In Scheduled Queue</small>
+              <button type="button" class="btn-approve" data-tx-id="${t.id}" style="padding:3px 8px; font-size:11px; background:#15803d; color:#fff; border:none; border-radius:4px; cursor:pointer;" title="Disburse now via Flutterwave">Disburse</button>
+            </div>
+          `;
+        } else {
+          statusHtml = `<span class="status-badge status-badge--approved">${isFlw ? 'Paid &bull; Flutterwave' : 'Approved'}</span>`;
+          actionHtml = `<small style="color:var(--color-text-muted); font-size:11.5px; white-space:nowrap;">${isFlw ? 'Transfer Verified' : 'Reviewed by Admin'} &bull; ${formatDateTime(t.reviewedAt)}</small>`;
+        }
       } else if (status === 'declined') {
         statusHtml = '<span class="status-badge status-badge--declined">Declined</span>';
         actionHtml = `<small style="color:var(--color-danger); font-size:11.5px; white-space:nowrap;">${t.declineReason ? escapeHtml(t.declineReason) + ' &bull; ' : ''}${formatDateTime(t.reviewedAt)}</small>`;
@@ -709,6 +720,8 @@ const AdminApp = (() => {
       const btnManualApprove = document.getElementById('btn-confirm-approve-manual');
       const btnManualApproveText = document.getElementById('btn-confirm-approve-manual-text');
 
+      const schedBox    = document.getElementById('approve-payout-schedule-box');
+
       if (flwErrEl) {
         flwErrEl.textContent = '';
         flwErrEl.classList.add('hidden');
@@ -723,6 +736,7 @@ const AdminApp = (() => {
         if (feeBox) feeBox.classList.add('hidden');
         if (descEl) descEl.textContent = `Approve ₦${formatAmount(t.amount)} deposit for ${clientName}? This will credit their active savings balance immediately.`;
         if (destBox) destBox.classList.add('hidden');
+        if (schedBox) schedBox.classList.add('hidden');
         if (actionsDep) actionsDep.classList.remove('hidden');
         if (actionsWith) actionsWith.classList.add('hidden');
       } else {
@@ -741,6 +755,37 @@ const AdminApp = (() => {
         if (grossEl) grossEl.textContent = `₦${formatAmount(grossAmt)}`;
         if (feeEl)   feeEl.textContent   = `-₦${formatAmount(feeAmt)}`;
         if (netEl)   netEl.textContent   = `₦${formatAmount(netAmt)}`;
+
+        if (schedBox) {
+          schedBox.classList.remove('hidden');
+          const delayH = (t && t.payoutDelayHours !== undefined) ? t.payoutDelayHours : ((typeof DB !== 'undefined' && DB.getPayoutDelayHours) ? DB.getPayoutDelayHours() : 24);
+          const policyLabelEl = document.getElementById('approve-delay-policy-label');
+          if (policyLabelEl) policyLabelEl.textContent = (typeof DB !== 'undefined' && DB.getPayoutDelayLabel) ? DB.getPayoutDelayLabel(delayH) : `${delayH} Hours`;
+
+          const reqTimeEl = document.getElementById('approve-request-time');
+          if (reqTimeEl) reqTimeEl.textContent = formatDateTime(t.createdAt);
+
+          const schedTarget = t.scheduledPayoutAt
+            ? new Date(t.scheduledPayoutAt)
+            : new Date(new Date(t.createdAt).getTime() + delayH * 3600 * 1000);
+
+          const schedRelEl = document.getElementById('approve-scheduled-release');
+          if (schedRelEl) schedRelEl.textContent = formatDateTime(schedTarget.toISOString());
+
+          const statusBadgeEl = document.getElementById('approve-delay-status-badge');
+          if (statusBadgeEl) {
+            const diffMs = schedTarget.getTime() - Date.now();
+            if (delayH === 0) {
+              statusBadgeEl.innerHTML = `<span style="font-weight:700; color:#15803d; background:#dcfce7; padding:2px 8px; border-radius:999px; font-size:11px;">Instant (No Delay Window)</span>`;
+            } else if (diffMs <= 0) {
+              statusBadgeEl.innerHTML = `<span style="font-weight:700; color:#15803d; background:#dcfce7; padding:2px 8px; border-radius:999px; font-size:11px;">Delay Window Mature &bull; Ready to Disburse</span>`;
+            } else {
+              const hrsLeft = Math.floor(diffMs / 3600000);
+              const minsLeft = Math.floor((diffMs % 3600000) / 60000);
+              statusBadgeEl.innerHTML = `<span style="font-weight:700; color:#4338ca; background:#ede9fe; padding:2px 8px; border-radius:999px; font-size:11px;">Holding in Queue &bull; ${hrsLeft}h ${minsLeft}m remaining</span>`;
+            }
+          }
+        }
 
         if (btnFlwText) btnFlwText.textContent = `Disburse ₦${formatAmount(netAmt)} via Flutterwave`;
         if (btnManualApproveText) {
@@ -1002,9 +1047,10 @@ const AdminApp = (() => {
       });
     }
 
-    // Withdrawal Specific Actions: Automated Flutterwave Disburse vs Manual Approve
+    // Withdrawal Specific Actions: Automated Flutterwave Disburse vs Scheduled Approve vs Manual Approve
     const btnFlwDisburse = document.getElementById('btn-confirm-approve-flw');
     const btnFlwText     = document.getElementById('btn-confirm-approve-flw-text');
+    const btnScheduleApprove = document.getElementById('btn-confirm-approve-schedule');
     const btnManualApprove = document.getElementById('btn-confirm-approve-manual');
     const btnCancelWithdrawal = document.getElementById('btn-cancel-approve-withdrawal');
     const flwErrEl = document.getElementById('approve-flw-error');
@@ -1012,6 +1058,48 @@ const AdminApp = (() => {
     if (btnCancelWithdrawal) {
       btnCancelWithdrawal.addEventListener('click', () => {
         closeApproveModal();
+      });
+    }
+
+    // Approve & Hold in Queue (Safe non-immediate approval)
+    if (btnScheduleApprove) {
+      btnScheduleApprove.addEventListener('click', async () => {
+        const txId = activeRequestTxId;
+        if (!txId) return;
+        const allTx = DB.getAllTransactions();
+        const t = allTx.find(x => x.id === txId);
+        const grossAmt = t ? (t.grossAmount || t.amount) : 0;
+        const currentComm = (typeof DB !== 'undefined' && DB.getCommissionRate) ? DB.getCommissionRate() : 4;
+        const feeRate = currentComm / 100;
+        const feeAmt = Math.round(grossAmt * feeRate * 100) / 100;
+        const netAmt = Math.max(0, Math.round((grossAmt - feeAmt) * 100) / 100);
+
+        const delayH = (t && t.payoutDelayHours !== undefined) ? t.payoutDelayHours : ((typeof DB !== 'undefined' && DB.getPayoutDelayHours) ? DB.getPayoutDelayHours() : 24);
+        const schedTime = (t && t.scheduledPayoutAt) ? t.scheduledPayoutAt : new Date(Date.now() + delayH * 3600 * 1000).toISOString();
+
+        closeApproveModal();
+
+        const res = DB.approveTransaction(txId, {
+          reviewedBy: 'admin (scheduled payout)',
+          disbursementStatus: 'scheduled',
+          scheduledPayoutAt: schedTime,
+          grossAmount: grossAmt,
+          fee: feeAmt,
+          netAmount: netAmt,
+          feeRate: feeRate,
+        });
+
+        renderRequestsTab();
+        renderUsersTab();
+        renderReceivedTab();
+        renderPayoutsTab();
+        renderMoreTab();
+
+        try {
+          await DB.syncPush();
+        } catch (syncErr) {
+          console.warn('Scheduled approval sync warning:', syncErr);
+        }
       });
     }
 
@@ -2177,13 +2265,21 @@ const AdminApp = (() => {
       const userName = user ? (DB.formatName(user.firstName) + ' ' + DB.formatName(user.lastName)) : 'Unknown Client';
       const phone = user ? user.phone : '-';
       const isFlw = (t.paymentGateway === 'flutterwave');
+      const isScheduled = (t.disbursementStatus === 'scheduled');
       const flwBadge = isFlw ? `<div style="margin-top:3px;"><span style="display:inline-block; font-size:10.5px; font-weight:700; color:#166534; background:#dcfce7; border:1px solid #86efac; border-radius:4px; padding:2px 6px;">Flutterwave Transfer</span></div>` : '';
+      const schedBadge = isScheduled ? `<div style="margin-top:3px;"><span style="display:inline-block; font-size:10.5px; font-weight:700; color:#6d28d9; background:#ede9fe; border:1px solid #c4b5fd; border-radius:4px; padding:2px 6px;">Scheduled Payout (Held)</span></div>` : '';
       const destBankInfo = t.destinationBank ? `<div style="font-size:11.5px; color:var(--text-secondary); margin-top:3px;">${escapeHtml(t.destinationBank.bankName || '')} &bull; <span style="font-family:monospace;">${escapeHtml(t.destinationBank.accountNumber || '')}</span> (${escapeHtml(t.destinationBank.accountName || '')})</div>` : '';
       const grossAmt = t.grossAmount || t.amount;
       const defaultFeeRate = (typeof DB !== 'undefined' && DB.getCommissionRate) ? (DB.getCommissionRate() / 100) : 0.04;
       const feeAmt = t.fee !== undefined ? t.fee : Math.round(grossAmt * defaultFeeRate * 100) / 100;
       const netAmt = t.netAmount !== undefined ? t.netAmount : (grossAmt - feeAmt);
       const feeBadge = (feeAmt > 0) ? `<div style="font-size:11px; margin-top:3px; color:#166534; font-weight:700;">Net: ₦${formatAmount(netAmt)} <span style="color:#b91c1c; font-weight:600;">(Fee: ₦${formatAmount(feeAmt)})</span></div>` : '';
+      const disburseBtn = isScheduled ? `
+        <div style="margin-top:5px;">
+          <button type="button" class="btn-approve btn-payout-disburse" data-tx-id="${t.id}" style="padding:4px 10px; font-size:11.5px; background:#15803d; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:700;" title="Disburse now via Flutterwave">
+            Disburse Now
+          </button>
+        </div>` : '';
 
       return `
         <tr>
@@ -2193,6 +2289,7 @@ const AdminApp = (() => {
           <td>
             <span class="tx-badge tx-badge--payout">${escapeHtml(t.category || 'General Savings')}</span>
             ${flwBadge}
+            ${schedBadge}
           </td>
           <td class="amount-cell amount-cell--payout">
             -₦${formatAmount(t.amount)}
@@ -2202,9 +2299,16 @@ const AdminApp = (() => {
             ${escapeHtml(t.note || '-')}
             ${destBankInfo}
             ${t.flutterwaveRef ? `<div style="font-size:11px; color:var(--text-muted); font-family:monospace; margin-top:2px;">Ref: ${escapeHtml(t.flutterwaveRef)}</div>` : ''}
+            ${disburseBtn}
           </td>
         </tr>`;
     }).join('');
+
+    tbody.querySelectorAll('.btn-payout-disburse').forEach(btn => {
+      btn.addEventListener('click', () => {
+        openApproveModal(btn.dataset.txId);
+      });
+    });
   }
 
   // ============================================
@@ -2269,6 +2373,10 @@ const AdminApp = (() => {
     const minRetainAmt = (typeof DB !== 'undefined' && DB.getMinimumBalanceRetention) ? DB.getMinimumBalanceRetention() : 500;
     const minRetainBadge = document.getElementById('admin-more-min-balance-badge');
     if (minRetainBadge) minRetainBadge.textContent = '₦' + formatAmount(minRetainAmt);
+
+    const delayHours = (typeof DB !== 'undefined' && DB.getPayoutDelayHours) ? DB.getPayoutDelayHours() : 24;
+    const delayBadge = document.getElementById('admin-more-payout-delay-badge');
+    if (delayBadge) delayBadge.textContent = (typeof DB !== 'undefined' && DB.getPayoutDelayLabel) ? DB.getPayoutDelayLabel(delayHours) : `${delayHours} Hours`;
 
     const uEl = document.getElementById('more-stat-users');
     const bEl = document.getElementById('more-stat-balance');
@@ -3237,6 +3345,102 @@ const AdminApp = (() => {
         } catch (err) {
           if (errBox) {
             errBox.textContent = err.message || 'Failed to update minimum account balance.';
+            errBox.classList.remove('hidden');
+          }
+        }
+      });
+    }
+  }
+
+  // Admin Withdrawal Processing Window (Payout Delay) Modal
+  function initAdminPayoutDelay() {
+    const openBtn = document.getElementById('btn-admin-change-payout-delay');
+    const modal   = document.getElementById('modal-admin-payout-delay');
+    const form    = document.getElementById('admin-payout-delay-form');
+
+    if (openBtn && modal) {
+      openBtn.addEventListener('click', () => {
+        const errEl   = document.getElementById('err-admin-payout-delay');
+        const errBox  = document.getElementById('admin-payout-delay-error');
+        const succBox = document.getElementById('admin-payout-delay-success');
+        const dispEl  = document.getElementById('admin-current-payout-delay-display');
+        const inputEl = document.getElementById('admin-payout-delay-input');
+
+        if (errEl)   errEl.textContent = '';
+        if (errBox)  errBox.classList.add('hidden');
+        if (succBox) succBox.classList.add('hidden');
+
+        const currentDelay = (typeof DB !== 'undefined' && DB.getPayoutDelayHours) ? DB.getPayoutDelayHours() : 24;
+        if (dispEl)  dispEl.textContent = (typeof DB !== 'undefined' && DB.getPayoutDelayLabel) ? DB.getPayoutDelayLabel(currentDelay) : `${currentDelay} Hours`;
+        if (inputEl) {
+          inputEl.value = currentDelay;
+          if (typeof window.disableNumberInputWheelScroll === 'function') {
+            window.disableNumberInputWheelScroll(inputEl);
+          } else {
+            inputEl.addEventListener('wheel', (e) => { e.preventDefault(); e.target.blur(); }, { passive: false });
+          }
+        }
+
+        modal.classList.remove('hidden');
+        if (inputEl) inputEl.focus();
+      });
+
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.add('hidden');
+      });
+    }
+
+    // Preset pills (0h, 24h, 48h, 72h, 120h, 168h)
+    document.querySelectorAll('.admin-payout-delay-preset').forEach(preset => {
+      preset.addEventListener('click', () => {
+        const inputEl = document.getElementById('admin-payout-delay-input');
+        if (inputEl) {
+          inputEl.value = preset.dataset.hours;
+          inputEl.focus();
+        }
+      });
+    });
+
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const errEl   = document.getElementById('err-admin-payout-delay');
+        const errBox  = document.getElementById('admin-payout-delay-error');
+        const succBox = document.getElementById('admin-payout-delay-success');
+        const inputEl = document.getElementById('admin-payout-delay-input');
+        const dispEl  = document.getElementById('admin-current-payout-delay-display');
+
+        if (errEl)   errEl.textContent = '';
+        if (errBox)  errBox.classList.add('hidden');
+        if (succBox) succBox.classList.add('hidden');
+
+        const val = inputEl ? inputEl.value.trim() : '';
+        const num = parseInt(val, 10);
+
+        if (val === '' || isNaN(num) || num < 0) {
+          if (errEl) errEl.textContent = 'Please enter a valid non-negative integer for hours (e.g. 24 or 0 for instant).';
+          return;
+        }
+
+        try {
+          const updated = DB.setPayoutDelayHours(num);
+          const label = (typeof DB !== 'undefined' && DB.getPayoutDelayLabel) ? DB.getPayoutDelayLabel(updated) : `${updated} Hours`;
+          if (dispEl) dispEl.textContent = label;
+          const badge = document.getElementById('admin-more-payout-delay-badge');
+          if (badge) badge.textContent = label;
+
+          if (succBox) {
+            succBox.textContent = `Processing window successfully updated to ${label}. User payouts will follow this review window.`;
+            succBox.classList.remove('hidden');
+          }
+
+          setTimeout(() => {
+            if (modal) modal.classList.add('hidden');
+          }, 1200);
+        } catch (err) {
+          if (errBox) {
+            errBox.textContent = err.message || 'Failed to update processing window.';
             errBox.classList.remove('hidden');
           }
         }
@@ -4268,6 +4472,7 @@ const AdminApp = (() => {
     initAdminLockPenalty();
     initAdminMinWithdrawal();
     initAdminMinBalance();
+    initAdminPayoutDelay();
     initAdminChangeEmail();
     initAdminChangePassword();
     initAdminFactoryReset();

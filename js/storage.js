@@ -520,6 +520,12 @@ const DB = {
             mergedFlw.min_balance_retention = this.getMinimumBalanceRetention();
             mergedFlw.min_balance_retention_updated_at = locRetUp;
           }
+          const locDelayUp = localStorage.getItem('sun_payout_delay_updated_at') || '1970-01-01T00:00:00.000Z';
+          const cldDelayUp = (cloudFlw && cloudFlw.payout_delay_updated_at) ? cloudFlw.payout_delay_updated_at : '1970-01-01T00:00:00.000Z';
+          if (locDelayUp > cldDelayUp) {
+            mergedFlw.payout_delay_hours = this.getPayoutDelayHours();
+            mergedFlw.payout_delay_updated_at = locDelayUp;
+          }
           localStorage.setItem('sun_flutterwave_config', JSON.stringify(mergedFlw));
         }
       }
@@ -581,6 +587,21 @@ const DB = {
         }
       }
 
+      // Merge Payout Delay (Withdrawal Processing Window)
+      const localDelay = this.getPayoutDelayHours();
+      const localDelayUpdated = localStorage.getItem('sun_payout_delay_updated_at') || '1970-01-01T00:00:00.000Z';
+      const cloudDelayUpdated = (cloudFlw && cloudFlw.payout_delay_updated_at) ? cloudFlw.payout_delay_updated_at : '1970-01-01T00:00:00.000Z';
+      let finalDelay = localDelay;
+
+      if (cloudFlw && typeof cloudFlw === 'object' && cloudFlw.payout_delay_hours !== undefined) {
+        const cdh = parseInt(cloudFlw.payout_delay_hours, 10);
+        if (!isNaN(cdh) && cdh >= 0 && cloudDelayUpdated > localDelayUpdated) {
+          finalDelay = cdh;
+          localStorage.setItem('sun_payout_delay_hours', String(finalDelay));
+          localStorage.setItem('sun_payout_delay_updated_at', cloudDelayUpdated);
+        }
+      }
+
       // Merge Locked Savings from Cloud
       if (cloudFlw && typeof cloudFlw === 'object') {
         if (Array.isArray(cloudFlw.locked_savings)) {
@@ -614,6 +635,8 @@ const DB = {
         mergedFlw.min_withdrawal_updated_at = localMinUpdated > cloudMinUpdated ? localMinUpdated : cloudMinUpdated;
         mergedFlw.min_balance_retention = finalRetain;
         mergedFlw.min_balance_retention_updated_at = localRetainUpdated > cloudRetainUpdated ? localRetainUpdated : cloudRetainUpdated;
+        mergedFlw.payout_delay_hours = finalDelay;
+        mergedFlw.payout_delay_updated_at = localDelayUpdated > cloudDelayUpdated ? localDelayUpdated : cloudDelayUpdated;
       }
 
       const payload = {
@@ -731,6 +754,16 @@ const DB = {
               localStorage.setItem('sun_min_balance_retention', String(rVal));
               localStorage.setItem('sun_min_balance_retention_updated_at', cloudRetUp);
               try { this.updateMinBalanceRetentionDOM(rVal); } catch(e) {}
+            }
+          }
+          if (activeFlw.payout_delay_hours !== undefined) {
+            const dVal = parseInt(activeFlw.payout_delay_hours, 10);
+            const cloudDelayUp = activeFlw.payout_delay_updated_at || '1970-01-01T00:00:00.000Z';
+            const locDelayUp = localStorage.getItem('sun_payout_delay_updated_at') || '1970-01-01T00:00:00.000Z';
+            if (!isNaN(dVal) && dVal >= 0 && cloudDelayUp >= locDelayUp) {
+              localStorage.setItem('sun_payout_delay_hours', String(dVal));
+              localStorage.setItem('sun_payout_delay_updated_at', cloudDelayUp);
+              try { this.updatePayoutDelayDOM(dVal); } catch(e) {}
             }
           }
         }
@@ -886,6 +919,16 @@ const DB = {
             localStorage.setItem('sun_min_balance_retention', String(rVal));
             localStorage.setItem('sun_min_balance_retention_updated_at', cloudRetainUpdated);
             try { this.updateMinBalanceRetentionDOM(rVal); } catch(e) {}
+          }
+        }
+        const localDelayUpdated = localStorage.getItem('sun_payout_delay_updated_at') || '1970-01-01T00:00:00.000Z';
+        const cloudDelayUpdated = (cloudFlw && cloudFlw.payout_delay_updated_at) ? cloudFlw.payout_delay_updated_at : '1970-01-01T00:00:00.000Z';
+        if (cloudFlw.payout_delay_hours !== undefined) {
+          const dVal = parseInt(cloudFlw.payout_delay_hours, 10);
+          if (!isNaN(dVal) && dVal >= 0 && cloudDelayUpdated > localDelayUpdated) {
+            localStorage.setItem('sun_payout_delay_hours', String(dVal));
+            localStorage.setItem('sun_payout_delay_updated_at', cloudDelayUpdated);
+            try { this.updatePayoutDelayDOM(dVal); } catch(e) {}
           }
         }
       }
@@ -1146,6 +1189,15 @@ const DB = {
       }
     }
 
+    const isWithdrawal = (type === 'withdrawal' || type === 'payout');
+    const delayHours = (typeof this.getPayoutDelayHours === 'function') ? this.getPayoutDelayHours() : 24;
+    const scheduledPayoutAt = (isWithdrawal && delayHours > 0)
+      ? new Date(Date.now() + delayHours * 3600 * 1000).toISOString()
+      : new Date().toISOString();
+    const disbursementStatus = (isWithdrawal && delayHours > 0)
+      ? 'scheduled'
+      : (assignedStatus === 'approved' ? 'completed' : 'pending');
+
     const tx = {
       id: 'tx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
       userId,
@@ -1166,6 +1218,9 @@ const DB = {
       reviewedAt: (assignedStatus === 'approved') ? new Date().toISOString() : null,
       reviewedBy: (assignedStatus === 'approved') ? (paymentGateway ? 'flutterwave' : (recordedBy || 'admin')) : null,
       declineReason: null,
+      payoutDelayHours: isWithdrawal ? delayHours : 0,
+      scheduledPayoutAt: isWithdrawal ? scheduledPayoutAt : null,
+      disbursementStatus: isWithdrawal ? disbursementStatus : null,
       createdAt: new Date().toISOString(),
     };
     all.push(tx);
@@ -1230,6 +1285,14 @@ const DB = {
     if (reviewMeta.fee !== undefined) tx.fee = reviewMeta.fee;
     if (reviewMeta.netAmount !== undefined) tx.netAmount = reviewMeta.netAmount;
     if (reviewMeta.feeRate !== undefined) tx.feeRate = reviewMeta.feeRate;
+    if (reviewMeta.disbursementStatus !== undefined) {
+      tx.disbursementStatus = reviewMeta.disbursementStatus;
+    } else if (reviewMeta.flutterwaveTransferId || reviewMeta.paymentGateway === 'flutterwave') {
+      tx.disbursementStatus = 'disbursed';
+    }
+    if (reviewMeta.scheduledPayoutAt !== undefined) {
+      tx.scheduledPayoutAt = reviewMeta.scheduledPayoutAt;
+    }
 
     // Update transaction note with complete payout details
     if (reviewMeta.flutterwaveTransferId && (!tx.note || !tx.note.includes('FLW:'))) {
@@ -1673,6 +1736,75 @@ const DB = {
     });
     const retEl = document.getElementById('with-retained-min-bal');
     if (retEl) retEl.textContent = '-₦' + formatted;
+  },
+
+  // ---- WITHDRAWAL PROCESSING WINDOW (PAYOUT DELAY) ----
+  getPayoutDelayHours() {
+    try {
+      const stored = localStorage.getItem('sun_payout_delay_hours');
+      if (stored !== null && stored !== undefined && stored !== '') {
+        const parsed = parseInt(stored, 10);
+        if (!isNaN(parsed) && parsed >= 0) {
+          return parsed;
+        }
+      }
+    } catch(e) {}
+    return 24; // Default 24 hours (1 Day)
+  },
+
+  setPayoutDelayHours(hours) {
+    const num = parseInt(hours, 10);
+    if (isNaN(num) || num < 0) {
+      throw new Error('Payout delay window must be a valid non-negative integer in hours.');
+    }
+    const nowIso = new Date().toISOString();
+    localStorage.setItem('sun_payout_delay_hours', String(num));
+    localStorage.setItem('sun_payout_delay_updated_at', nowIso);
+
+    try {
+      const flwCfg = this.getFlutterwaveConfig();
+      flwCfg.payout_delay_hours = num;
+      flwCfg.payout_delay_updated_at = nowIso;
+      flwCfg.updatedAt = nowIso;
+      localStorage.setItem('sun_flutterwave_config', JSON.stringify(flwCfg));
+    } catch (e) {}
+
+    try {
+      this.updatePayoutDelayDOM(num);
+    } catch(e) {}
+
+    this.scheduleCloudPush();
+    return num;
+  },
+
+  getPayoutDelayLabel(hours) {
+    const h = (hours !== undefined && hours !== null) ? parseInt(hours, 10) : this.getPayoutDelayHours();
+    if (isNaN(h) || h <= 0) return 'Instant (0 Hours)';
+    if (h === 24) return '24 Hours (1 Day)';
+    if (h === 48) return '48 Hours (2 Days)';
+    if (h === 72) return '72 Hours (3 Days)';
+    if (h === 120) return '5 Days (120 Hours)';
+    if (h === 168) return '7 Days (168 Hours)';
+    if (h % 24 === 0) {
+      const days = h / 24;
+      return `${days} Days (${h} Hours)`;
+    }
+    return `${h} Hours`;
+  },
+
+  updatePayoutDelayDOM(delayVal) {
+    const val = (delayVal !== undefined && delayVal !== null) ? parseInt(delayVal, 10) : this.getPayoutDelayHours();
+    const label = this.getPayoutDelayLabel(val);
+    document.querySelectorAll('.payout-delay-badge, #admin-more-payout-delay-badge').forEach(el => {
+      el.textContent = label;
+    });
+    document.querySelectorAll('.payout-delay-display, #admin-current-payout-delay-display').forEach(el => {
+      el.textContent = label;
+    });
+    const delayEl = document.getElementById('with-processing-delay-label');
+    if (delayEl) delayEl.textContent = label;
+    const policyEl = document.getElementById('approve-delay-policy-label');
+    if (policyEl) policyEl.textContent = label;
   },
 
   getAllLocks() {
