@@ -366,6 +366,30 @@ function hookAllNumberInputs() {
   } catch(e) {}
 }
 
+// 4. Decimal comma to dot sanitizer: ensures dot '.' is always used for decimals/kobo (e.g. 500.00, not 500,00)
+document.addEventListener('input', function(e) {
+  const target = e.target;
+  if (!target || target.tagName !== 'INPUT') return;
+  const isDecimalInput = target.getAttribute('inputmode') === 'decimal' ||
+    target.id === 'save-amount' ||
+    target.id === 'lock-amount-input' ||
+    target.id === 'admin-record-amount' ||
+    target.id === 'admin-min-withdrawal-input' ||
+    target.id === 'admin-commission-input' ||
+    target.id === 'admin-lock-penalty-input';
+
+  if (!isDecimalInput) return;
+
+  const oldVal = target.value;
+  if (oldVal && oldVal.includes(',')) {
+    const cursor = target.selectionStart;
+    target.value = oldVal.replace(/,/g, '.');
+    try {
+      if (cursor !== null) target.setSelectionRange(cursor, cursor);
+    } catch(err) {}
+  }
+}, true);
+
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', hookAllNumberInputs);
 } else {

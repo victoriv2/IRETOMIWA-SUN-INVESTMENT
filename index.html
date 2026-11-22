@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-US">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" />
@@ -58,7 +58,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261122_AUTOPAYOUT_V83';
+      var APP_BUILD_VER = '20261122_DECIMALDOT_V84';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -80,8 +80,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261122_v83" />
-  <link rel="stylesheet" href="css/auth.css?v=20261122_v83" />
+  <link rel="stylesheet" href="css/global.css?v=20261122_v84" />
+  <link rel="stylesheet" href="css/auth.css?v=20261122_v84" />
   <style>
     /* Gentle pre-boot session hints - JavaScript has full priority without !important blocking */
     html.is-user-logged-in #page-login { display: none; }
@@ -533,7 +533,7 @@
             <!-- Amount Input -->
             <div class="form-group">
               <label for="save-amount">Amount (₦) <span id="save-amount-min-hint" class="hidden" style="font-size: 11.5px; font-weight: 700; color: #b45309; margin-left: 6px;">(Min. ₦500.00)</span></label>
-              <input type="number" id="save-amount" placeholder="0.00" min="0" step="0.01" />
+              <input type="text" inputmode="decimal" id="save-amount" placeholder="0.00" autocomplete="off" />
               <span class="field-error" id="err-save-amount"></span>
             </div>
 
@@ -1290,7 +1290,7 @@
             <!-- Amount -->
             <div class="form-group">
               <label for="admin-record-amount">Amount (₦)</label>
-              <input type="number" id="admin-record-amount" placeholder="0.00" min="1" step="0.01" />
+              <input type="text" inputmode="decimal" id="admin-record-amount" placeholder="0.00" autocomplete="off" />
               <div class="quick-amount-row">
                 <button type="button" class="quick-amount-btn" data-amt="1000">+₦1,000</button>
                 <button type="button" class="quick-amount-btn" data-amt="5000">+₦5,000</button>
@@ -2373,7 +2373,7 @@
         <div class="form-group">
           <label for="admin-commission-input">New Commission Rate (%)</label>
           <div style="position: relative;">
-            <input type="number" id="admin-commission-input" step="0.1" min="0" max="100" placeholder="e.g. 4" style="padding-right: 36px;" />
+            <input type="text" inputmode="decimal" id="admin-commission-input" placeholder="e.g. 4" style="padding-right: 36px;" autocomplete="off" />
             <span style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-weight: 700; color: var(--text-muted); font-size: 14px; pointer-events: none;">%</span>
           </div>
           <span class="field-error" id="err-admin-commission"></span>
@@ -2415,7 +2415,7 @@
         <div class="form-group">
           <label for="admin-lock-penalty-input">New Early Break Penalty Rate (%)</label>
           <div style="position: relative;">
-            <input type="number" id="admin-lock-penalty-input" step="0.1" min="0" max="100" placeholder="e.g. 5" style="padding-right: 36px;" />
+            <input type="text" inputmode="decimal" id="admin-lock-penalty-input" placeholder="e.g. 5" style="padding-right: 36px;" autocomplete="off" />
             <span style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-weight: 700; color: var(--text-muted); font-size: 14px; pointer-events: none;">%</span>
           </div>
           <span class="field-error" id="err-admin-lock-penalty"></span>
@@ -2457,7 +2457,7 @@
           <label for="admin-min-withdrawal-input">New Minimum Withdrawal Figure (₦)</label>
           <div style="position: relative;">
             <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-weight: 800; color: var(--text-muted); font-size: 15px; pointer-events: none;">₦</span>
-            <input type="number" id="admin-min-withdrawal-input" step="1" min="0" placeholder="e.g. 500" style="padding-left: 32px;" />
+            <input type="text" inputmode="decimal" id="admin-min-withdrawal-input" placeholder="e.g. 500" style="padding-left: 32px;" autocomplete="off" />
           </div>
           <span class="field-error" id="err-admin-min-withdrawal"></span>
           <div class="quick-amounts-grid" style="margin-top: 8px;">
@@ -2512,7 +2512,7 @@
 
         <div class="form-group">
           <label for="lock-amount-input">Amount to Lock (₦) <span style="font-size: 11px; font-weight: 700; color: #b45309;">(Min. ₦500.00)</span></label>
-          <input type="number" id="lock-amount-input" min="500" step="0.01" placeholder="Min. 500.00" />
+          <input type="text" inputmode="decimal" id="lock-amount-input" placeholder="Min. 500.00" autocomplete="off" />
           <div class="quick-amounts-grid" style="margin-top: 8px;">
             <button type="button" class="quick-amt-pill lock-amt-percent-pill" data-pct="25">25%</button>
             <button type="button" class="quick-amt-pill lock-amt-percent-pill" data-pct="50">50%</button>
@@ -3209,13 +3209,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261122_v83"></script>
-  <script src="js/picker.js?v=20261122_v83"></script>
+  <script src="js/storage.js?v=20261122_v84"></script>
+  <script src="js/picker.js?v=20261122_v84"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261122_v83"></script>
-  <script src="js/auth.js?v=20261122_v83"></script>
-  <script src="js/user.js?v=20261122_v83"></script>
-  <script src="js/admin.js?v=20261122_v83"></script>
-  <script src="js/app.js?v=20261122_v83"></script>
+  <script src="js/export.js?v=20261122_v84"></script>
+  <script src="js/auth.js?v=20261122_v84"></script>
+  <script src="js/user.js?v=20261122_v84"></script>
+  <script src="js/admin.js?v=20261122_v84"></script>
+  <script src="js/app.js?v=20261122_v84"></script>
 </body>
 </html>

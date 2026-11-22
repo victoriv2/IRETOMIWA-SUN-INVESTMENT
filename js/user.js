@@ -475,7 +475,11 @@ const UserApp = (() => {
   }
 
   function formatAmount(n) {
-    return Number(n).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const num = Math.abs(parseFloat(n) || 0);
+    const parts = num.toFixed(2).split('.');
+    const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const decimalPart = parts[1];
+    return (parseFloat(n) < 0 ? '-' : '') + integerPart + '.' + decimalPart;
   }
 
   function escapeHtml(str) {
@@ -826,7 +830,8 @@ const UserApp = (() => {
 
     function updateFeeCalculations() {
       if (!saveAmtInput) return;
-      const gross = parseFloat(saveAmtInput.value) || 0;
+      const raw = String(saveAmtInput.value || '').replace(/,/g, '').trim();
+      const gross = parseFloat(raw) || 0;
       const commRate = (typeof DB !== 'undefined' && DB.getCommissionRate) ? DB.getCommissionRate() : 4;
       const feeRate = commRate / 100;
       const fee = Math.round(gross * feeRate * 100) / 100;
@@ -881,7 +886,7 @@ const UserApp = (() => {
         const amtInput = document.getElementById('save-amount');
         if (!amtInput) return;
         const add = parseFloat(pill.dataset.amt) || 0;
-        const current = parseFloat(amtInput.value) || 0;
+        const current = parseFloat(String(amtInput.value || '').replace(/,/g, '')) || 0;
         amtInput.value = (current + add).toFixed(2);
         updateFeeCalculations();
       });
@@ -953,9 +958,10 @@ const UserApp = (() => {
       const noteInput   = document.getElementById('save-note');
       const catInput    = document.getElementById('save-category');
       const type        = (typeInput ? typeInput.value : 'deposit');
-      const amount      = parseFloat(amountInput.value);
+      const rawAmt      = String(amountInput.value || '').replace(/,/g, '').trim();
+      const amount      = parseFloat(rawAmt);
 
-      if (!amountInput.value || isNaN(amount) || amount <= 0) {
+      if (!rawAmt || isNaN(amount) || amount <= 0) {
         if (errEl) errEl.textContent = 'Enter a valid amount greater than 0.';
         amountInput.classList.add('input-error');
         return;
@@ -2490,7 +2496,8 @@ const UserApp = (() => {
       const prevPen = document.getElementById('lock-prev-penalty');
       const prevRem = document.getElementById('lock-prev-rem-bal');
 
-      const amt = parseFloat((amtInput && amtInput.value) || 0) || 0;
+      const rawAmt = String((amtInput && amtInput.value) || 0).replace(/,/g, '').trim();
+      const amt = parseFloat(rawAmt) || 0;
       const userBal = DB.getUserBalance(currentUserId);
       const rem = Math.max(0, userBal.availableBalance - amt);
       const penaltyRate = DB.getLockPenaltyRate();
@@ -2533,7 +2540,8 @@ const UserApp = (() => {
         if (succBox) succBox.classList.add('hidden');
 
         const titleVal = (titleInp && titleInp.value.trim()) || 'Target SafeLock';
-        const amtVal = parseFloat((amtInp && amtInp.value) || 0);
+        const rawAmt = String((amtInp && amtInp.value) || 0).replace(/,/g, '').trim();
+        const amtVal = parseFloat(rawAmt) || 0;
         const dateVal = (dateInp && dateInp.value) || '';
 
         if (!amtVal || isNaN(amtVal) || amtVal < 500) {

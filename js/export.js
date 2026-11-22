@@ -6,10 +6,11 @@
 const Exporter = (() => {
   // ---- Helper: Format Currency Amount ----
   function formatAmount(n) {
-    return parseFloat(n || 0).toLocaleString('en-NG', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+    const num = Math.abs(parseFloat(n) || 0);
+    const parts = num.toFixed(2).split('.');
+    const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const decimalPart = parts[1];
+    return (parseFloat(n) < 0 ? '-' : '') + integerPart + '.' + decimalPart;
   }
 
   // ---- 1. EXCEL WORKBOOK EXPORT (.xlsx / .xls) ----

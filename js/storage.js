@@ -1085,7 +1085,7 @@ const DB = {
       if (tx.amount > effectiveAvailable) {
         return {
           success: false,
-          error: `Insufficient user balance. Client only has ₦${Number(effectiveAvailable).toLocaleString('en-NG', { minimumFractionDigits: 2 })} available.`
+          error: `Insufficient user balance. Client only has ₦${this.formatAmount(effectiveAvailable)} available.`
         };
       }
     }
@@ -1130,6 +1130,14 @@ const DB = {
     localStorage.setItem('sun_transactions', JSON.stringify(all));
     this.scheduleCloudPush();
     return { success: true, tx };
+  },
+
+  formatAmount(n) {
+    const num = Math.abs(parseFloat(n) || 0);
+    const parts = num.toFixed(2).split('.');
+    const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const decimalPart = parts[1];
+    return (parseFloat(n) < 0 ? '-' : '') + integerPart + '.' + decimalPart;
   },
 
   // Calculate balance, total deposits, and total withdrawals for a user
@@ -1461,7 +1469,7 @@ const DB = {
 
   updateMinWithdrawalDOM(minVal) {
     const val = (minVal !== undefined && minVal !== null) ? minVal : this.getMinimumWithdrawal();
-    const formatted = Number(val).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const formatted = this.formatAmount(val);
     document.querySelectorAll('.min-withdrawal-badge, #admin-more-min-withdrawal-badge').forEach(el => {
       el.textContent = '₦' + formatted;
     });
@@ -1521,7 +1529,7 @@ const DB = {
 
     const userBal = this.getUserBalance(userId);
     if (cleanAmount > userBal.availableBalance) {
-      throw new Error(`Insufficient available balance. You only have ₦${Number(userBal.availableBalance).toLocaleString('en-NG', { minimumFractionDigits: 2 })} available to lock.`);
+      throw new Error(`Insufficient available balance. You only have ₦${this.formatAmount(userBal.availableBalance)} available to lock.`);
     }
 
     const lockTitle = (title && title.trim()) ? title.trim() : 'Target SafeLock';
@@ -1608,7 +1616,7 @@ const DB = {
         type: 'lock_release',
         amount: netAmount,
         category: 'SafeLock Release',
-        note: `SafeLock Early Break Released: ${lock.title} (Net: ₦${Number(netAmount).toLocaleString('en-NG', { minimumFractionDigits: 2 })})`,
+        note: `SafeLock Early Break Released: ${lock.title} (Net: ₦${this.formatAmount(netAmount)})`,
         recordedBy: 'system',
         status: 'approved'
       });
@@ -1626,7 +1634,7 @@ const DB = {
         type: 'lock_release',
         amount: netAmount,
         category: 'SafeLock Release',
-        note: `SafeLock Matured & Released: ${lock.title} (100% ₦${Number(netAmount).toLocaleString('en-NG', { minimumFractionDigits: 2 })})`,
+        note: `SafeLock Matured & Released: ${lock.title} (100% ₦${this.formatAmount(netAmount)})`,
         recordedBy: 'system',
         status: 'approved'
       });

@@ -27,7 +27,11 @@ const AdminApp = (() => {
 
   // ---- Format Helpers ----
   function formatAmount(n) {
-    return Number(n || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const num = Math.abs(parseFloat(n) || 0);
+    const parts = num.toFixed(2).split('.');
+    const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const decimalPart = parts[1];
+    return (parseFloat(n) < 0 ? '-' : '') + integerPart + '.' + decimalPart;
   }
 
   function escapeHtml(str) {
@@ -1717,7 +1721,7 @@ const AdminApp = (() => {
       pill.addEventListener('click', () => {
         const amtInput = document.getElementById('admin-record-amount');
         if (!amtInput) return;
-        const current = parseFloat(amtInput.value) || 0;
+        const current = parseFloat(String(amtInput.value || '').replace(/,/g, '')) || 0;
         const add = parseFloat(pill.dataset.amt) || 0;
         amtInput.value = (current + add).toFixed(2);
       });
@@ -1775,8 +1779,9 @@ const AdminApp = (() => {
         valid = false;
       }
 
-      const amount = parseFloat(amtVal);
-      if (!amtVal || isNaN(amount) || amount <= 0) {
+      const cleanAmtStr = String(amtVal || '').replace(/,/g, '').trim();
+      const amount = parseFloat(cleanAmtStr);
+      if (!cleanAmtStr || isNaN(amount) || amount <= 0) {
         if (errAmt) errAmt.textContent = 'Enter a valid amount greater than ₦0.';
         valid = false;
       }
@@ -2813,7 +2818,7 @@ const AdminApp = (() => {
         if (errBox)  errBox.classList.add('hidden');
         if (succBox) succBox.classList.add('hidden');
 
-        const val = inputEl ? inputEl.value.trim() : '';
+        const val = inputEl ? inputEl.value.replace(/,/g, '').trim() : '';
         const num = parseFloat(val);
 
         if (val === '' || isNaN(num) || num < 0 || num > 100) {
@@ -2901,7 +2906,7 @@ const AdminApp = (() => {
         if (errBox)  errBox.classList.add('hidden');
         if (succBox) succBox.classList.add('hidden');
 
-        const val = inputEl ? inputEl.value.trim() : '';
+        const val = inputEl ? inputEl.value.replace(/,/g, '').trim() : '';
         const num = parseFloat(val);
 
         if (val === '' || isNaN(num) || num < 0 || num > 100) {
@@ -2992,7 +2997,7 @@ const AdminApp = (() => {
         if (errBox)  errBox.classList.add('hidden');
         if (succBox) succBox.classList.add('hidden');
 
-        const val = inputEl ? inputEl.value.trim() : '';
+        const val = inputEl ? inputEl.value.replace(/,/g, '').trim() : '';
         const num = parseFloat(val);
 
         if (val === '' || isNaN(num) || num < 0) {

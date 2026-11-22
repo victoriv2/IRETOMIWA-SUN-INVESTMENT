@@ -12,6 +12,14 @@ const PORT = process.env.PORT || 8080;
 const FLW_SECRET_KEY = process.env.FLW_SECRET_KEY || 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X';
 const FLW_SECRET_HASH = process.env.FLW_SECRET_HASH || 'IretomiwaSunInvestmentSecHash2026';
 
+const formatMoney = (n) => {
+  const num = Math.abs(parseFloat(n) || 0);
+  const parts = num.toFixed(2).split('.');
+  const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const decimalPart = parts[1];
+  return (parseFloat(n) < 0 ? '-' : '') + integerPart + '.' + decimalPart;
+};
+
 // Middleware
 app.use(cors({
   origin: '*',
@@ -78,7 +86,7 @@ app.post('/api/payout/disburse', async (req, res) => {
     if (isNaN(cleanAmount) || cleanAmount < minThreshold) {
       return res.status(400).json({
         success: false,
-        error: `Minimum withdrawal amount is ₦${minThreshold.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (₦${minThreshold.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} and above).`
+        error: `Minimum withdrawal amount is ₦${formatMoney(minThreshold)} (₦${formatMoney(minThreshold)} and above).`
       });
     }
 
