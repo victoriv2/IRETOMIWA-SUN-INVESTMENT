@@ -2048,33 +2048,47 @@ input.input-error {
 .safelock-sort-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: #ffffff;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 6px 12px;
   align-self: flex-start;
 }
 
-.safelock-sort-label {
-  display: flex;
+.safelock-sort-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 7px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 9px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: #1e293b;
+  outline: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  user-select: none;
+}
+
+.safelock-sort-btn:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.safelock-sort-btn:focus-visible {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.12);
+}
+
+.safelock-sort-label-text {
   font-size: 12px;
   font-weight: 700;
   color: #64748b;
-  margin: 0;
 }
 
-.safelock-sort-select {
-  border: none;
-  background: transparent;
+.safelock-sort-value-text {
   font-size: 12.5px;
-  font-weight: 700;
+  font-weight: 800;
   color: #1e293b;
-  outline: none;
-  cursor: pointer;
-  padding-right: 4px;
 }
 
 /* Arranged Lock Cards */

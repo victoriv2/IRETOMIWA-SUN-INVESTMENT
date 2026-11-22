@@ -2957,12 +2957,30 @@ const UserApp = (() => {
       });
     }
 
-    // Sort select
-    const sortSelect = document.getElementById('safelock-sort-select');
-    if (sortSelect) {
-      sortSelect.addEventListener('change', (e) => {
-        safelockActiveSort = e.target.value || 'due_asc';
-        renderSafeLockHub();
+    // Custom Modular Sort Picker
+    const sortBtn = document.getElementById('safelock-sort-btn');
+    if (sortBtn) {
+      sortBtn.addEventListener('click', () => {
+        if (typeof CustomPicker === 'undefined' || !CustomPicker.openCustomSelect) return;
+        const sortOptions = [
+          { label: 'Maturity: Soonest', value: 'due_asc', sublabel: 'Nearest due date first' },
+          { label: 'Maturity: Furthest', value: 'due_desc', sublabel: 'Furthest due date first' },
+          { label: 'Amount: Highest', value: 'amount_desc', sublabel: 'Largest locked principal first' },
+          { label: 'Amount: Lowest', value: 'amount_asc', sublabel: 'Smallest locked principal first' },
+          { label: 'Newest Created', value: 'newest', sublabel: 'Most recently locked first' }
+        ];
+
+        CustomPicker.openCustomSelect({
+          title: 'Sort SafeLock Savings',
+          options: sortOptions,
+          selectedValue: safelockActiveSort,
+          onSelect: (opt) => {
+            safelockActiveSort = opt.value || 'due_asc';
+            const labelEl = document.getElementById('safelock-sort-label');
+            if (labelEl) labelEl.textContent = opt.label;
+            renderSafeLockHub();
+          }
+        });
       });
     }
 
