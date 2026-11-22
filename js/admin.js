@@ -1655,8 +1655,8 @@ const AdminApp = (() => {
         typeInput.value = 'payout';
         if (submitBtn) submitBtn.textContent = 'Record Physical Payout';
         if (recordAmtInput) {
-          recordAmtInput.placeholder = 'Min. 501.00';
-          recordAmtInput.min = '501';
+          recordAmtInput.placeholder = 'Min. 500.00';
+          recordAmtInput.min = '500';
         }
       });
     }
@@ -1787,8 +1787,8 @@ const AdminApp = (() => {
 
       // If Payout, check if client has enough active savings balance and meets minimum
       if (type === 'payout' || type === 'withdrawal') {
-        if (amount < 501) {
-          if (errAmt) errAmt.textContent = 'Minimum payout amount is ₦501.00 (₦501 and above). Amounts ₦500.00 and below are not allowed.';
+        if (amount < 500) {
+          if (errAmt) errAmt.textContent = 'Minimum payout amount is ₦500.00 (₦500.00 and above). Amounts below ₦500.00 are not allowed.';
           const amtInp = document.getElementById('admin-record-amount');
           if (amtInp) amtInp.classList.add('input-error');
           return;

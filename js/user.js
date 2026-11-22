@@ -506,8 +506,8 @@ const UserApp = (() => {
         if (withDest) withDest.classList.remove('hidden');
         if (minHint) minHint.classList.remove('hidden');
         if (amtInput) {
-          amtInput.placeholder = 'Min. 501.00';
-          amtInput.min = '501';
+          amtInput.placeholder = 'Min. 500.00';
+          amtInput.min = '500';
         }
         if (submitText) submitText.textContent = 'Request Bank Payout via Flutterwave';
         else if (submitBtn) submitBtn.textContent = 'Request Bank Payout via Flutterwave';
@@ -663,10 +663,10 @@ const UserApp = (() => {
       if (typeInput && typeInput.value === 'withdrawal') {
         const btnText = submitText || submitBtn;
         const errEl = document.getElementById('err-save-amount');
-        if (gross > 0 && gross < 501) {
-          if (errEl) errEl.textContent = 'Minimum withdrawal is ₦501.00 (₦501 and above). ₦500.00 and below is not allowed.';
+        if (gross > 0 && gross < 500) {
+          if (errEl) errEl.textContent = 'Minimum withdrawal is ₦500.00 (₦500.00 and above). Amounts below ₦500.00 are not allowed.';
           saveAmtInput.classList.add('input-error');
-          if (btnText) btnText.textContent = 'Minimum Withdrawal is ₦501.00';
+          if (btnText) btnText.textContent = 'Minimum Withdrawal is ₦500.00';
         } else {
           if (errEl && errEl.textContent.includes('Minimum withdrawal')) {
             errEl.textContent = '';
@@ -776,8 +776,8 @@ const UserApp = (() => {
         return;
       }
 
-      if (type === 'withdrawal' && amount < 501) {
-        if (errEl) errEl.textContent = 'Minimum withdrawal amount is ₦501.00 (₦501 and above). Amounts ₦500.00 and below are not allowed.';
+      if (type === 'withdrawal' && amount < 500) {
+        if (errEl) errEl.textContent = 'Minimum withdrawal amount is ₦500.00 (₦500.00 and above). Amounts below ₦500.00 are not allowed.';
         amountInput.classList.add('input-error');
         amountInput.focus();
         return;
@@ -948,8 +948,8 @@ const UserApp = (() => {
       }
 
       // ---- 2. PAYOUT (WITHDRAWAL) ----
-      if (amount < 501) {
-        if (errEl) errEl.textContent = 'Minimum withdrawal amount is ₦501.00 (₦501 and above). Amounts ₦500.00 and below are not allowed.';
+      if (amount < 500) {
+        if (errEl) errEl.textContent = 'Minimum withdrawal amount is ₦500.00 (₦500.00 and above). Amounts below ₦500.00 are not allowed.';
         amountInput.classList.add('input-error');
         amountInput.focus();
         return;
