@@ -58,7 +58,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261122_WITHDRAW_GUARD_V88';
+      var APP_BUILD_VER = '20261122_SAFELOCK_RELEASED_FIX_V89';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -78,8 +78,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261122_v88" />
-  <link rel="stylesheet" href="css/auth.css?v=20261122_v88" />
+  <link rel="stylesheet" href="css/global.css?v=20261122_v89" />
+  <link rel="stylesheet" href="css/auth.css?v=20261122_v89" />
   <style>
     /* Gentle pre-boot session hints - JavaScript has full priority without !important blocking */
     html.is-user-logged-in #page-login { display: none; }
@@ -2731,10 +2731,7 @@
 
       <div style="display:flex; flex-direction:column; gap:10px;">
         <button type="button" class="btn-primary btn-full" id="btn-confirm-unlock-to-balance">
-          Unlock to Available Savings
-        </button>
-        <button type="button" class="btn-secondary btn-full" id="btn-confirm-unlock-to-bank" style="border: 1.5px solid #166534; color: #166534; background: #f0fdf4;">
-          Unlock & Request Bank Payout
+          Withdraw to Main Balance
         </button>
         <button type="button" class="btn-outline btn-full" id="btn-cancel-unlock">
           Keep Locked
@@ -3317,13 +3314,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261122_v88"></script>
-  <script src="js/picker.js?v=20261122_v88"></script>
+  <script src="js/storage.js?v=20261122_v89"></script>
+  <script src="js/picker.js?v=20261122_v89"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261122_v88"></script>
-  <script src="js/auth.js?v=20261122_v88"></script>
-  <script src="js/user.js?v=20261122_v88"></script>
-  <script src="js/admin.js?v=20261122_v88"></script>
-  <script src="js/app.js?v=20261122_v88"></script>
+  <script src="js/export.js?v=20261122_v89"></script>
+  <script src="js/auth.js?v=20261122_v89"></script>
+  <script src="js/user.js?v=20261122_v89"></script>
+  <script src="js/admin.js?v=20261122_v89"></script>
+  <script src="js/app.js?v=20261122_v89"></script>
 </body>
 </html>

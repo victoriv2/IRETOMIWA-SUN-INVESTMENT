@@ -1551,7 +1551,18 @@ const DB = {
   getAllLocks() {
     try {
       const raw = localStorage.getItem('sun_locked_savings');
-      return raw ? JSON.parse(raw) : [];
+      const locks = raw ? JSON.parse(raw) : [];
+      let needsPersist = false;
+      locks.forEach(l => {
+        if (l && (l.status === 'broken' || l.status === 'unlocked')) {
+          l.status = 'released';
+          needsPersist = true;
+        }
+      });
+      if (needsPersist) {
+        localStorage.setItem('sun_locked_savings', JSON.stringify(locks));
+      }
+      return locks;
     } catch (e) {
       return [];
     }
@@ -1685,7 +1696,7 @@ const DB = {
         status: 'approved'
       });
 
-      lock.status = 'broken';
+      lock.status = 'released';
       lock.penaltyRate = penaltyRate;
       lock.penaltyAmount = penaltyAmount;
       lock.netReturned = netAmount;
@@ -1703,7 +1714,7 @@ const DB = {
         status: 'approved'
       });
 
-      lock.status = 'unlocked';
+      lock.status = 'released';
       lock.penaltyRate = 0;
       lock.penaltyAmount = 0;
       lock.netReturned = netAmount;

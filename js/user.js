@@ -470,7 +470,7 @@ const UserApp = (() => {
     const wrap = document.getElementById('unlock-modal-countdown-wrap');
     if (!lock || !wrap) return;
 
-    if (lock.status === 'released') {
+    if (lock.status !== 'active') {
       wrap.innerHTML = '';
       return;
     }
@@ -520,7 +520,6 @@ const UserApp = (() => {
     const detPenAmt = document.getElementById('unlock-detail-penalty');
     const detNet    = document.getElementById('unlock-detail-net');
     const btnBal    = document.getElementById('btn-confirm-unlock-to-balance');
-    const btnBank   = document.getElementById('btn-confirm-unlock-to-bank');
     const btnCancel = document.getElementById('btn-cancel-unlock');
     const errEl     = document.getElementById('user-unlock-error');
     const succEl    = document.getElementById('user-unlock-success');
@@ -551,22 +550,25 @@ const UserApp = (() => {
 
     updateUnlockModalCountdown(lock.id);
 
-    if (lock.status === 'released') {
+    if (lock.status !== 'active') {
       if (titleEl) titleEl.textContent = 'SafeLock Details (Released)';
       if (bannerEl) {
         bannerEl.style.cssText = 'background: #f1f5f9; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; color: #475569; font-size: 12.5px;';
+        const unlDateStr = lock.unlockedAt ? new Date(lock.unlockedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'earlier date';
         bannerEl.innerHTML = `
           <strong style="display:block; font-size:13px; margin-bottom:3px; color:#1e293b;">SafeLock Already Released</strong>
-          <span>This lock was unlocked on ${lock.unlockedAt ? new Date(lock.unlockedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'earlier date'}. Net payout of ₦${formatAmount(lock.netReturned || lock.amount)} was credited.</span>`;
+          <span>This lock was unlocked on ${unlDateStr}. Net funds of ₦${formatAmount(lock.netReturned || lock.amount)} returned to your Main Balance.</span>`;
       }
-      if (detPenRow) detPenRow.style.display = lock.penaltyAmount > 0 ? 'flex' : 'none';
-      if (detPenLbl) detPenLbl.textContent = `Penalty Deducted (${lock.penaltyRateAtCreation || 5}%):`;
+      if (detPenRow) detPenRow.style.display = (lock.penaltyAmount && lock.penaltyAmount > 0) ? 'flex' : 'none';
+      if (detPenLbl) detPenLbl.textContent = `Penalty Deducted (${lock.penaltyRate || lock.penaltyRateAtCreation || 5}%):`;
       if (detPenAmt) detPenAmt.textContent = `-₦${formatAmount(lock.penaltyAmount || 0)}`;
       if (detNet)    detNet.textContent    = `₦${formatAmount(lock.netReturned || lock.amount)}`;
 
       if (btnBal) btnBal.style.display = 'none';
-      if (btnBank) btnBank.style.display = 'none';
-      if (btnCancel) btnCancel.textContent = 'Close';
+      if (btnCancel) {
+        btnCancel.textContent = 'Close';
+        btnCancel.style.display = 'block';
+      }
     } else if (isEarly) {
       const penaltyRate = DB.getLockPenaltyRate();
       const penaltyAmount = Math.round(lock.amount * (penaltyRate / 100) * 100) / 100;
@@ -581,7 +583,7 @@ const UserApp = (() => {
         bannerEl.style.cssText = 'background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; color: #92400e; font-size: 12.5px;';
         bannerEl.innerHTML = `
           <strong style="display:block; font-size:13px; margin-bottom:3px; color:#78350f;">Early Lock Break Notice</strong>
-          <span>This lock is scheduled to mature on <strong>${dueFormatted}</strong> (${daysRemaining} day${daysRemaining === 1 ? '' : 's'} remaining). Unlocking or withdrawing before the due date incurs an Early Break Penalty of <strong>${penaltyRate}%</strong> (-₦${formatAmount(penaltyAmount)}). Net payout: <strong>₦${formatAmount(netAmount)}</strong>.</span>`;
+          <span>This lock is scheduled to mature on <strong>${dueFormatted}</strong> (${daysRemaining} day${daysRemaining === 1 ? '' : 's'} remaining). Unlocking before the due date incurs an Early Break Penalty of <strong>${penaltyRate}%</strong> (-₦${formatAmount(penaltyAmount)}). Net payout to Main Balance: <strong>₦${formatAmount(netAmount)}</strong>.</span>`;
       }
 
       if (detPenRow) detPenRow.style.display = 'flex';
@@ -593,18 +595,17 @@ const UserApp = (() => {
         btnBal.style.display = 'block';
         btnBal.textContent = `Withdraw ₦${formatAmount(netAmount)} to Main Balance`;
       }
-      if (btnBank) {
-        btnBank.style.display = 'block';
-        btnBank.textContent = `Withdraw ₦${formatAmount(netAmount)} Directly to Bank`;
+      if (btnCancel) {
+        btnCancel.textContent = 'Keep Locked';
+        btnCancel.style.display = 'block';
       }
-      if (btnCancel) btnCancel.textContent = 'Keep Locked (Do Not Withdraw)';
     } else {
       if (titleEl) titleEl.textContent = 'SafeLock Matured';
       if (bannerEl) {
         bannerEl.style.cssText = 'background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; color: #166534; font-size: 12.5px;';
         bannerEl.innerHTML = `
           <strong style="display:block; font-size:13px; margin-bottom:3px; color:#14532d;">SafeLock Reached Maturity!</strong>
-          <span>Congratulations! Your lock reached its maturity date on <strong>${dueFormatted}</strong>. No penalty fee applies (0% fee). You receive 100% of your locked funds.</span>`;
+          <span>Congratulations! Your lock reached its maturity date on <strong>${dueFormatted}</strong>. No penalty fee applies (0% fee). You receive 100% of your locked funds into your Main Balance.</span>`;
       }
 
       if (detPenRow) detPenRow.style.display = 'none';
@@ -614,11 +615,10 @@ const UserApp = (() => {
         btnBal.style.display = 'block';
         btnBal.textContent = `Withdraw Full ₦${formatAmount(lock.amount)} to Main Balance`;
       }
-      if (btnBank) {
-        btnBank.style.display = 'block';
-        btnBank.textContent = `Withdraw Full ₦${formatAmount(lock.amount)} Directly to Bank`;
+      if (btnCancel) {
+        btnCancel.textContent = 'Keep in Vault';
+        btnCancel.style.display = 'block';
       }
-      if (btnCancel) btnCancel.textContent = 'Keep in Vault';
     }
 
     modal.classList.remove('hidden');
@@ -669,6 +669,14 @@ const UserApp = (() => {
     if (isHubOpen) {
       const cdContainers = document.querySelectorAll('.countdown-container[data-lock-cd]');
       cdContainers.forEach(container => {
+        const lockId = container.getAttribute('data-lock-cd');
+        if (lockId) {
+          const lock = DB.getLockById(lockId);
+          if (!lock || lock.status !== 'active') {
+            renderSafeLockHub();
+            return;
+          }
+        }
         const dueDate = container.getAttribute('data-due');
         const lockedAt = container.getAttribute('data-locked');
         const cd = getCountdownBreakdown(dueDate, lockedAt);
@@ -711,6 +719,9 @@ const UserApp = (() => {
               }
             });
           }
+        } else {
+          const wrap = document.getElementById('unlock-modal-countdown-wrap');
+          if (wrap) wrap.innerHTML = '';
         }
       }
     }
@@ -730,7 +741,7 @@ const UserApp = (() => {
     let releasedCount = 0;
 
     allLocks.forEach(l => {
-      const isRel = (l.status === 'released');
+      const isRel = (l.status !== 'active');
       if (isRel) {
         releasedCount++;
       } else {
@@ -769,7 +780,7 @@ const UserApp = (() => {
 
     // Filter locks
     const filtered = allLocks.filter(l => {
-      const isRel = (l.status === 'released');
+      const isRel = (l.status !== 'active');
       const dueStr = String(l.dueDate).slice(0, 10);
       const isMat = (!isRel && todayStr >= dueStr);
       const isAct = (!isRel && todayStr < dueStr);
@@ -832,7 +843,7 @@ const UserApp = (() => {
     }
 
     const html = filtered.map(l => {
-      const isRel = (l.status === 'released');
+      const isRel = (l.status !== 'active');
       const dueStr = String(l.dueDate).slice(0, 10);
       const isMat = (!isRel && todayStr >= dueStr);
       const cd = getCountdownBreakdown(l.dueDate, l.lockedAt);
@@ -901,13 +912,13 @@ const UserApp = (() => {
           ${countdownBoxHtml}
 
           <div class="safelock-progress-track">
-            <div class="safelock-progress-fill" style="width: ${cd.progressPercent}%;"></div>
+            <div class="safelock-progress-fill" style="width: ${isRel ? 100 : cd.progressPercent}%;"></div>
           </div>
 
           <div class="safelock-item-footer">
             <span>Target: <strong>${dueFormatted}</strong></span>
             <span class="safelock-tap-hint">
-              <span>View details & withdraw</span>
+              <span>${isRel ? 'View released details' : 'View details & withdraw'}</span>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
             </span>
           </div>
@@ -3119,7 +3130,6 @@ const UserApp = (() => {
 
     // Handle Unlock Actions
     const btnUnlockBal = document.getElementById('btn-confirm-unlock-to-balance');
-    const btnUnlockBank = document.getElementById('btn-confirm-unlock-to-bank');
     const btnCancelUnlock = document.getElementById('btn-cancel-unlock');
 
     if (btnCancelUnlock && unlockModal) {
@@ -3130,7 +3140,7 @@ const UserApp = (() => {
 
     let isUnlockActionSubmitting = false;
 
-    async function handleUnlockAction(payoutToBank) {
+    async function handleUnlockAction() {
       if (isUnlockActionSubmitting) return;
       const idInput = document.getElementById('unlock-active-lock-id');
       const lockId = idInput ? idInput.value : '';
@@ -3138,38 +3148,25 @@ const UserApp = (() => {
 
       isUnlockActionSubmitting = true;
       if (btnUnlockBal) btnUnlockBal.disabled = true;
-      if (btnUnlockBank) btnUnlockBank.disabled = true;
 
       const errBox  = document.getElementById('user-unlock-error');
       const succBox = document.getElementById('user-unlock-success');
       if (errBox) errBox.classList.add('hidden');
       if (succBox) succBox.classList.add('hidden');
 
-      if (payoutToBank) {
-        const savedBank = DB.getUserPayoutBank(currentUserId);
-        if (!savedBank || !savedBank.accountNumber) {
-          if (errBox) {
-            errBox.textContent = 'No saved payout bank found. Please set your bank details in More -> Bank Account Details first, or choose Unlock to Available Savings.';
-            errBox.classList.remove('hidden');
-          }
-          isUnlockActionSubmitting = false;
-          if (btnUnlockBal) btnUnlockBal.disabled = false;
-          if (btnUnlockBank) btnUnlockBank.disabled = false;
-          return;
-        }
-      }
-
       try {
-        const res = DB.unlockLock(lockId, { payoutToBank: !!payoutToBank });
+        const res = DB.unlockLock(lockId);
         if (res.success) {
           const msg = res.isEarly
-            ? `Early unlock processed. ₦${formatAmount(res.penaltyAmount)} (${res.penaltyRate}%) penalty deducted. ₦${formatAmount(res.netAmount)} released ${payoutToBank ? 'and submitted for bank payout.' : 'back to available savings.'}`
-            : `SafeLock unlocked successfully! Full ₦${formatAmount(res.netAmount)} released ${payoutToBank ? 'and submitted for bank payout.' : 'back to available savings.'}`;
+            ? `Early unlock processed. ₦${formatAmount(res.penaltyAmount)} (${res.penaltyRate}%) penalty deducted. ₦${formatAmount(res.netAmount)} returned back to your Main Balance.`
+            : `SafeLock unlocked successfully! Full ₦${formatAmount(res.netAmount)} returned back to your Main Balance.`;
 
           if (succBox) {
             succBox.textContent = msg;
             succBox.classList.remove('hidden');
           }
+
+          if (btnUnlockBal) btnUnlockBal.style.display = 'none';
 
           renderTotal();
           renderSavingsList();
@@ -3177,14 +3174,15 @@ const UserApp = (() => {
 
           setTimeout(() => {
             isUnlockActionSubmitting = false;
-            if (btnUnlockBal) btnUnlockBal.disabled = false;
-            if (btnUnlockBank) btnUnlockBank.disabled = false;
+            if (btnUnlockBal) {
+              btnUnlockBal.disabled = false;
+              btnUnlockBal.style.display = 'block';
+            }
             if (unlockModal) unlockModal.classList.add('hidden');
           }, 1500);
         } else {
           isUnlockActionSubmitting = false;
           if (btnUnlockBal) btnUnlockBal.disabled = false;
-          if (btnUnlockBank) btnUnlockBank.disabled = false;
           if (errBox) {
             errBox.textContent = res.error || 'Failed to unlock funds.';
             errBox.classList.remove('hidden');
@@ -3193,7 +3191,6 @@ const UserApp = (() => {
       } catch (err) {
         isUnlockActionSubmitting = false;
         if (btnUnlockBal) btnUnlockBal.disabled = false;
-        if (btnUnlockBank) btnUnlockBank.disabled = false;
         if (errBox) {
           errBox.textContent = err.message || 'Error unlocking lock.';
           errBox.classList.remove('hidden');
@@ -3202,10 +3199,7 @@ const UserApp = (() => {
     }
 
     if (btnUnlockBal) {
-      btnUnlockBal.addEventListener('click', () => handleUnlockAction(false));
-    }
-    if (btnUnlockBank) {
-      btnUnlockBank.addEventListener('click', () => handleUnlockAction(true));
+      btnUnlockBal.addEventListener('click', () => handleUnlockAction());
     }
   }
 
