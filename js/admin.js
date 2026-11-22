@@ -741,12 +741,17 @@ const AdminApp = (() => {
         if (feeEl)   feeEl.textContent   = `-₦${formatAmount(feeAmt)}`;
         if (netEl)   netEl.textContent   = `₦${formatAmount(netAmt)}`;
 
+        const flwCfg = (typeof DB !== 'undefined' && DB.getFlutterwaveConfig) ? DB.getFlutterwaveConfig() : {};
+        const isAutoCashout = flwCfg && flwCfg.autoCashout === true;
+
         if (btnFlwText) btnFlwText.textContent = `Disburse ₦${formatAmount(netAmt)} via Flutterwave`;
         if (btnManualApprove) {
           btnManualApprove.textContent = `Record Manual Payout of ₦${formatAmount(netAmt)}`;
           btnManualApprove.style.display = '';
         }
-        if (btnFlwDisburse) btnFlwDisburse.style.display = '';
+        if (btnFlwDisburse) {
+          btnFlwDisburse.style.display = isAutoCashout ? 'flex' : 'none';
+        }
 
         const destBank = t.destinationBank;
         if (destBank && (destBank.accountNumber || destBank.bankName)) {
@@ -1006,25 +1011,28 @@ const AdminApp = (() => {
     const btnCancelWithdrawal = document.getElementById('btn-cancel-approve-withdrawal');
     const flwErrEl = document.getElementById('approve-flw-error');
 
-    if (btnCancelWithdrawal && modalApprove) {
+    if (btnCancelWithdrawal) {
       btnCancelWithdrawal.addEventListener('click', () => {
-        modalApprove.classList.add('hidden');
-        activeRequestTxId = null;
+        closeApproveModal();
       });
     }
 
-    if (btnManualApprove && modalApprove) {
+    if (btnManualApprove) {
       btnManualApprove.addEventListener('click', async () => {
-        if (!activeRequestTxId) return;
+        const txId = activeRequestTxId;
+        if (!txId) return;
         const allTx = DB.getAllTransactions();
-        const t = allTx.find(x => x.id === activeRequestTxId);
+        const t = allTx.find(x => x.id === txId);
         const grossAmt = t ? (t.grossAmount || t.amount) : 0;
         const currentComm = (typeof DB !== 'undefined' && DB.getCommissionRate) ? DB.getCommissionRate() : 4;
         const feeRate = currentComm / 100;
         const feeAmt = Math.round(grossAmt * feeRate * 100) / 100;
         const netAmt = Math.max(0, Math.round((grossAmt - feeAmt) * 100) / 100);
 
-        const res = DB.approveTransaction(activeRequestTxId, {
+        // Immediate visual dismiss so admin sees instant response
+        closeApproveModal();
+
+        const res = DB.approveTransaction(txId, {
           reviewedBy: 'admin (manual)',
           grossAmount: grossAmt,
           fee: feeAmt,
@@ -1032,21 +1040,18 @@ const AdminApp = (() => {
           feeRate: feeRate,
         });
 
-        // Instant cloud sync
-        try {
-          await DB.syncPush();
-        } catch (syncErr) {
-          console.warn('Manual approval sync warning:', syncErr);
-        }
-
-        modalApprove.classList.add('hidden');
-        activeRequestTxId = null;
-
         renderRequestsTab();
         renderUsersTab();
         renderReceivedTab();
         renderPayoutsTab();
         renderMoreTab();
+
+        // Background cloud sync
+        try {
+          await DB.syncPush();
+        } catch (syncErr) {
+          console.warn('Manual approval sync warning:', syncErr);
+        }
       });
     }
 
