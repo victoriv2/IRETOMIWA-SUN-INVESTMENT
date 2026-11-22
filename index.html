@@ -58,7 +58,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261110_RECON_V71';
+      var APP_BUILD_VER = '20261122_WITHDRAW_V72';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -80,8 +80,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261110_v71" />
-  <link rel="stylesheet" href="css/auth.css?v=20261110_v71" />
+  <link rel="stylesheet" href="css/global.css?v=20261122_v72" />
+  <link rel="stylesheet" href="css/auth.css?v=20261122_v72" />
   <style>
     /* Gentle pre-boot session hints - JavaScript has full priority without !important blocking */
     html.is-user-logged-in #page-login { display: none; }
@@ -464,7 +464,7 @@
 
             <!-- Amount Input -->
             <div class="form-group">
-              <label for="save-amount">Amount (₦)</label>
+              <label for="save-amount">Amount (₦) <span id="save-amount-min-hint" class="hidden" style="font-size: 11.5px; font-weight: 700; color: #b45309; margin-left: 6px;">(Min. ₦501.00)</span></label>
               <input type="number" id="save-amount" placeholder="0.00" min="0" step="0.01" />
               <span class="field-error" id="err-save-amount"></span>
             </div>
@@ -509,6 +509,9 @@
                 <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #854d0e; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
                   <span>Withdrawal & Fee Breakdown</span>
                   <span style="background: #fef08a; color: #713f12; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;"><span class="comm-rate-badge">4%</span> Admin Fee</span>
+                </div>
+                <div style="font-size: 12px; font-weight: 600; color: #92400e; background: #fef3c7; border: 1px solid #fde68a; border-radius: 6px; padding: 6px 10px; margin-bottom: 8px;">
+                  Minimum withdrawal is ₦501.00 (₦501.00 and above).
                 </div>
                 <div style="display:flex; justify-content:space-between; margin-bottom: 5px;">
                   <span style="color: #713f12;">Gross Savings Requested:</span>
@@ -2821,13 +2824,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261110_v71"></script>
-  <script src="js/picker.js?v=20261110_v71"></script>
+  <script src="js/storage.js?v=20261122_v72"></script>
+  <script src="js/picker.js?v=20261122_v72"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261110_v71"></script>
-  <script src="js/auth.js?v=20261110_v71"></script>
-  <script src="js/user.js?v=20261110_v71"></script>
-  <script src="js/admin.js?v=20261110_v71"></script>
-  <script src="js/app.js?v=20261110_v71"></script>
+  <script src="js/export.js?v=20261122_v72"></script>
+  <script src="js/auth.js?v=20261122_v72"></script>
+  <script src="js/user.js?v=20261122_v72"></script>
+  <script src="js/admin.js?v=20261122_v72"></script>
+  <script src="js/app.js?v=20261122_v72"></script>
 </body>
 </html>

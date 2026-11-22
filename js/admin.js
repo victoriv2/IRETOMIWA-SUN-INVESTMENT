@@ -1627,6 +1627,15 @@ const AdminApp = (() => {
     const payBtn = document.getElementById('btn-admin-type-payout');
     const typeInput = document.getElementById('admin-record-type');
     const submitBtn = document.getElementById('admin-record-submit-btn');
+    const recordAmtInput = document.getElementById('admin-record-amount');
+
+    if (recordAmtInput) {
+      if (typeof window.disableNumberInputWheelScroll === 'function') {
+        window.disableNumberInputWheelScroll(recordAmtInput);
+      } else {
+        recordAmtInput.addEventListener('wheel', (e) => { e.preventDefault(); e.target.blur(); }, { passive: false });
+      }
+    }
 
     if (depBtn && payBtn && typeInput) {
       depBtn.addEventListener('click', () => {
@@ -1634,6 +1643,10 @@ const AdminApp = (() => {
         payBtn.classList.remove('active');
         typeInput.value = 'deposit';
         if (submitBtn) submitBtn.textContent = 'Record Physical Deposit';
+        if (recordAmtInput) {
+          recordAmtInput.placeholder = '0.00';
+          recordAmtInput.min = '1';
+        }
       });
 
       payBtn.addEventListener('click', () => {
@@ -1641,6 +1654,10 @@ const AdminApp = (() => {
         depBtn.classList.remove('active');
         typeInput.value = 'payout';
         if (submitBtn) submitBtn.textContent = 'Record Physical Payout';
+        if (recordAmtInput) {
+          recordAmtInput.placeholder = 'Min. 501.00';
+          recordAmtInput.min = '501';
+        }
       });
     }
 
@@ -1768,8 +1785,14 @@ const AdminApp = (() => {
         return;
       }
 
-      // If Payout, check if client has enough active savings balance
+      // If Payout, check if client has enough active savings balance and meets minimum
       if (type === 'payout' || type === 'withdrawal') {
+        if (amount < 501) {
+          if (errAmt) errAmt.textContent = 'Minimum payout amount is ₦501.00 (₦501 and above). Amounts ₦500.00 and below are not allowed.';
+          const amtInp = document.getElementById('admin-record-amount');
+          if (amtInp) amtInp.classList.add('input-error');
+          return;
+        }
         const clientBalance = DB.getUserBalance(clientId).balance;
         if (amount > clientBalance) {
           if (errBox) {
@@ -2749,7 +2772,14 @@ const AdminApp = (() => {
 
         const currentRate = DB.getCommissionRate();
         if (dispEl)  dispEl.textContent = `${currentRate}%`;
-        if (inputEl) inputEl.value = currentRate;
+        if (inputEl) {
+          inputEl.value = currentRate;
+          if (typeof window.disableNumberInputWheelScroll === 'function') {
+            window.disableNumberInputWheelScroll(inputEl);
+          } else {
+            inputEl.addEventListener('wheel', (e) => { e.preventDefault(); e.target.blur(); }, { passive: false });
+          }
+        }
 
         modal.classList.remove('hidden');
         if (inputEl) inputEl.focus();

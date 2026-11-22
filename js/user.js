@@ -474,6 +474,9 @@ const UserApp = (() => {
     const withDest    = document.getElementById('withdrawal-dest-fields');
 
     function setFormMode(mode) {
+      const amtInput = document.getElementById('save-amount');
+      const minHint = document.getElementById('save-amount-min-hint');
+
       if (mode === 'deposit') {
         if (btnDeposit) btnDeposit.classList.add('active');
         if (btnPayout) btnPayout.classList.remove('active');
@@ -484,6 +487,11 @@ const UserApp = (() => {
         if (flwTrust) flwTrust.classList.remove('hidden');
         if (quickAmts) quickAmts.classList.remove('hidden');
         if (withDest) withDest.classList.add('hidden');
+        if (minHint) minHint.classList.add('hidden');
+        if (amtInput) {
+          amtInput.placeholder = '0.00';
+          amtInput.min = '0';
+        }
         if (submitText) submitText.textContent = 'Generate Bank Transfer Account';
         else if (submitBtn) submitBtn.textContent = 'Generate Bank Transfer Account';
       } else {
@@ -496,6 +504,11 @@ const UserApp = (() => {
         if (flwTrust) flwTrust.classList.add('hidden');
         if (quickAmts) quickAmts.classList.add('hidden');
         if (withDest) withDest.classList.remove('hidden');
+        if (minHint) minHint.classList.remove('hidden');
+        if (amtInput) {
+          amtInput.placeholder = 'Min. 501.00';
+          amtInput.min = '501';
+        }
         if (submitText) submitText.textContent = 'Request Bank Payout via Flutterwave';
         else if (submitBtn) submitBtn.textContent = 'Request Bank Payout via Flutterwave';
         loadSavedPayoutBank();
@@ -622,6 +635,14 @@ const UserApp = (() => {
     const withFeeEl    = document.getElementById('with-fee-amt');
     const withNetEl    = document.getElementById('with-net-amt');
 
+    if (saveAmtInput) {
+      if (typeof window.disableNumberInputWheelScroll === 'function') {
+        window.disableNumberInputWheelScroll(saveAmtInput);
+      } else {
+        saveAmtInput.addEventListener('wheel', (e) => { e.preventDefault(); e.target.blur(); }, { passive: false });
+      }
+    }
+
     function updateFeeCalculations() {
       if (!saveAmtInput) return;
       const gross = parseFloat(saveAmtInput.value) || 0;
@@ -641,10 +662,21 @@ const UserApp = (() => {
 
       if (typeInput && typeInput.value === 'withdrawal') {
         const btnText = submitText || submitBtn;
-        if (btnText) {
-          btnText.textContent = gross > 0
-            ? `Request Bank Payout of ₦${formatAmount(net)} (Net)`
-            : 'Request Bank Payout via Flutterwave';
+        const errEl = document.getElementById('err-save-amount');
+        if (gross > 0 && gross < 501) {
+          if (errEl) errEl.textContent = 'Minimum withdrawal is ₦501.00 (₦501 and above). ₦500.00 and below is not allowed.';
+          saveAmtInput.classList.add('input-error');
+          if (btnText) btnText.textContent = 'Minimum Withdrawal is ₦501.00';
+        } else {
+          if (errEl && errEl.textContent.includes('Minimum withdrawal')) {
+            errEl.textContent = '';
+            saveAmtInput.classList.remove('input-error');
+          }
+          if (btnText) {
+            btnText.textContent = gross > 0
+              ? `Request Bank Payout of ₦${formatAmount(net)} (Net)`
+              : 'Request Bank Payout via Flutterwave';
+          }
         }
       }
     }
@@ -741,6 +773,13 @@ const UserApp = (() => {
       if (!amountInput.value || isNaN(amount) || amount <= 0) {
         if (errEl) errEl.textContent = 'Enter a valid amount greater than 0.';
         amountInput.classList.add('input-error');
+        return;
+      }
+
+      if (type === 'withdrawal' && amount < 501) {
+        if (errEl) errEl.textContent = 'Minimum withdrawal amount is ₦501.00 (₦501 and above). Amounts ₦500.00 and below are not allowed.';
+        amountInput.classList.add('input-error');
+        amountInput.focus();
         return;
       }
 
@@ -909,6 +948,13 @@ const UserApp = (() => {
       }
 
       // ---- 2. PAYOUT (WITHDRAWAL) ----
+      if (amount < 501) {
+        if (errEl) errEl.textContent = 'Minimum withdrawal amount is ₦501.00 (₦501 and above). Amounts ₦500.00 and below are not allowed.';
+        amountInput.classList.add('input-error');
+        amountInput.focus();
+        return;
+      }
+
       const userBal = DB.getUserBalance(currentUserId);
       const avail = (typeof userBal.availableBalance === 'number') ? userBal.availableBalance : userBal.balance;
       if (amount > avail) {

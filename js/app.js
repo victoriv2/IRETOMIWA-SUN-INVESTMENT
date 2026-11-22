@@ -313,12 +313,69 @@ try {
   window.App = App;
 } catch(e) {}
 
+// ============================================
+// NUMBER INPUT SCROLL GESTURE SUPPRESSOR
+// Disables mouse wheel and trackpad scroll from incrementing/decrementing number inputs
+// ============================================
+function disableNumberInputWheelScroll(inputEl) {
+  if (!inputEl || inputEl.__wheelDisabled) return;
+  inputEl.__wheelDisabled = true;
+  inputEl.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    this.blur();
+  }, { passive: false });
+}
+try {
+  window.disableNumberInputWheelScroll = disableNumberInputWheelScroll;
+} catch(e) {}
+
+// 1. Global capture-phase wheel listener: prevent default on any number input
+document.addEventListener('wheel', function(e) {
+  const target = e.target;
+  const isTargetNumber = target && (target.type === 'number' || (target.tagName === 'INPUT' && target.type === 'number'));
+  const activeEl = document.activeElement;
+  const isActiveNumber = activeEl && activeEl.tagName === 'INPUT' && activeEl.type === 'number';
+
+  if (isTargetNumber || isActiveNumber) {
+    e.preventDefault();
+    if (isTargetNumber && typeof target.blur === 'function') {
+      target.blur();
+    } else if (isActiveNumber && typeof activeEl.blur === 'function') {
+      activeEl.blur();
+    }
+  }
+}, { passive: false, capture: true });
+
+// 2. Focusin listener: attach direct wheel preventer as soon as any number input receives focus
+document.addEventListener('focusin', function(e) {
+  if (e.target && e.target.tagName === 'INPUT' && e.target.type === 'number') {
+    disableNumberInputWheelScroll(e.target);
+  }
+}, true);
+
+// 3. Immediately hook existing number inputs on page load
+function hookAllNumberInputs() {
+  try {
+    document.querySelectorAll('input[type="number"]').forEach(input => {
+      disableNumberInputWheelScroll(input);
+    });
+  } catch(e) {}
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', hookAllNumberInputs);
+} else {
+  hookAllNumberInputs();
+}
+
 // Reliable boot on DOM ready or immediately if already loaded
 (() => {
   let booted = false;
   function bootApp() {
     if (booted) return;
     booted = true;
+    hookAllNumberInputs();
     App.init();
   }
 

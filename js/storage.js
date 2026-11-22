@@ -929,6 +929,11 @@ const DB = {
     const isUser = (recordedBy === 'user');
     const assignedStatus = status || (isUser ? 'pending' : 'approved');
 
+    if (isUser && (type === 'withdrawal' || type === 'payout') && (parseFloat(amount) || 0) < 501) {
+      console.warn('Rejected withdrawal below minimum ₦501.00:', amount);
+      return null;
+    }
+
     const tx = {
       id: 'tx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
       userId,
