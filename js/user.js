@@ -1100,7 +1100,7 @@ const UserApp = (() => {
                 renderTotal();
 
                 // Show confirmation receipt modal on top of main dashboard
-                const updatedBal = DB.getUserBalance(currentUserId).balance;
+                const updatedBal = DB.getUserBalance(currentUserId).availableBalance;
                 openDepositSuccessModal({
                   amount: amount,
                   category: category,
@@ -1219,6 +1219,10 @@ const UserApp = (() => {
       proceedWithPayoutSubmission();
 
       function proceedWithPayoutSubmission() {
+        const originalText = submitText ? submitText.textContent : 'Request Withdrawal';
+        if (submitBtn) submitBtn.disabled = true;
+        if (submitText) submitText.textContent = 'Processing Instant Disbursement...';
+
         const commRate = (typeof DB !== 'undefined' && DB.getCommissionRate) ? DB.getCommissionRate() : 4;
         const feeRate = commRate / 100;
         const fee = Math.round(amount * feeRate * 100) / 100;
@@ -1272,20 +1276,10 @@ const UserApp = (() => {
         renderTotal();
 
         const currentBal = (typeof DB !== 'undefined' && DB.getUserBalance)
-          ? DB.getUserBalance(currentUserId).balance
+          ? DB.getUserBalance(currentUserId).availableBalance
           : 0;
 
         if (destinationBank.accountNumber && destinationBank.bankCode) {
-          openPayoutSuccessModal({
-            gross: amount,
-            fee: fee,
-            net: netAmount,
-            bankName: bName,
-            accountNumber: bNum,
-            balance: currentBal,
-            isInstant: false
-          });
-
           DB.disburseFlutterwaveTransfer({
             accountNumber: destinationBank.accountNumber,
             bankCode: destinationBank.bankCode,
@@ -1295,6 +1289,9 @@ const UserApp = (() => {
             clientName: clientLegalName,
             userId: currentUserId,
           }).then(res => {
+            if (submitBtn) submitBtn.disabled = false;
+            if (submitText) submitText.textContent = originalText;
+
             if (res && res.success) {
               DB.approveTransaction(newTx.id, {
                 reviewedBy: 'system (100% instant auto-cashout)',
@@ -1314,19 +1311,41 @@ const UserApp = (() => {
                 net: netAmount,
                 bankName: bName,
                 accountNumber: bNum,
-                balance: DB.getUserBalance(currentUserId).balance,
+                balance: DB.getUserBalance(currentUserId).availableBalance,
                 isInstant: true
               });
             } else {
               renderSavingsList();
               renderTotal();
+              openPayoutSuccessModal({
+                gross: amount,
+                fee: fee,
+                net: netAmount,
+                bankName: bName,
+                accountNumber: bNum,
+                balance: DB.getUserBalance(currentUserId).availableBalance,
+                isInstant: false
+              });
             }
           }).catch(err => {
             console.warn('100% instant cashout transfer error:', err);
+            if (submitBtn) submitBtn.disabled = false;
+            if (submitText) submitText.textContent = originalText;
             renderSavingsList();
             renderTotal();
+            openPayoutSuccessModal({
+              gross: amount,
+              fee: fee,
+              net: netAmount,
+              bankName: bName,
+              accountNumber: bNum,
+              balance: DB.getUserBalance(currentUserId).availableBalance,
+              isInstant: false
+            });
           });
         } else {
+          if (submitBtn) submitBtn.disabled = false;
+          if (submitText) submitText.textContent = originalText;
           openPayoutSuccessModal({
             gross: amount,
             fee: fee,
@@ -2320,7 +2339,7 @@ const UserApp = (() => {
         renderSavingsList();
         renderTotal();
 
-        const updatedBal = DB.getUserBalance(targetUserId).balance;
+        const updatedBal = DB.getUserBalance(targetUserId).availableBalance;
         openDepositSuccessModal({
           amount: depositAmount,
           category: pending ? pending.category : 'General Savings',

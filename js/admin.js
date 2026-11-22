@@ -1791,16 +1791,17 @@ const AdminApp = (() => {
 
       // If Payout, check if client has enough active savings balance and meets minimum
       if (type === 'payout' || type === 'withdrawal') {
-        if (amount < 500) {
-          if (errAmt) errAmt.textContent = 'Minimum payout amount is ₦500.00 (₦500.00 and above). Amounts below ₦500.00 are not allowed.';
+        const minWth = (typeof DB !== 'undefined' && DB.getMinimumWithdrawal) ? DB.getMinimumWithdrawal() : 500;
+        if (amount < minWth) {
+          if (errAmt) errAmt.textContent = `Minimum payout amount is ₦${formatAmount(minWth)} (₦${formatAmount(minWth)} and above). Amounts below ₦${formatAmount(minWth)} are not allowed.`;
           const amtInp = document.getElementById('admin-record-amount');
           if (amtInp) amtInp.classList.add('input-error');
           return;
         }
-        const clientBalance = DB.getUserBalance(clientId).balance;
+        const clientBalance = DB.getUserBalance(clientId).availableBalance;
         if (amount > clientBalance) {
           if (errBox) {
-            errBox.textContent = `Insufficient balance. Client only has ₦${formatAmount(clientBalance)} in active savings.`;
+            errBox.textContent = `Insufficient balance. Client only has ₦${formatAmount(clientBalance)} in available savings.`;
             errBox.classList.remove('hidden');
           }
           return;

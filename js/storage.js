@@ -303,11 +303,11 @@ const DB = {
         txMap.set(lt.id, lt);
       } else {
         const ct = txMap.get(lt.id);
-        const isLocalReviewed = lt.status === 'approved' || lt.status === 'declined';
-        const isCloudReviewed = ct.status === 'approved' || ct.status === 'declined';
+        const isLocalReviewed = lt.status === 'approved' || lt.status === 'declined' || lt.status === 'successful';
+        const isCloudReviewed = ct.status === 'approved' || ct.status === 'declined' || ct.status === 'successful';
 
-        // A reviewed status (approved/declined) always takes precedence over pending
-        const mergedTx = { ...lt, ...ct };
+        // A reviewed status (approved/declined/successful) always takes precedence over pending
+        const mergedTx = { ...ct, ...lt };
         if (isLocalReviewed && !isCloudReviewed) {
           mergedTx.status = lt.status;
           mergedTx.reviewedAt = lt.reviewedAt || new Date().toISOString();
@@ -334,6 +334,11 @@ const DB = {
           if (ct.grossAmount !== undefined) mergedTx.grossAmount = ct.grossAmount;
           if (ct.note) mergedTx.note = ct.note;
           if (ct.declineReason) mergedTx.declineReason = ct.declineReason;
+        } else if (isLocalReviewed && isCloudReviewed) {
+          const localTime = new Date(lt.reviewedAt || lt.date || 0).getTime();
+          const cloudTime = new Date(ct.reviewedAt || ct.date || 0).getTime();
+          const winner = localTime >= cloudTime ? lt : ct;
+          Object.assign(mergedTx, winner);
         }
         txMap.set(lt.id, mergedTx);
       }
@@ -1076,10 +1081,11 @@ const DB = {
     const isFlwDisbursed = !!(reviewMeta.paymentGateway === 'flutterwave' || reviewMeta.flutterwaveTransferId);
     if (!isFlwDisbursed && (tx.type === 'withdrawal' || tx.type === 'payout')) {
       const userBal = this.getUserBalance(tx.userId);
-      if (tx.amount > userBal.balance) {
+      const effectiveAvailable = userBal.availableBalance + (tx.status === 'pending' ? tx.amount : 0);
+      if (tx.amount > effectiveAvailable) {
         return {
           success: false,
-          error: `Insufficient user balance. Client only has ₦${Number(userBal.balance).toLocaleString('en-NG', { minimumFractionDigits: 2 })} available.`
+          error: `Insufficient user balance. Client only has ₦${Number(effectiveAvailable).toLocaleString('en-NG', { minimumFractionDigits: 2 })} available.`
         };
       }
     }
