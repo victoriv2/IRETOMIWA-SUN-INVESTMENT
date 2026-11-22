@@ -2653,31 +2653,16 @@ const AdminApp = (() => {
     const pushChk = document.getElementById('toggle-admin-push-notif');
     const soundChk = document.getElementById('toggle-admin-sound-notif');
     const vibChk = document.getElementById('toggle-admin-vibrate-notif');
-    const tgChk = document.getElementById('toggle-admin-telegram-notif');
-    const tgFields = document.getElementById('admin-telegram-fields');
-    const tgToken = document.getElementById('admin-telegram-bot-token');
-    const tgChat = document.getElementById('admin-telegram-chat-id');
 
     if (pushChk) pushChk.checked = cfg.pushEnabled !== false;
     if (soundChk) soundChk.checked = cfg.soundEnabled !== false;
     if (vibChk) vibChk.checked = cfg.vibrateEnabled !== false;
-    if (tgChk) {
-      tgChk.checked = cfg.telegramEnabled === true;
-      if (tgFields) {
-        if (cfg.telegramEnabled) tgFields.classList.remove('hidden');
-        else tgFields.classList.add('hidden');
-      }
-    }
-    if (tgToken) tgToken.value = cfg.telegramBotToken || '';
-    if (tgChat) tgChat.value = cfg.telegramChatId || '';
   }
 
   function initAdminNotifications() {
     renderNotificationSettings();
 
     const pushChk = document.getElementById('toggle-admin-push-notif');
-    const tgChk = document.getElementById('toggle-admin-telegram-notif');
-    const tgFields = document.getElementById('admin-telegram-fields');
     const saveBtn = document.getElementById('btn-save-notif-config');
     const testBtn = document.getElementById('btn-test-admin-notif');
     const msgBox = document.getElementById('admin-notif-msg');
@@ -2698,29 +2683,19 @@ const AdminApp = (() => {
       });
     }
 
-    if (tgChk && tgFields) {
-      tgChk.addEventListener('change', () => {
-        if (tgChk.checked) tgFields.classList.remove('hidden');
-        else tgFields.classList.add('hidden');
-      });
-    }
-
     if (saveBtn) {
       saveBtn.addEventListener('click', () => {
         const pushEnabled = document.getElementById('toggle-admin-push-notif')?.checked !== false;
         const soundEnabled = document.getElementById('toggle-admin-sound-notif')?.checked !== false;
         const vibrateEnabled = document.getElementById('toggle-admin-vibrate-notif')?.checked !== false;
-        const telegramEnabled = document.getElementById('toggle-admin-telegram-notif')?.checked === true;
-        const botToken = document.getElementById('admin-telegram-bot-token')?.value.trim() || '';
-        const chatId = document.getElementById('admin-telegram-chat-id')?.value.trim() || '';
 
         DB.saveNotificationConfig({
           pushEnabled,
           soundEnabled,
           vibrateEnabled,
-          telegramEnabled,
-          telegramBotToken: botToken,
-          telegramChatId: chatId
+          telegramEnabled: false,
+          telegramBotToken: '',
+          telegramChatId: ''
         });
 
         if (msgBox) {

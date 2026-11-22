@@ -58,7 +58,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261122_AUTO_CASHOUT_SYNC_V98';
+      var APP_BUILD_VER = '20261122_CLEAN_NOTIF_V99';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -78,8 +78,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261122_v98" />
-  <link rel="stylesheet" href="css/auth.css?v=20261122_v98" />
+  <link rel="stylesheet" href="css/global.css?v=20261122_v99" />
+  <link rel="stylesheet" href="css/auth.css?v=20261122_v99" />
   <style>
     /* Gentle pre-boot session hints - JavaScript has full priority without !important blocking */
     html.is-user-logged-in #page-login { display: none; }
@@ -1705,34 +1705,6 @@
               </label>
             </div>
 
-            <!-- Optional Telegram Phone Alerts -->
-            <div style="background:#f8fafc; border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:14px;">
-              <label style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; margin-bottom:6px;">
-                <div>
-                  <div style="display:flex; align-items:center; gap:6px;">
-                    <strong style="font-size:13px; color:var(--text-primary);">Telegram Phone Notifications (Free)</strong>
-                    <span class="status-badge" style="background:#e0e7ff; color:#3730a3; font-size:10px; padding:2px 6px;">Zero Cost</span>
-                  </div>
-                  <small style="font-size:11.5px; color:var(--text-muted);">Alerts your phone via Telegram even with the browser closed</small>
-                </div>
-                <input type="checkbox" id="toggle-admin-telegram-notif" style="width:18px; height:18px; accent-color:var(--primary); cursor:pointer;" />
-              </label>
-
-              <div id="admin-telegram-fields" class="hidden" style="margin-top:12px; border-top:1px dashed #cbd5e1; padding-top:12px;">
-                <div class="form-group" style="margin-bottom:10px;">
-                  <label for="admin-telegram-bot-token" style="font-size:12px; font-weight:700;">Telegram Bot Token</label>
-                  <input type="text" id="admin-telegram-bot-token" placeholder="e.g. 7123456789:AAH..." style="width:100%; height:38px; padding:0 10px; border-radius:6px; border:1px solid var(--border); font-family:monospace; font-size:11.5px;" />
-                </div>
-                <div class="form-group" style="margin-bottom:8px;">
-                  <label for="admin-telegram-chat-id" style="font-size:12px; font-weight:700;">Telegram Chat ID</label>
-                  <input type="text" id="admin-telegram-chat-id" placeholder="e.g. 987654321" style="width:100%; height:38px; padding:0 10px; border-radius:6px; border:1px solid var(--border); font-family:monospace; font-size:11.5px;" />
-                </div>
-                <small style="display:block; font-size:11px; color:var(--text-muted); line-height:1.4;">
-                  Tip: Create a free bot with @BotFather on Telegram in 1 minute to receive alerts 24/7 on your mobile phone.
-                </small>
-              </div>
-            </div>
-
             <!-- Action Buttons -->
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
               <button type="button" class="btn-primary" id="btn-save-notif-config" style="padding:9px 16px; font-size:12.5px; font-weight:700; border-radius:8px;">
@@ -3313,13 +3285,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261122_v98"></script>
-  <script src="js/picker.js?v=20261122_v98"></script>
+  <script src="js/storage.js?v=20261122_v99"></script>
+  <script src="js/picker.js?v=20261122_v99"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261122_v98"></script>
-  <script src="js/auth.js?v=20261122_v98"></script>
-  <script src="js/user.js?v=20261122_v98"></script>
-  <script src="js/admin.js?v=20261122_v98"></script>
-  <script src="js/app.js?v=20261122_v98"></script>
+  <script src="js/export.js?v=20261122_v99"></script>
+  <script src="js/auth.js?v=20261122_v99"></script>
+  <script src="js/user.js?v=20261122_v99"></script>
+  <script src="js/admin.js?v=20261122_v99"></script>
+  <script src="js/app.js?v=20261122_v99"></script>
 </body>
 </html>
