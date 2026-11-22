@@ -2091,14 +2091,19 @@ input.input-error {
   padding: 16px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
   position: relative;
+  transform: none;
 }
 
 .safelock-item-card:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-  border-color: #f59e0b;
+  transform: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border-color: #cbd5e1;
+}
+
+.safelock-item-card.is-matured:hover {
+  border-color: #4ade80;
 }
 
 .safelock-item-card.is-matured {
