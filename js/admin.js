@@ -657,160 +657,181 @@ const AdminApp = (() => {
       `;
     }).join('');
 
-    // Bind action buttons
+    // Bind action buttons directly
     tbody.querySelectorAll('.btn-approve').forEach(btn => {
-      btn.addEventListener('click', () => openApproveModal(btn.dataset.txId));
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openApproveModal(btn.dataset.txId);
+      };
     });
 
     tbody.querySelectorAll('.btn-decline').forEach(btn => {
-      btn.addEventListener('click', () => openDeclineModal(btn.dataset.txId));
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openDeclineModal(btn.dataset.txId);
+      };
     });
   }
 
   function openApproveModal(txId) {
-    activeRequestTxId = txId;
-    const allTx = DB.getAllTransactions();
-    const t = allTx.find(x => x.id === txId);
-    if (!t) return;
+    try {
+      activeRequestTxId = txId;
+      const allTx = DB.getAllTransactions();
+      const t = allTx.find(x => x.id === txId);
+      if (!t) return;
 
-    const u = DB.getUserById(t.userId);
-    const clientName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Client';
-    const isDeposit = (t.type || 'deposit') === 'deposit';
-    const userBal = u ? DB.getUserBalance(u.id) : { balance: 0, availableBalance: 0 };
+      const u = DB.getUserById(t.userId);
+      const clientName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Client';
+      const isDeposit = (t.type || 'deposit') === 'deposit';
+      const userBal = u ? DB.getUserBalance(u.id) : { balance: 0, availableBalance: 0 };
 
-    const nameEl  = document.getElementById('approve-client-name');
-    const badgeEl = document.getElementById('approve-type-badge');
-    const amtEl   = document.getElementById('approve-amount');
-    const balEl   = document.getElementById('approve-client-balance');
-    const descEl  = document.getElementById('approve-modal-desc');
+      const nameEl  = document.getElementById('approve-client-name');
+      const badgeEl = document.getElementById('approve-type-badge');
+      const amtEl   = document.getElementById('approve-amount');
+      const balEl   = document.getElementById('approve-client-balance');
+      const descEl  = document.getElementById('approve-modal-desc');
 
-    const destBox     = document.getElementById('approve-payout-dest-box');
-    const feeBox      = document.getElementById('approve-fee-breakdown');
-    const grossEl     = document.getElementById('approve-gross-amt');
-    const feeEl       = document.getElementById('approve-fee-amt');
-    const netEl       = document.getElementById('approve-net-amt');
-    const bankNameEl  = document.getElementById('approve-bank-name');
-    const accNumEl    = document.getElementById('approve-account-number');
-    const accNameEl   = document.getElementById('approve-account-name');
-    const actionsDep  = document.getElementById('approve-actions-deposit');
-    const actionsWith = document.getElementById('approve-actions-withdrawal');
-    const flwErrEl    = document.getElementById('approve-flw-error');
-    const btnFlwText  = document.getElementById('btn-confirm-approve-flw-text') || document.getElementById('btn-approve-flw-text');
-    const btnManualApprove = document.getElementById('btn-confirm-approve-manual');
+      const destBox     = document.getElementById('approve-payout-dest-box');
+      const feeBox      = document.getElementById('approve-fee-breakdown');
+      const grossEl     = document.getElementById('approve-gross-amt');
+      const feeEl       = document.getElementById('approve-fee-amt');
+      const netEl       = document.getElementById('approve-net-amt');
+      const bankNameEl  = document.getElementById('approve-bank-name');
+      const accNumEl    = document.getElementById('approve-account-number');
+      const accNameEl   = document.getElementById('approve-account-name');
+      const actionsDep  = document.getElementById('approve-actions-deposit');
+      const actionsWith = document.getElementById('approve-actions-withdrawal');
+      const flwErrEl    = document.getElementById('approve-flw-error');
+      const btnFlwDisburse = document.getElementById('btn-confirm-approve-flw');
+      const btnFlwText  = document.getElementById('btn-confirm-approve-flw-text') || document.getElementById('btn-approve-flw-text');
+      const btnManualApprove = document.getElementById('btn-confirm-approve-manual');
 
-    if (flwErrEl) {
-      flwErrEl.textContent = '';
-      flwErrEl.classList.add('hidden');
-    }
-
-    if (nameEl)  nameEl.textContent = `${clientName} (${(u && u.phone) || '-'})`;
-    if (badgeEl) badgeEl.innerHTML = isDeposit ? '<span class="tx-badge tx-badge--deposit">Pay In (Deposit)</span>' : '<span class="tx-badge tx-badge--payout">Pay Out (Withdrawal)</span>';
-    if (amtEl)   amtEl.textContent = '₦' + formatAmount(t.amount);
-    if (balEl)   balEl.textContent = '₦' + formatAmount(userBal.balance);
-
-    if (isDeposit) {
-      if (feeBox) feeBox.classList.add('hidden');
-      if (descEl) descEl.textContent = `Approve ₦${formatAmount(t.amount)} deposit for ${clientName}? This will credit their active savings balance immediately.`;
-      if (destBox) destBox.classList.add('hidden');
-      if (actionsDep) actionsDep.classList.remove('hidden');
-      if (actionsWith) actionsWith.classList.add('hidden');
-    } else {
-      // Withdrawal / Pay Out with Dynamic Admin Fee
-      const grossAmt = t.grossAmount || t.amount;
-      const currentComm = (typeof DB !== 'undefined' && DB.getCommissionRate) ? DB.getCommissionRate() : 4;
-      const feeRate = currentComm / 100;
-      const feeAmt = Math.round(grossAmt * feeRate * 100) / 100;
-      const netAmt = Math.max(0, Math.round((grossAmt - feeAmt) * 100) / 100);
-
-      document.querySelectorAll('.comm-rate-badge').forEach(b => {
-        b.textContent = `${currentComm}%`;
-      });
-
-      if (feeBox) feeBox.classList.remove('hidden');
-      if (grossEl) grossEl.textContent = `₦${formatAmount(grossAmt)}`;
-      if (feeEl)   feeEl.textContent   = `-₦${formatAmount(feeAmt)}`;
-      if (netEl)   netEl.textContent   = `₦${formatAmount(netAmt)}`;
-
-      if (btnFlwText) btnFlwText.textContent = `Disburse ₦${formatAmount(netAmt)} via Flutterwave`;
-      if (btnManualApprove) {
-        btnManualApprove.textContent = `Record Manual Payout of ₦${formatAmount(netAmt)}`;
-        btnManualApprove.style.display = '';
+      if (flwErrEl) {
+        flwErrEl.textContent = '';
+        flwErrEl.classList.add('hidden');
       }
-      if (btnFlwDisburse) btnFlwDisburse.style.display = '';
 
-      const destBank = t.destinationBank;
-      if (destBank && (destBank.accountNumber || destBank.bankName)) {
-        if (destBox) destBox.classList.remove('hidden');
-        if (bankNameEl) bankNameEl.textContent = destBank.bankName || 'Nigerian Bank';
-        if (accNumEl) accNumEl.textContent = destBank.accountNumber || '-';
-        if (accNameEl) accNameEl.textContent = destBank.accountName || clientName;
+      if (nameEl)  nameEl.textContent = `${clientName} (${(u && u.phone) || '-'})`;
+      if (badgeEl) badgeEl.innerHTML = isDeposit ? '<span class="tx-badge tx-badge--deposit">Pay In (Deposit)</span>' : '<span class="tx-badge tx-badge--payout">Pay Out (Withdrawal)</span>';
+      if (amtEl)   amtEl.textContent = '₦' + formatAmount(t.amount);
+      if (balEl)   balEl.textContent = '₦' + formatAmount(userBal.balance);
 
-        // Live pre-verify: check account resolves before admin clicks Disburse
-        if (destBank.accountNumber && destBank.bankCode && flwErrEl) {
-          DB.resolveFlutterwaveAccount(destBank.accountNumber, destBank.bankCode).then(vRes => {
-            if (!vRes.success) {
-              flwErrEl.innerHTML = `
-                <div style="font-weight: 700; margin-bottom: 4px; color: #991b1b;">Bank Account Could Not Be Verified</div>
-                <div style="color: #374151; font-size: 12px; line-height: 1.45; margin-bottom: 10px;">
-                  Account <strong>${destBank.accountNumber}</strong> (${destBank.bankName || destBank.bankCode}) could not be resolved by Flutterwave.
-                  The account number or bank name may be wrong. You can correct it below without declining this request.
-                </div>
-                <button type="button" id="btn-edit-bank-details" style="width: 100%; padding: 9px 14px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px; margin-bottom: 6px;">
-                  Correct Bank Details and Disburse
-                </button>
-              `;
-              flwErrEl.style.background = '#fff7ed';
-              flwErrEl.style.borderColor = '#fed7aa';
-              flwErrEl.style.color = '#9a3412';
-              flwErrEl.classList.remove('hidden');
-
-              const editBankBtn = document.getElementById('btn-edit-bank-details');
-              if (editBankBtn) {
-                editBankBtn.addEventListener('click', () => {
-                  _openAdminEditBankModal(t.id, destBank, accNumEl, bankNameEl, accNameEl, flwErrEl);
-                });
-              }
-            } else if (vRes.accountName && accNameEl) {
-              accNameEl.textContent = vRes.accountName;
-            }
-          }).catch(() => {});
-        }
-      } else {
+      if (isDeposit) {
+        if (feeBox) feeBox.classList.add('hidden');
+        if (descEl) descEl.textContent = `Approve ₦${formatAmount(t.amount)} deposit for ${clientName}? This will credit their active savings balance immediately.`;
         if (destBox) destBox.classList.add('hidden');
+        if (actionsDep) actionsDep.classList.remove('hidden');
+        if (actionsWith) actionsWith.classList.add('hidden');
+      } else {
+        // Withdrawal / Pay Out with Dynamic Admin Fee
+        const grossAmt = t.grossAmount || t.amount;
+        const currentComm = (typeof DB !== 'undefined' && DB.getCommissionRate) ? DB.getCommissionRate() : 4;
+        const feeRate = currentComm / 100;
+        const feeAmt = Math.round(grossAmt * feeRate * 100) / 100;
+        const netAmt = Math.max(0, Math.round((grossAmt - feeAmt) * 100) / 100);
+
+        document.querySelectorAll('.comm-rate-badge').forEach(b => {
+          b.textContent = `${currentComm}%`;
+        });
+
+        if (feeBox) feeBox.classList.remove('hidden');
+        if (grossEl) grossEl.textContent = `₦${formatAmount(grossAmt)}`;
+        if (feeEl)   feeEl.textContent   = `-₦${formatAmount(feeAmt)}`;
+        if (netEl)   netEl.textContent   = `₦${formatAmount(netAmt)}`;
+
+        if (btnFlwText) btnFlwText.textContent = `Disburse ₦${formatAmount(netAmt)} via Flutterwave`;
+        if (btnManualApprove) {
+          btnManualApprove.textContent = `Record Manual Payout of ₦${formatAmount(netAmt)}`;
+          btnManualApprove.style.display = '';
+        }
+        if (btnFlwDisburse) btnFlwDisburse.style.display = '';
+
+        const destBank = t.destinationBank;
+        if (destBank && (destBank.accountNumber || destBank.bankName)) {
+          if (destBox) destBox.classList.remove('hidden');
+          if (bankNameEl) bankNameEl.textContent = destBank.bankName || 'Nigerian Bank';
+          if (accNumEl) accNumEl.textContent = destBank.accountNumber || '-';
+          if (accNameEl) accNameEl.textContent = destBank.accountName || clientName;
+
+          // Live pre-verify: check account resolves before admin clicks Disburse
+          if (destBank.accountNumber && destBank.bankCode && flwErrEl) {
+            DB.resolveFlutterwaveAccount(destBank.accountNumber, destBank.bankCode).then(vRes => {
+              if (!vRes.success) {
+                flwErrEl.innerHTML = `
+                  <div style="font-weight: 700; margin-bottom: 4px; color: #991b1b;">Bank Account Could Not Be Verified</div>
+                  <div style="color: #374151; font-size: 12px; line-height: 1.45; margin-bottom: 10px;">
+                    Account <strong>${destBank.accountNumber}</strong> (${destBank.bankName || destBank.bankCode}) could not be resolved by Flutterwave.
+                    The account number or bank name may be wrong. You can correct it below without declining this request.
+                  </div>
+                  <button type="button" id="btn-edit-bank-details" style="width: 100%; padding: 9px 14px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px; margin-bottom: 6px;">
+                    Correct Bank Details and Disburse
+                  </button>
+                `;
+                flwErrEl.style.background = '#fff7ed';
+                flwErrEl.style.borderColor = '#fed7aa';
+                flwErrEl.style.color = '#9a3412';
+                flwErrEl.classList.remove('hidden');
+
+                const editBankBtn = document.getElementById('btn-edit-bank-details');
+                if (editBankBtn) {
+                  editBankBtn.addEventListener('click', () => {
+                    _openAdminEditBankModal(t.id, destBank, accNumEl, bankNameEl, accNameEl, flwErrEl);
+                  });
+                }
+              } else if (vRes.accountName && accNameEl) {
+                accNameEl.textContent = vRes.accountName;
+              }
+            }).catch(() => {});
+          }
+        } else {
+          if (destBox) destBox.classList.add('hidden');
+        }
+
+        if (descEl) {
+          descEl.textContent = `Approve withdrawal for ${clientName}? Gross: ₦${formatAmount(grossAmt)} | ${Math.round(feeRate * 100)}% Admin Fee: ₦${formatAmount(feeAmt)} | Net Payout: ₦${formatAmount(netAmt)}.`;
+        }
+
+        if (actionsDep) actionsDep.classList.add('hidden');
+        if (actionsWith) actionsWith.classList.remove('hidden');
       }
 
-      if (descEl) {
-        descEl.textContent = `Approve withdrawal for ${clientName}? Gross: ₦${formatAmount(grossAmt)} | ${Math.round(feeRate * 100)}% Admin Fee: ₦${formatAmount(feeAmt)} | Net Payout: ₦${formatAmount(netAmt)}.`;
-      }
-
-      if (actionsDep) actionsDep.classList.add('hidden');
-      if (actionsWith) actionsWith.classList.remove('hidden');
+      const modal = document.getElementById('modal-approve-request');
+      if (modal) modal.classList.remove('hidden');
+    } catch (err) {
+      console.error('Error in openApproveModal:', err);
+      const modal = document.getElementById('modal-approve-request');
+      if (modal) modal.classList.remove('hidden');
     }
-
-    const modal = document.getElementById('modal-approve-request');
-    if (modal) modal.classList.remove('hidden');
   }
 
   function openDeclineModal(txId) {
-    activeRequestTxId = txId;
-    const allTx = DB.getAllTransactions();
-    const t = allTx.find(x => x.id === txId);
-    if (!t) return;
+    try {
+      activeRequestTxId = txId;
+      const allTx = DB.getAllTransactions();
+      const t = allTx.find(x => x.id === txId);
+      if (!t) return;
 
-    const u = DB.getUserById(t.userId);
-    const clientName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Client';
-    const isDeposit = (t.type || 'deposit') === 'deposit';
+      const u = DB.getUserById(t.userId);
+      const clientName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Client';
+      const isDeposit = (t.type || 'deposit') === 'deposit';
 
-    const descEl = document.getElementById('decline-modal-desc');
-    if (descEl) {
-      descEl.textContent = `Decline ${isDeposit ? 'Pay In' : 'Pay Out'} request of ₦${formatAmount(t.amount)} for ${clientName}?`;
+      const descEl = document.getElementById('decline-modal-desc');
+      if (descEl) {
+        descEl.textContent = `Decline ${isDeposit ? 'Pay In' : 'Pay Out'} request of ₦${formatAmount(t.amount)} for ${clientName}?`;
+      }
+
+      const reasonInput = document.getElementById('decline-reason-input');
+      if (reasonInput) reasonInput.value = '';
+
+      const modal = document.getElementById('modal-decline-request');
+      if (modal) modal.classList.remove('hidden');
+    } catch (err) {
+      console.error('Error in openDeclineModal:', err);
+      const modal = document.getElementById('modal-decline-request');
+      if (modal) modal.classList.remove('hidden');
     }
-
-    const reasonInput = document.getElementById('decline-reason-input');
-    if (reasonInput) reasonInput.value = '';
-
-    const modal = document.getElementById('modal-decline-request');
-    if (modal) modal.classList.remove('hidden');
   }
 
   function initRequestsTab() {
@@ -835,6 +856,27 @@ const AdminApp = (() => {
     if (pendingCard) {
       pendingCard.addEventListener('click', () => {
         switchTab('requests');
+      });
+    }
+
+    // Delegated click handler on requests table for instant responsiveness
+    const reqTable = document.getElementById('admin-requests-table');
+    if (reqTable) {
+      reqTable.addEventListener('click', (e) => {
+        const approveBtn = e.target.closest('.btn-approve');
+        if (approveBtn && approveBtn.dataset.txId) {
+          e.preventDefault();
+          e.stopPropagation();
+          openApproveModal(approveBtn.dataset.txId);
+          return;
+        }
+        const declineBtn = e.target.closest('.btn-decline');
+        if (declineBtn && declineBtn.dataset.txId) {
+          e.preventDefault();
+          e.stopPropagation();
+          openDeclineModal(declineBtn.dataset.txId);
+          return;
+        }
       });
     }
 
