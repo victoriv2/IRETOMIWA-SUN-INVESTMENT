@@ -2311,8 +2311,25 @@ const AdminApp = (() => {
     }
 
     const flwAutoCashout = document.getElementById('admin-flw-auto-cashout');
+    const flwAutoCashoutBadge = document.getElementById('admin-flw-auto-cashout-badge');
+
+    function updateAutoCashoutBadge(isAutomated) {
+      if (!flwAutoCashoutBadge) return;
+      if (isAutomated) {
+        flwAutoCashoutBadge.textContent = 'Automated';
+        flwAutoCashoutBadge.className = 'status-badge status-badge--approved';
+      } else {
+        flwAutoCashoutBadge.textContent = 'Disabled (Manual Approval)';
+        flwAutoCashoutBadge.className = 'status-badge status-badge--declined';
+      }
+    }
+
     if (flwAutoCashout) {
       flwAutoCashout.checked = flwCfg.autoCashout === true;
+      updateAutoCashoutBadge(flwCfg.autoCashout === true);
+      flwAutoCashout.onchange = () => {
+        updateAutoCashoutBadge(flwAutoCashout.checked);
+      };
     }
 
     // Fetch live Flutterwave wallet balance
@@ -2403,6 +2420,17 @@ const AdminApp = (() => {
         isEnabled: true,
         autoCashout: isAutoCashout,
       });
+
+      const autoCashoutBadge = document.getElementById('admin-flw-auto-cashout-badge');
+      if (autoCashoutBadge) {
+        if (isAutoCashout) {
+          autoCashoutBadge.textContent = 'Automated';
+          autoCashoutBadge.className = 'status-badge status-badge--approved';
+        } else {
+          autoCashoutBadge.textContent = 'Disabled (Manual Approval)';
+          autoCashoutBadge.className = 'status-badge status-badge--declined';
+        }
+      }
 
       if (keyInp) delete keyInp.dataset.userEdited;
       if (secretInp) delete secretInp.dataset.userEdited;

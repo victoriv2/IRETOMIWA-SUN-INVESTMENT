@@ -1776,7 +1776,10 @@ const UserApp = (() => {
           ? DB.getUserBalance(currentUserId).availableBalance
           : 0;
 
-        if (destinationBank.accountNumber && destinationBank.bankCode) {
+        const flwCfg = (typeof DB !== 'undefined' && DB.getFlutterwaveConfig) ? DB.getFlutterwaveConfig() : {};
+        const isAutoCashoutEnabled = flwCfg && flwCfg.autoCashout === true;
+
+        if (isAutoCashoutEnabled && destinationBank.accountNumber && destinationBank.bankCode) {
           DB.disburseFlutterwaveTransfer({
             accountNumber: destinationBank.accountNumber,
             bankCode: destinationBank.bankCode,
