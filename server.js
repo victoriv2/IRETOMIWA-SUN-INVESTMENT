@@ -180,8 +180,8 @@ app.post('/api/payout/disburse', async (req, res) => {
     let errorMsg = (flwJson && (flwJson.message || flwJson.error)) ||
       `Flutterwave transfer failed with HTTP status ${flwRes.status}`;
 
-    if (typeof errorMsg === 'string' && (errorMsg.toLowerCase().includes('ip whitelisting') || errorMsg.toLowerCase().includes('whitelist'))) {
-      errorMsg = 'Flutterwave requires your server IP to be whitelisted for automated bank transfers. Please add IP 152.55.181.117 to your Flutterwave Whitelist IP settings (https://app.flutterwave.com/dashboard/settings/whitelistip/).';
+    if (typeof errorMsg === 'string' && (errorMsg.toLowerCase().includes('ip whitelisting') || errorMsg.toLowerCase().includes('whitelist') || errorMsg.toLowerCase().includes('cannot be processed'))) {
+      errorMsg = 'Flutterwave requires your server IP to be whitelisted for automated bank transfers (IP: 152.55.181.199). Please add this IP in Flutterwave Settings -> Whitelisted IP addresses.';
     }
 
     console.warn(`[Disburse REJECTED]`, errorMsg);
