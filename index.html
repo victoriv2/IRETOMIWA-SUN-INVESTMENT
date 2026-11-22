@@ -58,7 +58,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261122_SAFELOCK_V77';
+      var APP_BUILD_VER = '20261122_SAFELOCK_V78';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -80,8 +80,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261122_v77" />
-  <link rel="stylesheet" href="css/auth.css?v=20261122_v77" />
+  <link rel="stylesheet" href="css/global.css?v=20261122_v78" />
+  <link rel="stylesheet" href="css/auth.css?v=20261122_v78" />
   <style>
     /* Gentle pre-boot session hints - JavaScript has full priority without !important blocking */
     html.is-user-logged-in #page-login { display: none; }
@@ -2457,8 +2457,20 @@
         </div>
 
         <div class="form-group">
-          <label for="lock-due-date-input">Target Maturity / Due Date (When to withdraw)</label>
-          <input type="date" id="lock-due-date-input" style="font-family: inherit; font-size: 14.5px;" />
+          <label>Target Maturity / Due Date (When to withdraw)</label>
+          <button type="button" class="custom-select-trigger" id="lock-due-date-btn" aria-label="Select Target Maturity Date">
+            <svg class="picker-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <span id="lock-due-date-label">Choose Target Maturity Date...</span>
+            <svg class="picker-btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          <input type="hidden" id="lock-due-date-input" value="" />
           <div class="quick-amounts-grid" style="margin-top: 8px;">
             <button type="button" class="quick-amt-pill lock-duration-pill" data-days="7">+7 Days</button>
             <button type="button" class="quick-amt-pill lock-duration-pill" data-days="30">+1 Month</button>
@@ -3131,13 +3143,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261122_v77"></script>
-  <script src="js/picker.js?v=20261122_v77"></script>
+  <script src="js/storage.js?v=20261122_v78"></script>
+  <script src="js/picker.js?v=20261122_v78"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261122_v77"></script>
-  <script src="js/auth.js?v=20261122_v77"></script>
-  <script src="js/user.js?v=20261122_v77"></script>
-  <script src="js/admin.js?v=20261122_v77"></script>
-  <script src="js/app.js?v=20261122_v77"></script>
+  <script src="js/export.js?v=20261122_v78"></script>
+  <script src="js/auth.js?v=20261122_v78"></script>
+  <script src="js/user.js?v=20261122_v78"></script>
+  <script src="js/admin.js?v=20261122_v78"></script>
+  <script src="js/app.js?v=20261122_v78"></script>
 </body>
 </html>

@@ -867,8 +867,8 @@ const UserApp = (() => {
       btnPayout.addEventListener('click', () => setFormMode('withdrawal'));
     }
 
-    // Quick amount pills
-    document.querySelectorAll('.quick-amt-pill').forEach(pill => {
+    // Quick amount pills for savings deposit/request form
+    document.querySelectorAll('#save-quick-amounts .quick-amt-pill').forEach(pill => {
       pill.addEventListener('click', () => {
         const amtInput = document.getElementById('save-amount');
         if (!amtInput) return;
@@ -2338,6 +2338,31 @@ const UserApp = (() => {
       document.getElementById('btn-user-more-safelock')
     ];
 
+    function setLockDueDate(isoStr) {
+      const dateInput = document.getElementById('lock-due-date-input');
+      const dateLabel = document.getElementById('lock-due-date-label');
+      if (dateInput) dateInput.value = isoStr;
+      if (dateLabel) {
+        if (isoStr) {
+          const parts = isoStr.split('-');
+          if (parts.length === 3) {
+            const y = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) - 1;
+            const d = parseInt(parts[2], 10);
+            const dObj = new Date(y, m, d);
+            dateLabel.textContent = !isNaN(dObj.getTime())
+              ? dObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+              : isoStr;
+          } else {
+            dateLabel.textContent = isoStr;
+          }
+        } else {
+          dateLabel.textContent = 'Choose Target Maturity Date...';
+        }
+      }
+      updateLockPreview();
+    }
+
     function openLockForm() {
       if (!lockModal) return;
       const userBal = DB.getUserBalance(currentUserId);
@@ -2345,7 +2370,6 @@ const UserApp = (() => {
       const rateTxt = document.getElementById('user-lock-modal-penalty-rate-txt');
       const amtInput = document.getElementById('lock-amount-input');
       const titleInput = document.getElementById('lock-title-input');
-      const dateInput = document.getElementById('lock-due-date-input');
       const errEl = document.getElementById('user-lock-error');
       const succEl = document.getElementById('user-lock-success');
 
@@ -2362,15 +2386,12 @@ const UserApp = (() => {
       }
       if (titleInput) titleInput.value = '';
 
-      if (dateInput) {
-        const tomorrow = new Date(Date.now() + 86400000);
-        const y = tomorrow.getFullYear();
-        const m = String(tomorrow.getMonth() + 1).padStart(2, '0');
-        const d = String(tomorrow.getDate()).padStart(2, '0');
-        const minStr = `${y}-${m}-${d}`;
-        dateInput.min = minStr;
-        dateInput.value = minStr;
-      }
+      // Default to +30 days (1 month maturity)
+      const defTarget = new Date(Date.now() + (30 * 86400000));
+      const defY = defTarget.getFullYear();
+      const defM = String(defTarget.getMonth() + 1).padStart(2, '0');
+      const defD = String(defTarget.getDate()).padStart(2, '0');
+      setLockDueDate(`${defY}-${defM}-${defD}`);
 
       updateLockPreview();
       lockModal.classList.remove('hidden');
@@ -2379,6 +2400,33 @@ const UserApp = (() => {
     openBtns.forEach(btn => {
       if (btn) btn.addEventListener('click', openLockForm);
     });
+
+    // Custom in-app date picker trigger for Target Maturity Date
+    const dueDateBtn = document.getElementById('lock-due-date-btn');
+    if (dueDateBtn) {
+      dueDateBtn.addEventListener('click', () => {
+        const dateInput = document.getElementById('lock-due-date-input');
+        const currentVal = dateInput ? dateInput.value : '';
+        const tomorrow = new Date(Date.now() + 86400000);
+        tomorrow.setHours(0, 0, 0, 0);
+
+        if (typeof CustomPicker !== 'undefined' && CustomPicker.openDatePicker) {
+          CustomPicker.openDatePicker({
+            period: 'day',
+            initialDate: currentVal,
+            title: 'Target Maturity Date',
+            hidePeriodSwitcher: true,
+            allowFuture: true,
+            minDate: tomorrow,
+            onSelect: (data) => {
+              if (data && data.dateISO) {
+                setLockDueDate(data.dateISO);
+              }
+            }
+          });
+        }
+      });
+    }
 
     // Quick percentage pills (25%, 50%, 75%, 100%)
     document.querySelectorAll('.lock-amt-percent-pill').forEach(pill => {
@@ -2396,15 +2444,12 @@ const UserApp = (() => {
     // Quick duration pills (+7 Days, +30 Days, +90 Days, +180 Days, +365 Days)
     document.querySelectorAll('.lock-duration-pill').forEach(pill => {
       pill.addEventListener('click', () => {
-        const dateInput = document.getElementById('lock-due-date-input');
-        if (!dateInput) return;
         const days = parseInt(pill.dataset.days, 10) || 30;
         const targetDate = new Date(Date.now() + (days * 86400000));
         const y = targetDate.getFullYear();
         const m = String(targetDate.getMonth() + 1).padStart(2, '0');
         const d = String(targetDate.getDate()).padStart(2, '0');
-        dateInput.value = `${y}-${m}-${d}`;
-        updateLockPreview();
+        setLockDueDate(`${y}-${m}-${d}`);
       });
     });
 

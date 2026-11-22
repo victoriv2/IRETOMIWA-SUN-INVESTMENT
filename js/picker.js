@@ -26,6 +26,8 @@ const CustomPicker = (() => {
   let activeCallback = null;
   let currentPeriod = 'day'; // 'day' | 'month' | 'year'
   let selectedDate = new Date(); // Current picked date
+  let pickerAllowFuture = false;
+  let pickerMinDate = null;
 
   // Calendar browsing state
   let browsingYear  = getNow().getFullYear();
@@ -295,9 +297,11 @@ const CustomPicker = (() => {
     });
   }
 
-  function openDatePicker({ period, initialDate, title, hidePeriodSwitcher, onSelect }) {
+  function openDatePicker({ period, initialDate, title, hidePeriodSwitcher, allowFuture, minDate, onSelect }) {
     currentPeriod = period || 'day';
     activeCallback = onSelect;
+    pickerAllowFuture = !!allowFuture;
+    pickerMinDate = minDate ? new Date(minDate) : null;
     const today = getNow();
 
     if (initialDate) {
@@ -307,10 +311,10 @@ const CustomPicker = (() => {
       const d = parts[2] ? parseInt(parts[2], 10) : 1;
       selectedDate = new Date(y, m, d);
     } else {
-      selectedDate = new Date();
+      selectedDate = (pickerAllowFuture && pickerMinDate) ? new Date(pickerMinDate) : new Date();
     }
 
-    if (selectedDate > today) selectedDate = new Date();
+    if (!pickerAllowFuture && selectedDate > today) selectedDate = new Date();
 
     browsingYear  = selectedDate.getFullYear();
     browsingMonth = selectedDate.getMonth();
@@ -320,6 +324,15 @@ const CustomPicker = (() => {
 
     const switcher = document.querySelector('.picker-period-segmented');
     if (switcher) switcher.style.display = hidePeriodSwitcher ? 'none' : 'flex';
+
+    const calTodayBtn = document.getElementById('cal-quick-today');
+    if (calTodayBtn) {
+      if (pickerAllowFuture) {
+        calTodayBtn.textContent = '+30 Days (1 Month)';
+      } else {
+        calTodayBtn.textContent = 'Jump to Today';
+      }
+    }
 
     switchCalendarView('day');
 
@@ -364,11 +377,33 @@ const CustomPicker = (() => {
 
     const nextMonthBtn = document.getElementById('cal-next-month');
     if (nextMonthBtn) {
-      const nextM = (browsingMonth + 1) % 12;
-      const nextY = browsingMonth === 11 ? browsingYear + 1 : browsingYear;
-      const cannotGoNext = isFutureMonth(nextY, nextM);
+      let cannotGoNext = false;
+      if (!pickerAllowFuture) {
+        const nextM = (browsingMonth + 1) % 12;
+        const nextY = browsingMonth === 11 ? browsingYear + 1 : browsingYear;
+        cannotGoNext = isFutureMonth(nextY, nextM);
+      } else {
+        if (browsingYear >= today.getFullYear() + 10 && browsingMonth === 11) {
+          cannotGoNext = true;
+        }
+      }
       nextMonthBtn.disabled = cannotGoNext;
       nextMonthBtn.classList.toggle('disabled', cannotGoNext);
+    }
+
+    const prevMonthBtn = document.getElementById('cal-prev-month');
+    if (prevMonthBtn) {
+      let cannotGoPrev = false;
+      if (pickerAllowFuture && pickerMinDate) {
+        const prevM = (browsingMonth + 11) % 12;
+        const prevY = browsingMonth === 0 ? browsingYear - 1 : browsingYear;
+        const prevLastDay = new Date(prevY, prevM + 1, 0, 23, 59, 59);
+        if (prevLastDay < pickerMinDate) {
+          cannotGoPrev = true;
+        }
+      }
+      prevMonthBtn.disabled = cannotGoPrev;
+      prevMonthBtn.classList.toggle('disabled', cannotGoPrev);
     }
 
     const grid = document.getElementById('cal-days-grid');
@@ -390,7 +425,20 @@ const CustomPicker = (() => {
       dayBtn.className = 'cal-day';
       dayBtn.textContent = d;
 
-      const isFuture = isFutureDate(browsingYear, browsingMonth, d);
+      let isDisabled = false;
+      if (pickerAllowFuture) {
+        if (pickerMinDate) {
+          const checkDate = new Date(browsingYear, browsingMonth, d, 23, 59, 59);
+          if (checkDate < pickerMinDate) {
+            isDisabled = true;
+          }
+        }
+      } else {
+        if (isFutureDate(browsingYear, browsingMonth, d)) {
+          isDisabled = true;
+        }
+      }
+
       const isSelected = (
         selectedDate.getFullYear() === browsingYear &&
         selectedDate.getMonth() === browsingMonth &&
@@ -405,7 +453,7 @@ const CustomPicker = (() => {
       if (isToday) dayBtn.classList.add('cal-day--today');
       if (isSelected) dayBtn.classList.add('cal-day--selected');
 
-      if (isFuture) {
+      if (isDisabled) {
         dayBtn.classList.add('cal-day--disabled');
         dayBtn.disabled = true;
       } else {
@@ -432,14 +480,27 @@ const CustomPicker = (() => {
       btn.className = 'month-cell';
       btn.textContent = monthNames[m];
 
-      const isFuture = isFutureMonth(browsingYear, m);
+      let isDisabled = false;
+      if (pickerAllowFuture) {
+        if (pickerMinDate) {
+          const monthLastDay = new Date(browsingYear, m + 1, 0, 23, 59, 59);
+          if (monthLastDay < pickerMinDate) {
+            isDisabled = true;
+          }
+        }
+      } else {
+        if (isFutureMonth(browsingYear, m)) {
+          isDisabled = true;
+        }
+      }
+
       const isSelected = (
         browsingMonth === m
       );
 
       if (isSelected) btn.classList.add('month-cell--selected');
 
-      if (isFuture) {
+      if (isDisabled) {
         btn.classList.add('month-cell--disabled');
         btn.disabled = true;
       } else {
@@ -460,28 +521,54 @@ const CustomPicker = (() => {
     const today = getNow();
     const currentYear = today.getFullYear();
 
-    for (let y = currentYear; y >= 2000; y--) {
-      const item = document.createElement('button');
-      item.type = 'button';
-      item.className = 'year-item';
+    if (pickerAllowFuture) {
+      for (let y = currentYear; y <= currentYear + 10; y++) {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'year-item';
 
-      const isSelected = (browsingYear === y);
-      if (isSelected) {
-        item.classList.add('year-item--selected');
-        item.innerHTML = `<span>${y}</span><svg class="check-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
-      } else {
-        item.textContent = y;
-      }
-
-      item.addEventListener('click', () => {
-        browsingYear = y;
-        if (browsingYear === currentYear && browsingMonth > today.getMonth()) {
-          browsingMonth = today.getMonth();
+        const isSelected = (browsingYear === y);
+        if (isSelected) {
+          item.classList.add('year-item--selected');
+          item.innerHTML = `<span>${y}</span><svg class="check-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+        } else {
+          item.textContent = y;
         }
-        switchCalendarView('day');
-      });
 
-      list.appendChild(item);
+        item.addEventListener('click', () => {
+          browsingYear = y;
+          if (pickerMinDate && browsingYear === pickerMinDate.getFullYear() && browsingMonth < pickerMinDate.getMonth()) {
+            browsingMonth = pickerMinDate.getMonth();
+          }
+          switchCalendarView('day');
+        });
+
+        list.appendChild(item);
+      }
+    } else {
+      for (let y = currentYear; y >= 2000; y--) {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'year-item';
+
+        const isSelected = (browsingYear === y);
+        if (isSelected) {
+          item.classList.add('year-item--selected');
+          item.innerHTML = `<span>${y}</span><svg class="check-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+        } else {
+          item.textContent = y;
+        }
+
+        item.addEventListener('click', () => {
+          browsingYear = y;
+          if (browsingYear === currentYear && browsingMonth > today.getMonth()) {
+            browsingMonth = today.getMonth();
+          }
+          switchCalendarView('day');
+        });
+
+        list.appendChild(item);
+      }
     }
   }
 
@@ -716,6 +803,12 @@ const CustomPicker = (() => {
     const nextMonthBtn = document.getElementById('cal-next-month');
     if (prevMonthBtn) {
       prevMonthBtn.addEventListener('click', () => {
+        if (pickerAllowFuture && pickerMinDate) {
+          const prevM = (browsingMonth + 11) % 12;
+          const prevY = browsingMonth === 0 ? browsingYear - 1 : browsingYear;
+          const prevLastDay = new Date(prevY, prevM + 1, 0, 23, 59, 59);
+          if (prevLastDay < pickerMinDate) return;
+        }
         browsingMonth--;
         if (browsingMonth < 0) {
           browsingMonth = 11;
@@ -728,7 +821,7 @@ const CustomPicker = (() => {
       nextMonthBtn.addEventListener('click', () => {
         const nextM = (browsingMonth + 1) % 12;
         const nextY = browsingMonth === 11 ? browsingYear + 1 : browsingYear;
-        if (isFutureMonth(nextY, nextM)) return;
+        if (!pickerAllowFuture && isFutureMonth(nextY, nextM)) return;
         browsingMonth = nextM;
         browsingYear  = nextY;
         renderDayGrid();
@@ -739,7 +832,11 @@ const CustomPicker = (() => {
     const calTodayBtn = document.getElementById('cal-quick-today');
     if (calTodayBtn) {
       calTodayBtn.addEventListener('click', () => {
-        selectedDate = getNow();
+        if (pickerAllowFuture) {
+          selectedDate = new Date(Date.now() + 30 * 86400000);
+        } else {
+          selectedDate = getNow();
+        }
         browsingYear  = selectedDate.getFullYear();
         browsingMonth = selectedDate.getMonth();
         applyAndClose();
