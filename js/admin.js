@@ -707,6 +707,7 @@ const AdminApp = (() => {
       const btnFlwDisburse = document.getElementById('btn-confirm-approve-flw');
       const btnFlwText  = document.getElementById('btn-confirm-approve-flw-text') || document.getElementById('btn-approve-flw-text');
       const btnManualApprove = document.getElementById('btn-confirm-approve-manual');
+      const btnManualApproveText = document.getElementById('btn-confirm-approve-manual-text');
 
       if (flwErrEl) {
         flwErrEl.textContent = '';
@@ -741,17 +742,14 @@ const AdminApp = (() => {
         if (feeEl)   feeEl.textContent   = `-₦${formatAmount(feeAmt)}`;
         if (netEl)   netEl.textContent   = `₦${formatAmount(netAmt)}`;
 
-        const flwCfg = (typeof DB !== 'undefined' && DB.getFlutterwaveConfig) ? DB.getFlutterwaveConfig() : {};
-        const isAutoCashout = flwCfg && flwCfg.autoCashout === true;
-
         if (btnFlwText) btnFlwText.textContent = `Disburse ₦${formatAmount(netAmt)} via Flutterwave`;
-        if (btnManualApprove) {
+        if (btnManualApproveText) {
+          btnManualApproveText.textContent = `Record Manual Payout of ₦${formatAmount(netAmt)}`;
+        } else if (btnManualApprove) {
           btnManualApprove.textContent = `Record Manual Payout of ₦${formatAmount(netAmt)}`;
-          btnManualApprove.style.display = '';
         }
-        if (btnFlwDisburse) {
-          btnFlwDisburse.style.display = isAutoCashout ? 'flex' : 'none';
-        }
+        if (btnManualApprove) btnManualApprove.style.display = 'flex';
+        if (btnFlwDisburse) btnFlwDisburse.style.display = 'flex';
 
         const destBank = t.destinationBank;
         if (destBank && (destBank.accountNumber || destBank.bankName)) {
@@ -1123,15 +1121,7 @@ const AdminApp = (() => {
               feeRate: feeRate,
             });
 
-            // Immediately push to Supabase to guarantee cloud sync!
-            try {
-              await DB.syncPush();
-            } catch (syncErr) {
-              console.warn('Post-payout Supabase sync warning:', syncErr);
-            }
-
-            modalApprove.classList.add('hidden');
-            activeRequestTxId = null;
+            closeApproveModal();
 
             if (btnFlwText) btnFlwText.textContent = originalText;
             btnFlwDisburse.disabled = false;
@@ -1141,6 +1131,13 @@ const AdminApp = (() => {
             renderReceivedTab();
             renderPayoutsTab();
             renderMoreTab();
+
+            // Background push to Supabase to guarantee cloud sync!
+            try {
+              await DB.syncPush();
+            } catch (syncErr) {
+              console.warn('Post-payout Supabase sync warning:', syncErr);
+            }
 
             // Notify admin with custom modular receipt modal (no native browser alert)
             if (typeof CustomAlert !== 'undefined') {
@@ -1217,7 +1214,7 @@ const AdminApp = (() => {
 
                 // Check if rawErr already contains an IP address
                 const ipMatch = rawErr.match(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/);
-                const defaultServerIp = ipMatch ? ipMatch[0] : '152.55.181.199';
+                const defaultServerIp = ipMatch ? ipMatch[0] : '152.55.182.39';
 
                 flwErrEl.innerHTML = `
                   <div style="font-weight: 800; margin-bottom: 6px; color: #991b1b; font-size: 14px; display: flex; align-items: center; gap: 6px;">
