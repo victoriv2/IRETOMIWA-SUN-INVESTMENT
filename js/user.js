@@ -7,6 +7,10 @@ const UserApp = (() => {
   let activePeriod  = 'day';
   let selectedFilterDate = new Date().toISOString().slice(0, 10);
   let clockInterval = null;
+  let safelockActiveFilter = 'all';
+  let safelockActiveSort   = 'due_asc';
+  let safelockCountdownInterval = null;
+  let safelockPreviousTab  = 'more';
 
   // ---- Date / Time ----
   function startClock() {
@@ -391,6 +395,112 @@ const UserApp = (() => {
     });
   }
 
+  function getCountdownBreakdown(dueDate, lockedAt) {
+    const dueStr = String(dueDate || '').slice(0, 10);
+    const targetDate = new Date(dueStr + 'T00:00:00');
+    const targetMs = targetDate.getTime();
+    const nowMs = Date.now();
+    const diffMs = targetMs - nowMs;
+
+    const lockedMs = lockedAt ? new Date(lockedAt).getTime() : (targetMs - (30 * 86400000));
+    const totalDurationMs = Math.max(1000, targetMs - lockedMs);
+    const elapsedMs = Math.max(0, nowMs - lockedMs);
+    const progressPercent = Math.min(100, Math.max(0, Math.round((elapsedMs / totalDurationMs) * 100)));
+
+    if (diffMs <= 0 || isNaN(diffMs)) {
+      return {
+        isMatured: true,
+        progressPercent: 100,
+        text: 'Matured',
+        boxes: [
+          { val: '00', unit: 'Days' },
+          { val: '00', unit: 'Hours' },
+          { val: '00', unit: 'Mins' },
+          { val: '00', unit: 'Secs' }
+        ]
+      };
+    }
+
+    let remaining = diffMs;
+    const msPerSec = 1000;
+    const msPerMin = msPerSec * 60;
+    const msPerHour = msPerMin * 60;
+    const msPerDay = msPerHour * 24;
+    const msPerMonth = msPerDay * 30.4375;
+    const msPerYear = msPerDay * 365.25;
+
+    const years = Math.floor(remaining / msPerYear);
+    remaining %= msPerYear;
+
+    const months = Math.floor(remaining / msPerMonth);
+    remaining %= msPerMonth;
+
+    const days = Math.floor(remaining / msPerDay);
+    remaining %= msPerDay;
+
+    const hours = Math.floor(remaining / msPerHour);
+    remaining %= msPerHour;
+
+    const minutes = Math.floor(remaining / msPerMin);
+    remaining %= msPerMin;
+
+    const seconds = Math.floor(remaining / msPerSec);
+
+    const boxes = [];
+    if (years > 0) {
+      boxes.push({ val: String(years).padStart(2, '0'), unit: years === 1 ? 'Year' : 'Years' });
+    }
+    if (months > 0 || years > 0) {
+      boxes.push({ val: String(months).padStart(2, '0'), unit: months === 1 ? 'Month' : 'Months' });
+    }
+    boxes.push({ val: String(days).padStart(2, '0'), unit: 'Days' });
+    boxes.push({ val: String(hours).padStart(2, '0'), unit: 'Hours' });
+    boxes.push({ val: String(minutes).padStart(2, '0'), unit: 'Mins' });
+    boxes.push({ val: String(seconds).padStart(2, '0'), unit: 'Secs' });
+
+    return {
+      isMatured: false,
+      progressPercent,
+      boxes
+    };
+  }
+
+  function updateUnlockModalCountdown(lockId) {
+    const lock = DB.getLockById(lockId);
+    const wrap = document.getElementById('unlock-modal-countdown-wrap');
+    if (!lock || !wrap) return;
+
+    if (lock.status === 'released') {
+      wrap.innerHTML = '';
+      return;
+    }
+
+    const cd = getCountdownBreakdown(lock.dueDate, lock.lockedAt);
+    if (cd.isMatured) {
+      wrap.innerHTML = `
+        <div class="countdown-matured-banner" style="margin-bottom:0;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span>Target Reached! Matured with 0% Fee</span>
+        </div>`;
+    } else {
+      const boxesHtml = cd.boxes.map((b, idx) => `
+        <div class="countdown-box" style="min-width: 44px;">
+          <span class="countdown-digits" style="font-size: 19px;" data-modal-cd-unit="${b.unit.toLowerCase()}">${b.val}</span>
+          <span class="countdown-unit" style="font-size: 9px;">${b.unit}</span>
+        </div>
+        ${idx < cd.boxes.length - 1 ? '<span class="countdown-sep" style="font-size: 15px;">:</span>' : ''}
+      `).join('');
+
+      wrap.innerHTML = `
+        <div style="text-align: center; margin-bottom: 5px;">
+          <span style="font-size: 11px; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px;">Remaining Time to Maturity</span>
+        </div>
+        <div class="countdown-container" style="margin-bottom: 0; padding: 8px 10px;">
+          ${boxesHtml}
+        </div>`;
+    }
+  }
+
   function openUnlockModal(lockId) {
     const lock = DB.getLockById(lockId);
     if (!lock) return;
@@ -403,6 +513,7 @@ const UserApp = (() => {
     const bannerEl  = document.getElementById('unlock-status-banner');
     const detTitle  = document.getElementById('unlock-detail-title');
     const detGross  = document.getElementById('unlock-detail-gross');
+    const detLocked = document.getElementById('unlock-detail-locked-date');
     const detDue    = document.getElementById('unlock-detail-due');
     const detPenRow = document.getElementById('unlock-penalty-row');
     const detPenLbl = document.getElementById('unlock-penalty-label');
@@ -410,6 +521,7 @@ const UserApp = (() => {
     const detNet    = document.getElementById('unlock-detail-net');
     const btnBal    = document.getElementById('btn-confirm-unlock-to-balance');
     const btnBank   = document.getElementById('btn-confirm-unlock-to-bank');
+    const btnCancel = document.getElementById('btn-cancel-unlock');
     const errEl     = document.getElementById('user-unlock-error');
     const succEl    = document.getElementById('user-unlock-success');
 
@@ -427,15 +539,39 @@ const UserApp = (() => {
       ? dueObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
       : dueStr;
 
-    if (detTitle) detTitle.textContent = lock.title || 'SafeLock';
-    if (detGross) detGross.textContent = '₦' + formatAmount(lock.amount);
-    if (detDue)   detDue.textContent   = dueFormatted;
+    const lockedObj = lock.lockedAt ? new Date(lock.lockedAt) : null;
+    const lockedFormatted = (lockedObj && !isNaN(lockedObj.getTime()))
+      ? lockedObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      : '--';
 
-    const penaltyRate = DB.getLockPenaltyRate();
-    const penaltyAmount = isEarly ? (Math.round(lock.amount * (penaltyRate / 100) * 100) / 100) : 0;
-    const netAmount = Math.max(0, Math.round((lock.amount - penaltyAmount) * 100) / 100);
+    if (detTitle)  detTitle.textContent  = lock.title || 'SafeLock';
+    if (detGross)  detGross.textContent  = '₦' + formatAmount(lock.amount);
+    if (detLocked) detLocked.textContent = lockedFormatted;
+    if (detDue)    detDue.textContent    = dueFormatted;
 
-    if (isEarly) {
+    updateUnlockModalCountdown(lock.id);
+
+    if (lock.status === 'released') {
+      if (titleEl) titleEl.textContent = 'SafeLock Details (Released)';
+      if (bannerEl) {
+        bannerEl.style.cssText = 'background: #f1f5f9; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; color: #475569; font-size: 12.5px;';
+        bannerEl.innerHTML = `
+          <strong style="display:block; font-size:13px; margin-bottom:3px; color:#1e293b;">SafeLock Already Released</strong>
+          <span>This lock was unlocked on ${lock.unlockedAt ? new Date(lock.unlockedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'earlier date'}. Net payout of ₦${formatAmount(lock.netReturned || lock.amount)} was credited.</span>`;
+      }
+      if (detPenRow) detPenRow.style.display = lock.penaltyAmount > 0 ? 'flex' : 'none';
+      if (detPenLbl) detPenLbl.textContent = `Penalty Deducted (${lock.penaltyRateAtCreation || 5}%):`;
+      if (detPenAmt) detPenAmt.textContent = `-₦${formatAmount(lock.penaltyAmount || 0)}`;
+      if (detNet)    detNet.textContent    = `₦${formatAmount(lock.netReturned || lock.amount)}`;
+
+      if (btnBal) btnBal.style.display = 'none';
+      if (btnBank) btnBank.style.display = 'none';
+      if (btnCancel) btnCancel.textContent = 'Close';
+    } else if (isEarly) {
+      const penaltyRate = DB.getLockPenaltyRate();
+      const penaltyAmount = Math.round(lock.amount * (penaltyRate / 100) * 100) / 100;
+      const netAmount = Math.max(0, Math.round((lock.amount - penaltyAmount) * 100) / 100);
+
       if (titleEl) titleEl.textContent = 'Early SafeLock Break';
       const nowDate = new Date(todayStr + 'T00:00:00');
       const diff = dueObj.getTime() - nowDate.getTime();
@@ -445,7 +581,7 @@ const UserApp = (() => {
         bannerEl.style.cssText = 'background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; color: #92400e; font-size: 12.5px;';
         bannerEl.innerHTML = `
           <strong style="display:block; font-size:13px; margin-bottom:3px; color:#78350f;">Early Lock Break Notice</strong>
-          <span>This lock is scheduled to mature on <strong>${dueFormatted}</strong> (${daysRemaining} day${daysRemaining === 1 ? '' : 's'} remaining). Unlocking or withdrawing before the due date incurs an Early Break Penalty of <strong>${penaltyRate}%</strong> (-₦${formatAmount(penaltyAmount)}). Net refund: <strong>₦${formatAmount(netAmount)}</strong>.</span>`;
+          <span>This lock is scheduled to mature on <strong>${dueFormatted}</strong> (${daysRemaining} day${daysRemaining === 1 ? '' : 's'} remaining). Unlocking or withdrawing before the due date incurs an Early Break Penalty of <strong>${penaltyRate}%</strong> (-₦${formatAmount(penaltyAmount)}). Net payout: <strong>₦${formatAmount(netAmount)}</strong>.</span>`;
       }
 
       if (detPenRow) detPenRow.style.display = 'flex';
@@ -453,25 +589,338 @@ const UserApp = (() => {
       if (detPenAmt) detPenAmt.textContent = `-₦${formatAmount(penaltyAmount)}`;
       if (detNet)    detNet.textContent    = `₦${formatAmount(netAmount)}`;
 
-      if (btnBal) btnBal.textContent = `Confirm Early Unlock (Return ₦${formatAmount(netAmount)})`;
-      if (btnBank) btnBank.textContent = `Unlock & Request Payout of ₦${formatAmount(netAmount)} to Bank`;
+      if (btnBal) {
+        btnBal.style.display = 'block';
+        btnBal.textContent = `Withdraw ₦${formatAmount(netAmount)} to Main Balance`;
+      }
+      if (btnBank) {
+        btnBank.style.display = 'block';
+        btnBank.textContent = `Withdraw ₦${formatAmount(netAmount)} Directly to Bank`;
+      }
+      if (btnCancel) btnCancel.textContent = 'Keep Locked (Do Not Withdraw)';
     } else {
       if (titleEl) titleEl.textContent = 'SafeLock Matured';
       if (bannerEl) {
         bannerEl.style.cssText = 'background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; color: #166534; font-size: 12.5px;';
         bannerEl.innerHTML = `
           <strong style="display:block; font-size:13px; margin-bottom:3px; color:#14532d;">SafeLock Reached Maturity!</strong>
-          <span>Congratulations! Your lock reached its maturity date on <strong>${dueFormatted}</strong>. No penalty fee applies. You receive 100% of your locked funds.</span>`;
+          <span>Congratulations! Your lock reached its maturity date on <strong>${dueFormatted}</strong>. No penalty fee applies (0% fee). You receive 100% of your locked funds.</span>`;
       }
 
       if (detPenRow) detPenRow.style.display = 'none';
       if (detNet)    detNet.textContent    = `₦${formatAmount(lock.amount)}`;
 
-      if (btnBal) btnBal.textContent = `Unlock ₦${formatAmount(lock.amount)} to Available Savings`;
-      if (btnBank) btnBank.textContent = `Unlock & Request Payout of ₦${formatAmount(lock.amount)} to Bank`;
+      if (btnBal) {
+        btnBal.style.display = 'block';
+        btnBal.textContent = `Withdraw Full ₦${formatAmount(lock.amount)} to Main Balance`;
+      }
+      if (btnBank) {
+        btnBank.style.display = 'block';
+        btnBank.textContent = `Withdraw Full ₦${formatAmount(lock.amount)} Directly to Bank`;
+      }
+      if (btnCancel) btnCancel.textContent = 'Keep in Vault';
     }
 
     modal.classList.remove('hidden');
+  }
+
+  function openSafeLockHub(fromTab) {
+    safelockPreviousTab = fromTab || 'more';
+
+    const homeEl = document.getElementById('tab-home-content');
+    const saveEl = document.getElementById('tab-save-content');
+    const moreEl = document.getElementById('tab-more-content');
+    const hubView = document.getElementById('view-safelock-hub');
+
+    if (homeEl) homeEl.classList.add('hidden');
+    if (saveEl) saveEl.classList.add('hidden');
+    if (moreEl) moreEl.classList.add('hidden');
+
+    if (hubView) hubView.classList.remove('hidden');
+
+    renderSafeLockHub();
+    startSafeLockCountdowns();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function closeSafeLockHub() {
+    stopSafeLockCountdowns();
+    const hubView = document.getElementById('view-safelock-hub');
+    if (hubView) hubView.classList.add('hidden');
+    switchTab(safelockPreviousTab || 'more');
+  }
+
+  function startSafeLockCountdowns() {
+    stopSafeLockCountdowns();
+    safelockCountdownInterval = setInterval(updateSafeLockCountdowns, 1000);
+  }
+
+  function stopSafeLockCountdowns() {
+    if (safelockCountdownInterval) {
+      clearInterval(safelockCountdownInterval);
+      safelockCountdownInterval = null;
+    }
+  }
+
+  function updateSafeLockCountdowns() {
+    const hubView = document.getElementById('view-safelock-hub');
+    const isHubOpen = hubView && !hubView.classList.contains('hidden');
+
+    if (isHubOpen) {
+      const cdContainers = document.querySelectorAll('.countdown-container[data-lock-cd]');
+      cdContainers.forEach(container => {
+        const dueDate = container.getAttribute('data-due');
+        const lockedAt = container.getAttribute('data-locked');
+        const cd = getCountdownBreakdown(dueDate, lockedAt);
+
+        if (cd.isMatured) {
+          renderSafeLockHub();
+          return;
+        }
+
+        cd.boxes.forEach(b => {
+          const el = container.querySelector(`[data-cd-box="${b.unit.toLowerCase()}"]`);
+          if (el && el.textContent !== b.val) {
+            el.textContent = b.val;
+          }
+        });
+
+        const card = container.closest('.safelock-item-card');
+        if (card) {
+          const fill = card.querySelector('.safelock-progress-fill');
+          if (fill) fill.style.width = cd.progressPercent + '%';
+        }
+      });
+    }
+
+    const unlockModal = document.getElementById('modal-user-unlock-money');
+    if (unlockModal && !unlockModal.classList.contains('hidden')) {
+      const idInp = document.getElementById('unlock-active-lock-id');
+      const lockId = idInp ? idInp.value : '';
+      if (lockId) {
+        const lock = DB.getLockById(lockId);
+        if (lock && lock.status === 'active') {
+          const cd = getCountdownBreakdown(lock.dueDate, lock.lockedAt);
+          if (cd.isMatured) {
+            updateUnlockModalCountdown(lockId);
+          } else {
+            cd.boxes.forEach(b => {
+              const el = unlockModal.querySelector(`[data-modal-cd-unit="${b.unit.toLowerCase()}"]`);
+              if (el && el.textContent !== b.val) {
+                el.textContent = b.val;
+              }
+            });
+          }
+        }
+      }
+    }
+  }
+
+  function renderSafeLockHub() {
+    const hubView = document.getElementById('view-safelock-hub');
+    if (!hubView || hubView.classList.contains('hidden')) return;
+
+    const allLocks = (typeof DB.getUserLocks === 'function') ? DB.getUserLocks(currentUserId) : [];
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    let totalLockedBal = 0;
+    let activeCount = 0;
+    let maturedCount = 0;
+    let releasedCount = 0;
+
+    allLocks.forEach(l => {
+      const isRel = (l.status === 'released');
+      if (isRel) {
+        releasedCount++;
+      } else {
+        totalLockedBal += (parseFloat(l.amount) || 0);
+        const dueStr = String(l.dueDate).slice(0, 10);
+        if (todayStr >= dueStr) {
+          maturedCount++;
+        } else {
+          activeCount++;
+        }
+      }
+    });
+
+    const userBal = (typeof DB.getUserBalance === 'function') ? DB.getUserBalance(currentUserId) : { availableBalance: 0 };
+
+    const totalEl = document.getElementById('safelock-hub-total-bal');
+    const actCountEl = document.getElementById('safelock-hub-active-count');
+    const matCountEl = document.getElementById('safelock-hub-matured-count');
+    const availBalEl = document.getElementById('safelock-hub-avail-bal');
+
+    if (totalEl) totalEl.textContent = '₦' + formatAmount(totalLockedBal);
+    if (actCountEl) actCountEl.textContent = activeCount;
+    if (matCountEl) matCountEl.textContent = maturedCount;
+    if (availBalEl) availBalEl.textContent = '₦' + formatAmount(userBal.availableBalance);
+
+    // Update filter pill counts
+    const cntAll = document.getElementById('count-filter-all');
+    const cntAct = document.getElementById('count-filter-active');
+    const cntMat = document.getElementById('count-filter-matured');
+    const cntRel = document.getElementById('count-filter-released');
+
+    if (cntAll) cntAll.textContent = allLocks.length;
+    if (cntAct) cntAct.textContent = activeCount;
+    if (cntMat) cntMat.textContent = maturedCount;
+    if (cntRel) cntRel.textContent = releasedCount;
+
+    // Filter locks
+    const filtered = allLocks.filter(l => {
+      const isRel = (l.status === 'released');
+      const dueStr = String(l.dueDate).slice(0, 10);
+      const isMat = (!isRel && todayStr >= dueStr);
+      const isAct = (!isRel && todayStr < dueStr);
+
+      if (safelockActiveFilter === 'active') return isAct;
+      if (safelockActiveFilter === 'matured') return isMat;
+      if (safelockActiveFilter === 'released') return isRel;
+      return true; // 'all'
+    });
+
+    // Sort locks
+    filtered.sort((a, b) => {
+      const aDue = new Date(String(a.dueDate).slice(0, 10) + 'T00:00:00').getTime() || 0;
+      const bDue = new Date(String(b.dueDate).slice(0, 10) + 'T00:00:00').getTime() || 0;
+      const aAmt = parseFloat(a.amount) || 0;
+      const bAmt = parseFloat(b.amount) || 0;
+      const aCreated = new Date(a.lockedAt || 0).getTime() || 0;
+      const bCreated = new Date(b.lockedAt || 0).getTime() || 0;
+
+      if (safelockActiveSort === 'due_asc') return aDue - bDue;
+      if (safelockActiveSort === 'due_desc') return bDue - aDue;
+      if (safelockActiveSort === 'amount_desc') return bAmt - aAmt;
+      if (safelockActiveSort === 'amount_asc') return aAmt - bAmt;
+      if (safelockActiveSort === 'newest') return bCreated - aCreated;
+      return 0;
+    });
+
+    const listContainer = document.getElementById('safelock-hub-list');
+    if (!listContainer) return;
+
+    if (filtered.length === 0) {
+      listContainer.innerHTML = `
+        <div style="text-align: center; padding: 36px 16px; background: #ffffff; border-radius: 14px; border: 1.5px dashed #cbd5e1; margin-top: 8px;">
+          <div style="width: 52px; height: 52px; margin: 0 auto 12px; border-radius: 50%; background: #fef3c7; display: flex; align-items: center; justify-content: center; color: #b45309;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+          <h4 style="font-size: 15px; font-weight: 800; color: #1e293b; margin: 0 0 6px;">No Locked Funds Found</h4>
+          <p style="font-size: 12.5px; color: #64748b; margin: 0 0 16px; max-width: 320px; margin-inline: auto;">
+            ${safelockActiveFilter === 'all' 
+              ? 'You have not locked any savings yet. Lock money towards a future maturity date and avoid impulse spending.'
+              : 'No locks match the current filter selection.'}
+          </p>
+          <button type="button" class="btn-primary" id="btn-safelock-empty-create" style="padding: 9px 18px; font-size: 13px; font-weight: 700; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>+ Lock Money Now</span>
+          </button>
+        </div>`;
+
+      const emptyBtn = document.getElementById('btn-safelock-empty-create');
+      if (emptyBtn) {
+        emptyBtn.addEventListener('click', () => {
+          const btnCreate = document.getElementById('btn-safelock-hub-create');
+          if (btnCreate) btnCreate.click();
+        });
+      }
+      return;
+    }
+
+    const html = filtered.map(l => {
+      const isRel = (l.status === 'released');
+      const dueStr = String(l.dueDate).slice(0, 10);
+      const isMat = (!isRel && todayStr >= dueStr);
+      const cd = getCountdownBreakdown(l.dueDate, l.lockedAt);
+
+      const dueObj = new Date(dueStr + 'T00:00:00');
+      const dueFormatted = !isNaN(dueObj.getTime())
+        ? dueObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+        : dueStr;
+
+      let badgeHtml = '';
+      if (isRel) {
+        badgeHtml = `<span class="safelock-badge-released">Released</span>`;
+      } else if (isMat || cd.isMatured) {
+        badgeHtml = `<span class="safelock-badge-matured"><span class="pulse-indicator" style="background:#15803d;"></span> Matured (0% Fee)</span>`;
+      } else {
+        badgeHtml = `<span class="safelock-badge-running"><span class="pulse-indicator" style="background:#d97706;"></span> Running</span>`;
+      }
+
+      let countdownBoxHtml = '';
+      if (isRel) {
+        const unlObj = l.unlockedAt ? new Date(l.unlockedAt) : null;
+        const unlDateStr = (unlObj && !isNaN(unlObj.getTime())) ? unlObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Completed';
+        countdownBoxHtml = `
+          <div class="countdown-matured-banner" style="background: #f1f5f9; border-color: #cbd5e1; color: #475569;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Lock Released on ${unlDateStr} &bull; Net ₦${formatAmount(l.netReturned || l.amount)}</span>
+          </div>`;
+      } else if (isMat || cd.isMatured) {
+        countdownBoxHtml = `
+          <div class="countdown-matured-banner">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>Target Reached! Ready for 0% Free Payout</span>
+          </div>`;
+      } else {
+        const boxesHtml = cd.boxes.map((b, idx) => `
+          <div class="countdown-box">
+            <span class="countdown-digits" data-cd-box="${b.unit.toLowerCase()}">${b.val}</span>
+            <span class="countdown-unit">${b.unit}</span>
+          </div>
+          ${idx < cd.boxes.length - 1 ? '<span class="countdown-sep">:</span>' : ''}
+        `).join('');
+
+        countdownBoxHtml = `
+          <div class="countdown-container" data-lock-cd="${l.id}" data-due="${l.dueDate}" data-locked="${l.lockedAt || ''}">
+            ${boxesHtml}
+          </div>`;
+      }
+
+      return `
+        <div class="safelock-item-card ${isMat ? 'is-matured' : ''}" data-lock-id="${l.id}">
+          <div class="safelock-item-header">
+            <div>
+              <h4 class="safelock-item-title">${escapeHtml(l.title || 'Target SafeLock')}</h4>
+              <div class="safelock-item-dates">Maturity: <strong>${dueFormatted}</strong></div>
+            </div>
+            ${badgeHtml}
+          </div>
+
+          <div class="safelock-item-amount-row">
+            <div>
+              <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px;">Locked Principal</span>
+              <div class="safelock-item-amount">₦${formatAmount(l.amount)}</div>
+            </div>
+          </div>
+
+          ${countdownBoxHtml}
+
+          <div class="safelock-progress-track">
+            <div class="safelock-progress-fill" style="width: ${cd.progressPercent}%;"></div>
+          </div>
+
+          <div class="safelock-item-footer">
+            <span>Target: <strong>${dueFormatted}</strong></span>
+            <span class="safelock-tap-hint">
+              <span>View details & withdraw</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+            </span>
+          </div>
+        </div>`;
+    }).join('');
+
+    listContainer.innerHTML = html;
+
+    listContainer.querySelectorAll('.safelock-item-card').forEach(card => {
+      card.addEventListener('click', () => {
+        openUnlockModal(card.dataset.lockId);
+      });
+    });
   }
 
   function formatAmount(n) {
@@ -499,6 +948,12 @@ const UserApp = (() => {
     try {
       localStorage.setItem('sun_user_tab', tab);
     } catch(e) {}
+
+    const hubView = document.getElementById('view-safelock-hub');
+    if (hubView) {
+      hubView.classList.add('hidden');
+      stopSafeLockCountdowns();
+    }
 
     document.querySelectorAll('.tab-btn[data-tab]').forEach(b => {
       b.classList.toggle('active', b.dataset.tab === tab);
@@ -2390,11 +2845,6 @@ const UserApp = (() => {
   function initSafeLock() {
     const lockModal = document.getElementById('modal-user-lock-money');
     const unlockModal = document.getElementById('modal-user-unlock-money');
-    const openBtns = [
-      document.getElementById('btn-open-lock-modal'),
-      document.getElementById('btn-save-tab-open-lock'),
-      document.getElementById('btn-user-more-safelock')
-    ];
 
     function setLockDueDate(isoStr) {
       const dateInput = document.getElementById('lock-due-date-input');
@@ -2455,9 +2905,56 @@ const UserApp = (() => {
       lockModal.classList.remove('hidden');
     }
 
-    openBtns.forEach(btn => {
+    const openLockModalBtns = [
+      document.getElementById('btn-open-lock-modal'),
+      document.getElementById('btn-safelock-hub-create')
+    ];
+    openLockModalBtns.forEach(btn => {
       if (btn) btn.addEventListener('click', openLockForm);
     });
+
+    const openHubBtns = [
+      document.getElementById('btn-user-more-safelock'),
+      document.getElementById('btn-home-open-safelock-hub'),
+      document.getElementById('btn-save-tab-open-lock')
+    ];
+    openHubBtns.forEach(btn => {
+      if (btn) {
+        btn.addEventListener('click', () => {
+          let sourceTab = 'more';
+          if (btn.id === 'btn-home-open-safelock-hub') sourceTab = 'home';
+          else if (btn.id === 'btn-save-tab-open-lock') sourceTab = 'save';
+          openSafeLockHub(sourceTab);
+        });
+      }
+    });
+
+    const backBtn = document.getElementById('btn-safelock-back');
+    if (backBtn) {
+      backBtn.addEventListener('click', closeSafeLockHub);
+    }
+
+    // Filter pills
+    const pillContainer = document.getElementById('safelock-filter-pills');
+    if (pillContainer) {
+      pillContainer.querySelectorAll('.safelock-pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+          pillContainer.querySelectorAll('.safelock-pill').forEach(p => p.classList.remove('active'));
+          pill.classList.add('active');
+          safelockActiveFilter = pill.getAttribute('data-filter') || 'all';
+          renderSafeLockHub();
+        });
+      });
+    }
+
+    // Sort select
+    const sortSelect = document.getElementById('safelock-sort-select');
+    if (sortSelect) {
+      sortSelect.addEventListener('change', (e) => {
+        safelockActiveSort = e.target.value || 'due_asc';
+        renderSafeLockHub();
+      });
+    }
 
     // Custom in-app date picker trigger for Target Maturity Date
     const dueDateBtn = document.getElementById('lock-due-date-btn');
@@ -2607,6 +3104,7 @@ const UserApp = (() => {
             }
             renderTotal();
             renderSavingsList();
+            renderSafeLockHub();
             setTimeout(() => {
               if (lockModal) lockModal.classList.add('hidden');
             }, 1200);
@@ -2666,6 +3164,7 @@ const UserApp = (() => {
 
           renderTotal();
           renderSavingsList();
+          renderSafeLockHub();
 
           setTimeout(() => {
             if (unlockModal) unlockModal.classList.add('hidden');
@@ -2744,11 +3243,21 @@ const UserApp = (() => {
         try { renderTotal(); } catch(e) {}
         try { renderMoreUserInfo(); } catch(e) {}
         try { renderDedicatedAccountCard(); } catch(e) {}
+        try {
+          const hub = document.getElementById('view-safelock-hub');
+          if (hub && !hub.classList.contains('hidden')) {
+            renderSafeLockHub();
+          }
+        } catch(e) {}
       }
     },
 
     checkPendingFlutterwaveRedirect,
     switchTab,
+    openSafeLockHub,
+    closeSafeLockHub,
+    renderSafeLockHub,
+    openUnlockModal,
   };
 })();
 

@@ -58,7 +58,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261122_LOCKMIN_REMOVED_V86';
+      var APP_BUILD_VER = '20261122_SAFELOCK_HUB_V87';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -78,8 +78,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261122_v86" />
-  <link rel="stylesheet" href="css/auth.css?v=20261122_v86" />
+  <link rel="stylesheet" href="css/global.css?v=20261122_v87" />
+  <link rel="stylesheet" href="css/auth.css?v=20261122_v87" />
   <style>
     /* Gentle pre-boot session hints - JavaScript has full priority without !important blocking */
     html.is-user-logged-in #page-login { display: none; }
@@ -398,6 +398,11 @@
             <div id="user-active-locks-container">
               <!-- Dynamically rendered via JS -->
             </div>
+
+            <button type="button" class="btn-outline" id="btn-home-open-safelock-hub" style="width: 100%; margin-top: 10px; font-size: 12px; font-weight: 700; border-color: #f59e0b; color: #b45309; padding: 7px 12px; border-radius: 8px; background: #fff; display: flex; align-items: center; justify-content: center; gap: 6px;">
+              <span>View SafeLock Vault & Live Countdowns</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
           </div>
         </div>
 
@@ -774,6 +779,104 @@
               </span>
               <span class="more-menu-label">Log Out</span>
             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================
+           SPECIAL SUB-PAGE: SAFELOCK HUB (TARGET SAVINGS & LIVE COUNTDOWNS)
+           ============================================ -->
+      <div class="tab-content hidden" id="view-safelock-hub">
+        <!-- Top Navigation Bar for SafeLock -->
+        <div class="safelock-top-bar">
+          <button type="button" class="btn-safelock-back" id="btn-safelock-back" aria-label="Back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            <span>Back</span>
+          </button>
+          <div class="safelock-top-title">
+            <h3>SafeLock Vault</h3>
+            <span>Target & Fixed Savings</span>
+          </div>
+          <div style="width: 48px;"></div>
+        </div>
+
+        <div class="safelock-hub-body">
+          <!-- Top Main Vault Balance Card -->
+          <div class="safelock-vault-card">
+            <div class="safelock-vault-header">
+              <div class="safelock-shield-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+              </div>
+              <div style="flex: 1;">
+                <span class="safelock-vault-label">Total SafeLock Balance</span>
+                <div class="safelock-vault-amount" id="safelock-hub-total-bal">₦0.00</div>
+              </div>
+            </div>
+
+            <!-- Stat Chips Grid -->
+            <div class="safelock-stats-grid">
+              <div class="safelock-stat-chip">
+                <span class="stat-chip-label">Active Running</span>
+                <strong class="stat-chip-val" id="safelock-hub-active-count">0</strong>
+              </div>
+              <div class="safelock-stat-chip">
+                <span class="stat-chip-label">Matured (0% Fee)</span>
+                <strong class="stat-chip-val" id="safelock-hub-matured-count" style="color: #15803d;">0</strong>
+              </div>
+              <div class="safelock-stat-chip">
+                <span class="stat-chip-label">Available to Lock</span>
+                <strong class="stat-chip-val" id="safelock-hub-avail-bal">₦0.00</strong>
+              </div>
+            </div>
+
+            <!-- Action Button to Lock New Money -->
+            <button type="button" class="btn-primary safelock-lock-new-btn" id="btn-safelock-hub-create">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span>+ Lock New Money</span>
+            </button>
+          </div>
+
+          <!-- Filter & Sort Toolbar -->
+          <div class="safelock-toolbar">
+            <div class="safelock-filter-pills" id="safelock-filter-pills">
+              <button type="button" class="safelock-pill active" data-filter="all">All (<span id="count-filter-all">0</span>)</button>
+              <button type="button" class="safelock-pill" data-filter="active">Running (<span id="count-filter-active">0</span>)</button>
+              <button type="button" class="safelock-pill" data-filter="matured">Matured (<span id="count-filter-matured">0</span>)</button>
+              <button type="button" class="safelock-pill" data-filter="released">History (<span id="count-filter-released">0</span>)</button>
+            </div>
+            
+            <div class="safelock-sort-wrap">
+              <label for="safelock-sort-select" class="safelock-sort-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                  <line x1="21" y1="10" x2="7" y2="10"/>
+                  <line x1="21" y1="6" x2="3" y2="6"/>
+                  <line x1="21" y1="14" x2="11" y2="14"/>
+                  <line x1="21" y1="18" x2="15" y2="18"/>
+                </svg>
+                <span>Sort by:</span>
+              </label>
+              <select id="safelock-sort-select" class="safelock-sort-select">
+                <option value="due_asc">Maturity: Soonest</option>
+                <option value="due_desc">Maturity: Furthest</option>
+                <option value="amount_desc">Amount: Highest</option>
+                <option value="amount_asc">Amount: Lowest</option>
+                <option value="newest">Newest Created</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Arranged Lock Cards List -->
+          <div class="safelock-cards-list" id="safelock-hub-list">
+            <!-- Rendered by UserApp.renderSafeLockHub() -->
           </div>
         </div>
       </div>
@@ -2589,6 +2692,9 @@
 
       <input type="hidden" id="unlock-active-lock-id" value="" />
 
+      <!-- Real-time Countdown Timer in Modal -->
+      <div id="unlock-modal-countdown-wrap" style="margin-bottom: 14px;"></div>
+
       <!-- Status Banner (Early Break Warning vs Mature) -->
       <div id="unlock-status-banner" style="border-radius: 10px; padding: 12px 14px; margin-bottom: 16px;"></div>
 
@@ -2601,6 +2707,10 @@
         <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
           <span style="color:var(--text-muted);">Original Locked Amount:</span>
           <strong id="unlock-detail-gross" style="color:var(--text-primary); font-size:14px;">₦0.00</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+          <span style="color:var(--text-muted);">Date Locked:</span>
+          <strong id="unlock-detail-locked-date" style="color:var(--text-primary);">--</strong>
         </div>
         <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
           <span style="color:var(--text-muted);">Maturity / Due Date:</span>
@@ -3207,13 +3317,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261122_v86"></script>
-  <script src="js/picker.js?v=20261122_v86"></script>
+  <script src="js/storage.js?v=20261122_v87"></script>
+  <script src="js/picker.js?v=20261122_v87"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261122_v86"></script>
-  <script src="js/auth.js?v=20261122_v86"></script>
-  <script src="js/user.js?v=20261122_v86"></script>
-  <script src="js/admin.js?v=20261122_v86"></script>
-  <script src="js/app.js?v=20261122_v86"></script>
+  <script src="js/export.js?v=20261122_v87"></script>
+  <script src="js/auth.js?v=20261122_v87"></script>
+  <script src="js/user.js?v=20261122_v87"></script>
+  <script src="js/admin.js?v=20261122_v87"></script>
+  <script src="js/app.js?v=20261122_v87"></script>
 </body>
 </html>
