@@ -58,7 +58,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261122_PENALTY_SYNC_V85';
+      var APP_BUILD_VER = '20261122_LOCKMIN_REMOVED_V86';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -78,8 +78,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261122_v85" />
-  <link rel="stylesheet" href="css/auth.css?v=20261122_v85" />
+  <link rel="stylesheet" href="css/global.css?v=20261122_v86" />
+  <link rel="stylesheet" href="css/auth.css?v=20261122_v86" />
   <style>
     /* Gentle pre-boot session hints - JavaScript has full priority without !important blocking */
     html.is-user-logged-in #page-login { display: none; }
@@ -2509,8 +2509,8 @@
         </div>
 
         <div class="form-group">
-          <label for="lock-amount-input">Amount to Lock (₦) <span style="font-size: 11px; font-weight: 700; color: #b45309;">(Min. ₦500.00)</span></label>
-          <input type="text" inputmode="decimal" id="lock-amount-input" placeholder="Min. 500.00" autocomplete="off" />
+          <label for="lock-amount-input">Amount to Lock (₦)</label>
+          <input type="text" inputmode="decimal" id="lock-amount-input" placeholder="e.g. 5,000.00" autocomplete="off" />
           <div class="quick-amounts-grid" style="margin-top: 8px;">
             <button type="button" class="quick-amt-pill lock-amt-percent-pill" data-pct="25">25%</button>
             <button type="button" class="quick-amt-pill lock-amt-percent-pill" data-pct="50">50%</button>
@@ -3207,13 +3207,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261122_v85"></script>
-  <script src="js/picker.js?v=20261122_v85"></script>
+  <script src="js/storage.js?v=20261122_v86"></script>
+  <script src="js/picker.js?v=20261122_v86"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261122_v85"></script>
-  <script src="js/auth.js?v=20261122_v85"></script>
-  <script src="js/user.js?v=20261122_v85"></script>
-  <script src="js/admin.js?v=20261122_v85"></script>
-  <script src="js/app.js?v=20261122_v85"></script>
+  <script src="js/export.js?v=20261122_v86"></script>
+  <script src="js/auth.js?v=20261122_v86"></script>
+  <script src="js/user.js?v=20261122_v86"></script>
+  <script src="js/admin.js?v=20261122_v86"></script>
+  <script src="js/app.js?v=20261122_v86"></script>
 </body>
 </html>

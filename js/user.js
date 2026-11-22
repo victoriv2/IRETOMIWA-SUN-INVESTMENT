@@ -2567,8 +2567,8 @@ const UserApp = (() => {
         const amtVal = parseFloat(rawAmt) || 0;
         const dateVal = (dateInp && dateInp.value) || '';
 
-        if (!amtVal || isNaN(amtVal) || amtVal < 500) {
-          if (errAmt) errAmt.textContent = 'Minimum lock amount is ₦500.00 (₦500.00 and above).';
+        if (!amtVal || isNaN(amtVal) || amtVal <= 0) {
+          if (errAmt) errAmt.textContent = 'Please enter a valid amount to lock.';
           if (amtInp) amtInp.classList.add('input-error');
           return;
         }

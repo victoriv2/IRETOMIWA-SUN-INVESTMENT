@@ -1579,8 +1579,8 @@ const DB = {
     if (!user) throw new Error('User account not found.');
 
     const cleanAmount = parseFloat(amount);
-    if (isNaN(cleanAmount) || cleanAmount < 500) {
-      throw new Error('Minimum lock amount is ₦500.00 (₦500.00 and above).');
+    if (isNaN(cleanAmount) || cleanAmount <= 0) {
+      throw new Error('Please enter a valid amount to lock.');
     }
 
     if (!dueDate) throw new Error('Please select a target maturity/due date.');
