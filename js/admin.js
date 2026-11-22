@@ -215,7 +215,7 @@ const AdminApp = (() => {
     if (!user) return;
 
     const userBal = DB.getUserBalance(userId);
-    const txs = DB.getTransactions(userId);
+    const txs = DB.getTransactions(userId).sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0));
     const joined = user.joinedAt
       ? new Date(user.joinedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
       : '-';
@@ -3496,7 +3496,7 @@ const AdminApp = (() => {
       btnLedgerExcel.addEventListener('click', () => {
         if (!currentViewedUserId) return;
         const u = DB.getUserById(currentViewedUserId);
-        const txs = DB.getTransactions(currentViewedUserId);
+        const txs = DB.getTransactions(currentViewedUserId).sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0));
         const fullName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Client';
 
         const headers = ['Date & Time', 'Transaction Type', 'Category', 'Amount (₦)', 'Note / Remarks'];
@@ -3525,7 +3525,7 @@ const AdminApp = (() => {
         if (!currentViewedUserId) return;
         const u = DB.getUserById(currentViewedUserId);
         const userBal = DB.getUserBalance(currentViewedUserId);
-        const txs = DB.getTransactions(currentViewedUserId);
+        const txs = DB.getTransactions(currentViewedUserId).sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0));
         const fullName = u ? `${DB.formatName(u.firstName)} ${DB.formatName(u.lastName)}` : 'Client';
 
         const headers = ['Date & Time', 'Type', 'Category', 'Amount (₦)', 'Note / Remarks'];

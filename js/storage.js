@@ -1067,8 +1067,9 @@ const DB = {
   // ---- TRANSACTIONS (DEPOSITS & WITHDRAWALS) ----
   getTransactions(userId) {
     const all = this.getAllTransactions();
-    if (!userId) return all;
-    return all.filter(t => t.userId === userId);
+    const list = userId ? all.filter(t => t.userId === userId) : all;
+    // Always return newest first (new to old)
+    return list.sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0));
   },
   getAllTransactions() {
     return JSON.parse(localStorage.getItem('sun_transactions') || '[]');
