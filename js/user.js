@@ -1224,9 +1224,20 @@ const UserApp = (() => {
 
       proceedWithPayoutSubmission();
 
+      let isWithdrawalSubmitting = false;
+
       function proceedWithPayoutSubmission() {
+        if (isWithdrawalSubmitting) {
+          console.warn('[Withdrawal GUARD] Duplicate submission blocked. Request is already in progress.');
+          return;
+        }
+        isWithdrawalSubmitting = true;
+
         const originalText = submitText ? submitText.textContent : 'Request Withdrawal';
-        if (submitBtn) submitBtn.disabled = true;
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.style.pointerEvents = 'none';
+        }
         if (submitText) submitText.textContent = 'Processing Instant Disbursement...';
 
         const commRate = (typeof DB !== 'undefined' && DB.getCommissionRate) ? DB.getCommissionRate() : 4;
@@ -1295,7 +1306,11 @@ const UserApp = (() => {
             clientName: clientLegalName,
             userId: currentUserId,
           }).then(res => {
-            if (submitBtn) submitBtn.disabled = false;
+            isWithdrawalSubmitting = false;
+            if (submitBtn) {
+              submitBtn.disabled = false;
+              submitBtn.style.pointerEvents = '';
+            }
             if (submitText) submitText.textContent = originalText;
 
             if (res && res.success) {
@@ -1335,7 +1350,11 @@ const UserApp = (() => {
             }
           }).catch(err => {
             console.warn('100% instant cashout transfer error:', err);
-            if (submitBtn) submitBtn.disabled = false;
+            isWithdrawalSubmitting = false;
+            if (submitBtn) {
+              submitBtn.disabled = false;
+              submitBtn.style.pointerEvents = '';
+            }
             if (submitText) submitText.textContent = originalText;
             renderSavingsList();
             renderTotal();
@@ -1350,7 +1369,11 @@ const UserApp = (() => {
             });
           });
         } else {
-          if (submitBtn) submitBtn.disabled = false;
+          isWithdrawalSubmitting = false;
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.style.pointerEvents = '';
+          }
           if (submitText) submitText.textContent = originalText;
           openPayoutSuccessModal({
             gross: amount,

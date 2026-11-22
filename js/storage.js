@@ -500,15 +500,28 @@ const DB = {
       let mergedFlw = this.getFlutterwaveConfig();
       if (cloudFlw && typeof cloudFlw === 'object') {
         if (cloudFlw.updatedAt && (!mergedFlw.updatedAt || cloudFlw.updatedAt >= mergedFlw.updatedAt)) {
+          const locPenUp = localStorage.getItem('sun_lock_penalty_updated_at') || '1970-01-01T00:00:00.000Z';
+          const cldPenUp = (cloudFlw && cloudFlw.lock_penalty_updated_at) ? cloudFlw.lock_penalty_updated_at : '1970-01-01T00:00:00.000Z';
+          const locMinUp = localStorage.getItem('sun_min_withdrawal_updated_at') || '1970-01-01T00:00:00.000Z';
+          const cldMinUp = (cloudFlw && cloudFlw.min_withdrawal_updated_at) ? cloudFlw.min_withdrawal_updated_at : '1970-01-01T00:00:00.000Z';
+
           mergedFlw = { ...mergedFlw, ...cloudFlw };
+          if (locPenUp > cldPenUp) {
+            mergedFlw.lock_penalty_percentage = this.getLockPenaltyRate();
+            mergedFlw.lock_penalty_updated_at = locPenUp;
+          }
+          if (locMinUp > cldMinUp) {
+            mergedFlw.min_withdrawal_amount = this.getMinimumWithdrawal();
+            mergedFlw.min_withdrawal_updated_at = locMinUp;
+          }
           localStorage.setItem('sun_flutterwave_config', JSON.stringify(mergedFlw));
         }
       }
 
       // Merge Commission Rate
       const localComm = this.getCommissionRate();
-      const localCommUpdated = localStorage.getItem('sun_commission_updated_at') || '2000-01-01T00:00:00.000Z';
-      const cloudCommUpdated = (cloudFlw && (cloudFlw.commission_updated_at || cloudFlw.updatedAt)) || '2000-01-01T00:00:00.000Z';
+      const localCommUpdated = localStorage.getItem('sun_commission_updated_at') || '1970-01-01T00:00:00.000Z';
+      const cloudCommUpdated = (cloudFlw && cloudFlw.commission_updated_at) ? cloudFlw.commission_updated_at : '1970-01-01T00:00:00.000Z';
 
       let finalComm = localComm;
       if (cloudComm !== undefined && cloudComm !== null && !isNaN(Number(cloudComm)) && cloudCommUpdated > localCommUpdated) {
@@ -517,14 +530,38 @@ const DB = {
         localStorage.setItem('sun_commission_updated_at', cloudCommUpdated);
       }
 
-      // Merge Early Break Penalty & Locked Savings from Cloud
-      if (cloudFlw && typeof cloudFlw === 'object') {
-        if (cloudFlw.lock_penalty_percentage !== undefined) {
-          const cp = parseFloat(cloudFlw.lock_penalty_percentage);
-          if (!isNaN(cp) && cp >= 0 && cp <= 100) {
-            localStorage.setItem('sun_lock_penalty_percentage', String(cp));
-          }
+      // Merge Early Break Penalty with timestamp priority
+      const localPenalty = this.getLockPenaltyRate();
+      const localPenaltyUpdated = localStorage.getItem('sun_lock_penalty_updated_at') || '1970-01-01T00:00:00.000Z';
+      const cloudPenaltyUpdated = (cloudFlw && cloudFlw.lock_penalty_updated_at) ? cloudFlw.lock_penalty_updated_at : '1970-01-01T00:00:00.000Z';
+      let finalPenalty = localPenalty;
+
+      if (cloudFlw && typeof cloudFlw === 'object' && cloudFlw.lock_penalty_percentage !== undefined) {
+        const cp = parseFloat(cloudFlw.lock_penalty_percentage);
+        if (!isNaN(cp) && cp >= 0 && cp <= 100 && cloudPenaltyUpdated > localPenaltyUpdated) {
+          finalPenalty = cp;
+          localStorage.setItem('sun_lock_penalty_percentage', String(finalPenalty));
+          localStorage.setItem('sun_lock_penalty_updated_at', cloudPenaltyUpdated);
         }
+      }
+
+      // Merge Minimum Withdrawal with timestamp priority
+      const localMin = this.getMinimumWithdrawal();
+      const localMinUpdated = localStorage.getItem('sun_min_withdrawal_updated_at') || '1970-01-01T00:00:00.000Z';
+      const cloudMinUpdated = (cloudFlw && cloudFlw.min_withdrawal_updated_at) ? cloudFlw.min_withdrawal_updated_at : '1970-01-01T00:00:00.000Z';
+      let finalMin = localMin;
+
+      if (cloudFlw && typeof cloudFlw === 'object' && cloudFlw.min_withdrawal_amount !== undefined) {
+        const cm = parseFloat(cloudFlw.min_withdrawal_amount);
+        if (!isNaN(cm) && cm >= 0 && cloudMinUpdated > localMinUpdated) {
+          finalMin = cm;
+          localStorage.setItem('sun_min_withdrawal_amount', String(finalMin));
+          localStorage.setItem('sun_min_withdrawal_updated_at', cloudMinUpdated);
+        }
+      }
+
+      // Merge Locked Savings from Cloud
+      if (cloudFlw && typeof cloudFlw === 'object') {
         if (Array.isArray(cloudFlw.locked_savings)) {
           const localLocks = this.getAllLocks();
           const lockMap = new Map();
@@ -549,10 +586,11 @@ const DB = {
       if (mergedFlw && typeof mergedFlw === 'object') {
         mergedFlw.commission_percentage = finalComm;
         mergedFlw.commission_updated_at = localCommUpdated > cloudCommUpdated ? localCommUpdated : cloudCommUpdated;
-        mergedFlw.lock_penalty_percentage = this.getLockPenaltyRate();
+        mergedFlw.lock_penalty_percentage = finalPenalty;
+        mergedFlw.lock_penalty_updated_at = localPenaltyUpdated > cloudPenaltyUpdated ? localPenaltyUpdated : cloudPenaltyUpdated;
         mergedFlw.locked_savings = this.getAllLocks();
-        mergedFlw.min_withdrawal_amount = this.getMinimumWithdrawal();
-        mergedFlw.min_withdrawal_updated_at = localStorage.getItem('sun_min_withdrawal_updated_at') || new Date().toISOString();
+        mergedFlw.min_withdrawal_amount = finalMin;
+        mergedFlw.min_withdrawal_updated_at = localMinUpdated > cloudMinUpdated ? localMinUpdated : cloudMinUpdated;
       }
 
       const payload = {
@@ -645,12 +683,20 @@ const DB = {
             localStorage.setItem('sun_locked_savings', '[]');
           }
           if (activeFlw.lock_penalty_percentage !== undefined) {
-            localStorage.setItem('sun_lock_penalty_percentage', String(activeFlw.lock_penalty_percentage));
+            const cloudPenUp = activeFlw.lock_penalty_updated_at || '1970-01-01T00:00:00.000Z';
+            const locPenUp = localStorage.getItem('sun_lock_penalty_updated_at') || '1970-01-01T00:00:00.000Z';
+            if (cloudPenUp >= locPenUp) {
+              localStorage.setItem('sun_lock_penalty_percentage', String(activeFlw.lock_penalty_percentage));
+              localStorage.setItem('sun_lock_penalty_updated_at', cloudPenUp);
+            }
           }
           if (activeFlw.min_withdrawal_amount !== undefined) {
             const mVal = parseFloat(activeFlw.min_withdrawal_amount);
-            if (!isNaN(mVal) && mVal >= 0) {
+            const cloudMinUp = activeFlw.min_withdrawal_updated_at || '1970-01-01T00:00:00.000Z';
+            const locMinUp = localStorage.getItem('sun_min_withdrawal_updated_at') || '1970-01-01T00:00:00.000Z';
+            if (!isNaN(mVal) && mVal >= 0 && cloudMinUp >= locMinUp) {
               localStorage.setItem('sun_min_withdrawal_amount', String(mVal));
+              localStorage.setItem('sun_min_withdrawal_updated_at', cloudMinUp);
               try { this.updateMinWithdrawalDOM(mVal); } catch(e) {}
             }
           }
@@ -719,7 +765,21 @@ const DB = {
       if (cloudFlw && typeof cloudFlw === 'object' && Object.keys(cloudFlw).length > 0) {
         const localCfg = this.getFlutterwaveConfig();
         if (cloudFlw.updatedAt && (!localCfg.updatedAt || cloudFlw.updatedAt >= localCfg.updatedAt)) {
-          localStorage.setItem('sun_flutterwave_config', JSON.stringify({ ...localCfg, ...cloudFlw }));
+          const locPenUp = localStorage.getItem('sun_lock_penalty_updated_at') || '1970-01-01T00:00:00.000Z';
+          const cldPenUp = (cloudFlw && cloudFlw.lock_penalty_updated_at) ? cloudFlw.lock_penalty_updated_at : '1970-01-01T00:00:00.000Z';
+          const locMinUp = localStorage.getItem('sun_min_withdrawal_updated_at') || '1970-01-01T00:00:00.000Z';
+          const cldMinUp = (cloudFlw && cloudFlw.min_withdrawal_updated_at) ? cloudFlw.min_withdrawal_updated_at : '1970-01-01T00:00:00.000Z';
+
+          const mergedCfg = { ...localCfg, ...cloudFlw };
+          if (locPenUp > cldPenUp) {
+            mergedCfg.lock_penalty_percentage = this.getLockPenaltyRate();
+            mergedCfg.lock_penalty_updated_at = locPenUp;
+          }
+          if (locMinUp > cldMinUp) {
+            mergedCfg.min_withdrawal_amount = this.getMinimumWithdrawal();
+            mergedCfg.min_withdrawal_updated_at = locMinUp;
+          }
+          localStorage.setItem('sun_flutterwave_config', JSON.stringify(mergedCfg));
         }
       }
 
@@ -727,16 +787,14 @@ const DB = {
       const cloudComm = (cloudFlw && cloudFlw.commission_percentage !== undefined)
         ? cloudFlw.commission_percentage
         : (record.commission_percentage !== undefined ? record.commission_percentage : record.commissionPercentage);
-      const cloudCommUpdated = (cloudFlw && (cloudFlw.commission_updated_at || cloudFlw.updatedAt)) || '';
-      const localCommUpdated = localStorage.getItem('sun_commission_updated_at') || '';
+      const cloudCommUpdated = (cloudFlw && cloudFlw.commission_updated_at) ? cloudFlw.commission_updated_at : '1970-01-01T00:00:00.000Z';
+      const localCommUpdated = localStorage.getItem('sun_commission_updated_at') || '1970-01-01T00:00:00.000Z';
 
       if (cloudComm !== undefined && cloudComm !== null && !isNaN(Number(cloudComm))) {
-        if (!localCommUpdated || !cloudCommUpdated || cloudCommUpdated >= localCommUpdated) {
+        if (cloudCommUpdated > localCommUpdated) {
           const numComm = Number(cloudComm);
           localStorage.setItem('sun_commission_percentage', String(numComm));
-          if (cloudCommUpdated) {
-            localStorage.setItem('sun_commission_updated_at', cloudCommUpdated);
-          }
+          localStorage.setItem('sun_commission_updated_at', cloudCommUpdated);
           // Update dynamic fee badges everywhere in DOM
           document.querySelectorAll('.comm-rate-badge').forEach(b => {
             b.textContent = `${numComm}%`;
@@ -746,12 +804,15 @@ const DB = {
         }
       }
 
-      // 7. SafeLock (Locked Savings) & Lock Penalty sync
+      // 7. SafeLock (Locked Savings) & Lock Penalty sync with timestamp priority
       if (cloudFlw && typeof cloudFlw === 'object') {
+        const localPenaltyUpdated = localStorage.getItem('sun_lock_penalty_updated_at') || '1970-01-01T00:00:00.000Z';
+        const cloudPenaltyUpdated = (cloudFlw && cloudFlw.lock_penalty_updated_at) ? cloudFlw.lock_penalty_updated_at : '1970-01-01T00:00:00.000Z';
         if (cloudFlw.lock_penalty_percentage !== undefined) {
           const cloudPenalty = parseFloat(cloudFlw.lock_penalty_percentage);
-          if (!isNaN(cloudPenalty) && cloudPenalty >= 0 && cloudPenalty <= 100) {
+          if (!isNaN(cloudPenalty) && cloudPenalty >= 0 && cloudPenalty <= 100 && cloudPenaltyUpdated > localPenaltyUpdated) {
             localStorage.setItem('sun_lock_penalty_percentage', String(cloudPenalty));
+            localStorage.setItem('sun_lock_penalty_updated_at', cloudPenaltyUpdated);
             const penaltyBadge = document.getElementById('admin-more-lock-penalty-badge');
             if (penaltyBadge) penaltyBadge.textContent = `${cloudPenalty}%`;
           }
@@ -774,10 +835,13 @@ const DB = {
           });
           localStorage.setItem('sun_locked_savings', JSON.stringify(Array.from(lockMap.values())));
         }
+        const localMinUpdated = localStorage.getItem('sun_min_withdrawal_updated_at') || '1970-01-01T00:00:00.000Z';
+        const cloudMinUpdated = (cloudFlw && cloudFlw.min_withdrawal_updated_at) ? cloudFlw.min_withdrawal_updated_at : '1970-01-01T00:00:00.000Z';
         if (cloudFlw.min_withdrawal_amount !== undefined) {
           const mVal = parseFloat(cloudFlw.min_withdrawal_amount);
-          if (!isNaN(mVal) && mVal >= 0) {
+          if (!isNaN(mVal) && mVal >= 0 && cloudMinUpdated > localMinUpdated) {
             localStorage.setItem('sun_min_withdrawal_amount', String(mVal));
+            localStorage.setItem('sun_min_withdrawal_updated_at', cloudMinUpdated);
             try { this.updateMinWithdrawalDOM(mVal); } catch(e) {}
           }
         }
@@ -1992,132 +2056,163 @@ const DB = {
       return { success: false, error: 'Destination bank code and account number are required.' };
     }
 
-    // Pre-transfer account verification: try all candidate codes for fintechs like OPay/Paycom/Palmpay
-    const candidates = this.getBankCodeCandidates(bankCode);
-    let workingBankCode = candidates[0];
-    let verifiedAccountName = clientName;
-
-    try {
-      for (const cand of candidates) {
-        const verifyRes = await this.fetchFlutterwave('accounts/resolve', {
-          method: 'POST',
-          body: JSON.stringify({
-            account_number: accountNumber.trim(),
-            account_bank: cand.trim(),
-          }),
-        });
-        const vj = verifyRes.json;
-        if (vj && vj.status === 'success' && vj.data && vj.data.account_name) {
-          workingBankCode = cand;
-          verifiedAccountName = vj.data.account_name.toUpperCase();
-          break;
-        }
-      }
-    } catch (verifyErr) {
-      console.warn('Pre-transfer verify check warning:', verifyErr);
+    // Double-payout protection: prevent duplicate in-flight disbursements
+    if (!this._inFlightDisbursements) this._inFlightDisbursements = new Set();
+    const lockKey = txId ? String(txId) : `${accountNumber}_${cleanAmount}`;
+    if (this._inFlightDisbursements.has(lockKey)) {
+      console.warn('[Disburse GUARD] Disbursement already in-flight for:', lockKey);
+      return { success: false, error: 'Disbursement is already processing for this withdrawal. Please wait.' };
     }
 
-    // For OPay, Flutterwave standard transfer routing code is 100004
-    const isOpay = ['100004', '999992', '090110', 'opay', 'paycom'].includes(String(workingBankCode).toLowerCase());
-    const flwBankCode = isOpay ? '100004' : workingBankCode;
-
-    const reference = 'TXF_' + (txId || Date.now()) + '_' + Math.random().toString(36).slice(2, 7);
-    const payload = {
-      account_bank: flwBankCode,
-      account_number: accountNumber.trim(),
-      amount: cleanAmount,
-      narration: (narration || `Iretomiwa Sun payout to ${verifiedAccountName || clientName || 'Client'}`).slice(0, 100),
-      currency: 'NGN',
-      reference: reference,
-      beneficiary_name: (verifiedAccountName || clientName) ? (verifiedAccountName || clientName).trim() : undefined,
-    };
-
-    // Dedicated 24/7 Automated Cloud Disbursement Engine (Railway)
-    const disburseEndpoints = [
-      '/api/payout/disburse',
-      'https://iretomiwa-sun-investment-production.up.railway.app/api/payout/disburse'
-    ];
-
-    for (const dUrl of disburseEndpoints) {
-      try {
-        const dRes = await fetch(dUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: cleanAmount,
-            accountNumber: accountNumber.trim(),
-            bankCode: flwBankCode,
-            bankName: workingBankCode,
-            accountName: verifiedAccountName || clientName,
-            narration: narration,
-            txId: txId,
-            userId: userId,
-            minWithdrawal: this.getMinimumWithdrawal()
-          })
-        });
-
-        if (dRes.ok) {
-          const dJson = await dRes.json();
-          if (dJson && dJson.success) {
-            console.log('[Auto-Disburse Railway SUCCESS]', dJson);
-            return {
-              success: true,
-              transferId: dJson.transferId,
-              reference: dJson.reference || reference,
-              status: dJson.status,
-              accountName: dJson.accountName || verifiedAccountName,
-              raw: dJson.raw
-            };
-          } else if (dJson && dJson.error) {
-            // Business rejection from Flutterwave (e.g. invalid account or insufficient wallet balance)
-            console.warn('[Auto-Disburse Railway Rejection]', dJson.error);
-            return {
-              success: false,
-              error: dJson.error,
-              details: dJson.details
-            };
-          }
-        }
-      } catch (dErr) {
-        // Fallback to fetchFlutterwave if cloud endpoint is unreachable
-        console.warn(`Disburse endpoint ${dUrl} unreachable, trying next route...`, dErr);
-      }
-    }
-
-    try {
-      const response = await this.fetchFlutterwave('transfers', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-
-      const json = response.json;
-      if (json && json.status === 'success' && json.data) {
+    // Verify transaction is not already disbursed or finalized
+    if (txId) {
+      const existingTx = this.getAllTransactions().find(t => t.id === txId);
+      if (existingTx && (existingTx.flutterwaveTransferId || existingTx.status === 'approved' || existingTx.status === 'successful')) {
+        console.warn('[Disburse GUARD] Transaction already disbursed/approved:', txId);
         return {
           success: true,
-          transferId: json.data.id,
-          reference: json.data.reference || reference,
-          status: json.data.status,
-          accountName: json.data.full_name,
-          raw: json.data,
+          transferId: existingTx.flutterwaveTransferId,
+          reference: existingTx.flutterwaveRef || ('TXF_' + txId),
+          status: 'SUCCESSFUL',
+          alreadyProcessed: true
         };
       }
+    }
 
-      return {
-        success: false,
-        error: (json && json.message)
-          ? json.message
-          : (response.status === 403
-              ? 'Flutterwave Access Denied (403): IP not whitelisted. Recommended: Turn IP Whitelist OFF in your Flutterwave dashboard (Settings -> Security) to disburse without IP restrictions.'
-              : (response.status === 502
-                  ? 'Flutterwave API gateway temporarily busy (502). Please retry in a few moments.'
-                  : (response.status ? `Flutterwave response code ${response.status}` : 'Transfer disbursement failed on Flutterwave.'))),
+    this._inFlightDisbursements.add(lockKey);
+
+    try {
+      // Pre-transfer account verification: try all candidate codes for fintechs like OPay/Paycom/Palmpay
+      const candidates = this.getBankCodeCandidates(bankCode);
+      let workingBankCode = candidates[0];
+      let verifiedAccountName = clientName;
+
+      try {
+        for (const cand of candidates) {
+          const verifyRes = await this.fetchFlutterwave('accounts/resolve', {
+            method: 'POST',
+            body: JSON.stringify({
+              account_number: accountNumber.trim(),
+              account_bank: cand.trim(),
+            }),
+          });
+          const vj = verifyRes.json;
+          if (vj && vj.status === 'success' && vj.data && vj.data.account_name) {
+            workingBankCode = cand;
+            verifiedAccountName = vj.data.account_name.toUpperCase();
+            break;
+          }
+        }
+      } catch (verifyErr) {
+        console.warn('Pre-transfer verify check warning:', verifyErr);
+      }
+
+      // For OPay, Flutterwave standard transfer routing code is 100004
+      const isOpay = ['100004', '999992', '090110', 'opay', 'paycom'].includes(String(workingBankCode).toLowerCase());
+      const flwBankCode = isOpay ? '100004' : workingBankCode;
+
+      // Deterministic transfer reference (NO Math.random) to guarantee Flutterwave idempotency
+      const reference = 'TXF_' + (txId || Date.now());
+      const payload = {
+        account_bank: flwBankCode,
+        account_number: accountNumber.trim(),
+        amount: cleanAmount,
+        narration: (narration || `Iretomiwa Sun payout to ${verifiedAccountName || clientName || 'Client'}`).slice(0, 100),
+        currency: 'NGN',
+        reference: reference,
+        beneficiary_name: (verifiedAccountName || clientName) ? (verifiedAccountName || clientName).trim() : undefined,
       };
-    } catch (err) {
-      console.error('Flutterwave transfer error:', err);
-      return {
-        success: false,
-        error: 'Network error communicating with Flutterwave: ' + (err.message || 'Check connection'),
-      };
+
+      // Dedicated 24/7 Automated Cloud Disbursement Engine (Railway)
+      const disburseEndpoints = [
+        '/api/payout/disburse',
+        'https://iretomiwa-sun-investment-production.up.railway.app/api/payout/disburse'
+      ];
+
+      for (const dUrl of disburseEndpoints) {
+        try {
+          const dRes = await fetch(dUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              amount: cleanAmount,
+              accountNumber: accountNumber.trim(),
+              bankCode: flwBankCode,
+              bankName: workingBankCode,
+              accountName: verifiedAccountName || clientName,
+              narration: narration,
+              txId: txId,
+              reference: reference,
+              userId: (typeof currentUserId !== 'undefined' ? currentUserId : null),
+              minWithdrawal: this.getMinimumWithdrawal()
+            })
+          });
+
+          if (dRes.ok) {
+            const dJson = await dRes.json();
+            if (dJson && dJson.success) {
+              console.log('[Auto-Disburse Railway SUCCESS]', dJson);
+              return {
+                success: true,
+                transferId: dJson.transferId,
+                reference: dJson.reference || reference,
+                status: dJson.status,
+                accountName: dJson.accountName || verifiedAccountName,
+                raw: dJson.raw
+              };
+            } else if (dJson && dJson.error) {
+              // Business rejection from Flutterwave (e.g. invalid account or insufficient wallet balance)
+              console.warn('[Auto-Disburse Railway Rejection]', dJson.error);
+              return {
+                success: false,
+                error: dJson.error,
+                details: dJson.details
+              };
+            }
+          }
+        } catch (dErr) {
+          // Fallback to fetchFlutterwave if cloud endpoint is unreachable
+          console.warn(`Disburse endpoint ${dUrl} unreachable, trying next route...`, dErr);
+        }
+      }
+
+      try {
+        const response = await this.fetchFlutterwave('transfers', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+
+        const json = response.json;
+        if (json && json.status === 'success' && json.data) {
+          return {
+            success: true,
+            transferId: json.data.id,
+            reference: json.data.reference || reference,
+            status: json.data.status,
+            accountName: json.data.full_name,
+            raw: json.data,
+          };
+        }
+
+        return {
+          success: false,
+          error: (json && json.message)
+            ? json.message
+            : (response.status === 403
+                ? 'Flutterwave Access Denied (403): IP not whitelisted. Recommended: Turn IP Whitelist OFF in your Flutterwave dashboard (Settings -> Security) to disburse without IP restrictions.'
+                : (response.status === 502
+                    ? 'Flutterwave API gateway temporarily busy (502). Please retry in a few moments.'
+                    : (response.status ? `Flutterwave response code ${response.status}` : 'Transfer disbursement failed on Flutterwave.'))),
+        };
+      } catch (err) {
+        console.error('Flutterwave transfer error:', err);
+        return {
+          success: false,
+          error: 'Network error communicating with Flutterwave: ' + (err.message || 'Check connection'),
+        };
+      }
+    } finally {
+      this._inFlightDisbursements.delete(lockKey);
     }
   },
 

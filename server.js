@@ -62,10 +62,15 @@ app.get('/api/check-ip', async (req, res) => {
   }
 });
 
+// Server-side Idempotency & Duplicate Disbursement Protection Cache
+const inFlightPayouts = new Set();
+const completedPayouts = new Map(); // idempotencyKey -> result
+
 // ==============================================================================
 // AUTOMATED WITHDRAWAL / PAYOUT DISBURSEMENT ENDPOINT
 // ==============================================================================
 app.post('/api/payout/disburse', async (req, res) => {
+  let idempotencyKey = null;
   try {
     const {
       amount,
@@ -75,8 +80,27 @@ app.post('/api/payout/disburse', async (req, res) => {
       accountName,
       narration,
       txId,
-      userId
+      userId,
+      reference: clientRef
     } = req.body;
+
+    // Strict Deterministic Idempotency Key (NO Math.random to prevent duplicate payouts)
+    idempotencyKey = txId ? String(txId) : (clientRef || `ACC_${accountNumber}_${amount}`);
+
+    if (inFlightPayouts.has(idempotencyKey)) {
+      console.warn(`[Disburse REJECTED] Duplicate disbursement already in-flight for: ${idempotencyKey}`);
+      return res.status(409).json({
+        success: false,
+        error: 'Disbursement is already processing for this withdrawal. Please wait.'
+      });
+    }
+
+    if (completedPayouts.has(idempotencyKey)) {
+      console.log(`[Disburse CACHED] Returning previously successful disbursement for: ${idempotencyKey}`);
+      return res.json(completedPayouts.get(idempotencyKey));
+    }
+
+    inFlightPayouts.add(idempotencyKey);
 
     const cleanAmount = parseFloat(amount);
     const minThreshold = (req.body.minWithdrawal !== undefined && !isNaN(parseFloat(req.body.minWithdrawal)))
@@ -109,7 +133,8 @@ app.post('/api/payout/disburse', async (req, res) => {
     const isOpay = ['100004', '999992', '090110', 'opay', 'paycom'].includes(String(bankCode).toLowerCase());
     const flwBankCode = isOpay ? '100004' : String(bankCode).trim();
 
-    const reference = 'TXF_' + (txId || Date.now()) + '_' + Math.random().toString(36).slice(2, 7);
+    // Deterministic transfer reference per transaction ID
+    const reference = clientRef || ('TXF_' + (txId || Date.now()));
     const cleanAccountName = String(accountName || '').trim();
 
     const payload = {
@@ -137,15 +162,18 @@ app.post('/api/payout/disburse', async (req, res) => {
     const flwJson = await flwRes.json().catch(() => null);
 
     if (flwRes.ok && flwJson && flwJson.status === 'success' && flwJson.data) {
-      console.log(`[Disburse SUCCESS] Transfer initiated id: ${flwJson.data.id}`);
-      return res.json({
+      console.log(`[Disburse SUCCESS] Transfer initiated id: ${flwJson.data.id} ref: ${reference}`);
+      const successPayload = {
         success: true,
         transferId: flwJson.data.id,
         reference: flwJson.data.reference || reference,
         status: flwJson.data.status,
         accountName: flwJson.data.full_name || cleanAccountName,
         raw: flwJson.data
-      });
+      };
+      completedPayouts.set(idempotencyKey, successPayload);
+      setTimeout(() => completedPayouts.delete(idempotencyKey), 24 * 60 * 60 * 1000); // 24hr cache
+      return res.json(successPayload);
     }
 
     // Handle Flutterwave rejection / business errors
@@ -165,6 +193,10 @@ app.post('/api/payout/disburse', async (req, res) => {
       success: false,
       error: 'Internal server error processing payout: ' + (err.message || 'Unknown error')
     });
+  } finally {
+    if (idempotencyKey) {
+      inFlightPayouts.delete(idempotencyKey);
+    }
   }
 });
 
