@@ -1739,6 +1739,21 @@ const UserApp = (() => {
           status: 'pending',
         });
 
+        if (!newTx) {
+          console.error('[Withdrawal Error] DB.addTransaction returned null for amount:', amount);
+          if (errorEl) {
+            errorEl.textContent = `Could not submit withdrawal request for ₦${formatAmount(amount)}. Please ensure amount meets the minimum ₦${formatAmount(minWthPayout)}.`;
+            errorEl.classList.remove('hidden');
+          }
+          isWithdrawalSubmitting = false;
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.style.pointerEvents = '';
+          }
+          if (submitText) submitText.textContent = originalText;
+          return;
+        }
+
         // Immediately push to cloud so Admin sees pending request in real time
         try {
           DB.syncPush().catch(e => console.warn('Pending withdrawal sync warning:', e));

@@ -1663,8 +1663,9 @@ const AdminApp = (() => {
         typeInput.value = 'payout';
         if (submitBtn) submitBtn.textContent = 'Record Physical Payout';
         if (recordAmtInput) {
-          recordAmtInput.placeholder = 'Min. 500.00';
-          recordAmtInput.min = '500';
+          const curMin = (typeof DB !== 'undefined' && DB.getMinimumWithdrawal) ? DB.getMinimumWithdrawal() : 500;
+          recordAmtInput.placeholder = `Min. ${formatAmount(curMin)}`;
+          recordAmtInput.min = String(curMin);
         }
       });
     }
@@ -4077,12 +4078,32 @@ const AdminApp = (() => {
 
     updatePendingBadge();
 
-    // Realtime notification monitor (checks every 12 seconds & on cloud sync)
+    // Realtime notification monitor (checks every 8 seconds, on cloud sync & storage event)
     setInterval(() => {
       if (typeof AdminNotificationService !== 'undefined') {
         AdminNotificationService.checkPendingRequests();
       }
-    }, 12000);
+      updatePendingBadge();
+      const curTab = localStorage.getItem('sun_admin_tab') || 'users';
+      if (curTab === 'requests') {
+        renderRequestsTab();
+      }
+    }, 8000);
+
+    // Cross-tab instant synchronization for local/admin multi-tab workflows
+    window.addEventListener('storage', (e) => {
+      if (!e.key || e.key === 'sun_transactions' || e.key === 'sun_users' || e.key === 'sun_locked_savings') {
+        if (typeof AdminNotificationService !== 'undefined') {
+          AdminNotificationService.checkPendingRequests();
+        }
+        updatePendingBadge();
+        const curTab = localStorage.getItem('sun_admin_tab') || 'users';
+        if (curTab === 'requests') renderRequestsTab();
+        if (curTab === 'users') renderUsersTab();
+        if (curTab === 'payouts') renderPayoutsTab();
+        if (curTab === 'received') renderReceivedTab();
+      }
+    });
 
     if (typeof DB !== 'undefined' && DB.onSync) {
       DB.onSync(() => {
@@ -4090,6 +4111,11 @@ const AdminApp = (() => {
           AdminNotificationService.checkPendingRequests();
         }
         updatePendingBadge();
+        const curTab = localStorage.getItem('sun_admin_tab') || 'users';
+        if (curTab === 'requests') renderRequestsTab();
+        if (curTab === 'users') renderUsersTab();
+        if (curTab === 'payouts') renderPayoutsTab();
+        if (curTab === 'received') renderReceivedTab();
       });
     }
 

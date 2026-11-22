@@ -1077,13 +1077,14 @@ const DB = {
     const all = this.getAllTransactions();
     return all.filter(t => t.status === 'pending');
   },
-  addTransaction({ userId, type, amount, category, note, recordedBy, status, paymentGateway, flutterwaveRef, flwId, destinationBank }) {
+  addTransaction({ userId, type, amount, category, note, recordedBy, status, paymentGateway, flutterwaveRef, flwId, destinationBank, grossAmount, fee, netAmount, feeRate }) {
     const all = this.getAllTransactions();
     const isUser = (recordedBy === 'user');
     const assignedStatus = status || (isUser ? 'pending' : 'approved');
 
-    if (isUser && (type === 'withdrawal' || type === 'payout') && (parseFloat(amount) || 0) < 500) {
-      console.warn('Rejected withdrawal below minimum ₦500.00:', amount);
+    const minWth = (typeof this.getMinimumWithdrawal === 'function') ? this.getMinimumWithdrawal() : 500;
+    if (isUser && (type === 'withdrawal' || type === 'payout') && (parseFloat(amount) || 0) < minWth) {
+      console.warn(`Rejected withdrawal below minimum ₦${minWth}:`, amount);
       return null;
     }
 
@@ -1092,6 +1093,10 @@ const DB = {
       userId,
       type: type || 'deposit', // 'deposit' (saved) | 'withdrawal' (payout)
       amount: parseFloat(amount) || 0,
+      grossAmount: grossAmount !== undefined ? grossAmount : (parseFloat(amount) || 0),
+      fee: fee !== undefined ? fee : 0,
+      netAmount: netAmount !== undefined ? netAmount : (parseFloat(amount) || 0),
+      feeRate: feeRate !== undefined ? feeRate : 0,
       category: category || 'General Savings',
       note: note || '',
       destinationBank: destinationBank || null,
