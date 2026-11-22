@@ -1645,7 +1645,8 @@ const DB = {
 
     // If user requested direct payout to destination bank
     let payoutResult = null;
-    if (options && options.payoutToBank && netAmount >= 500) {
+    const minPayout = this.getMinimumWithdrawal();
+    if (options && options.payoutToBank && netAmount >= minPayout) {
       const savedBank = this.getUserPayoutBank(lock.userId);
       if (savedBank && savedBank.accountNumber) {
         payoutResult = this.addTransaction({
