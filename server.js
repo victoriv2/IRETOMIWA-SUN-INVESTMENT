@@ -10,7 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 const FLW_SECRET_KEY = process.env.FLW_SECRET_KEY || 'FLWSECK-fc044b9b11bc1da34e06422d381602d4-1a1872431eevt-X';
-const FLW_SECRET_HASH = process.env.FLW_SECRET_HASH || 'IretomiwaSun2026';
+const FLW_SECRET_HASH = process.env.FLW_SECRET_HASH || 'iretomiwa-sun-investment-payout-2026';
 
 const formatMoney = (n) => {
   const num = Math.abs(parseFloat(n) || 0);
@@ -218,7 +218,15 @@ app.all('/api/flw/*', async (req, res) => {
 // ==============================================================================
 app.post('/api/flw-webhook', (req, res) => {
   const hash = req.headers['verif-hash'];
-  const validHashes = [FLW_SECRET_HASH, 'IretomiwaSun2026', 'IretomiwaSunInvestmentSecHash2026'].filter(Boolean);
+  const validHashes = [
+    FLW_SECRET_HASH,
+    'iretomiwa-sun-investment-payout-2026',
+    'IretomiwaSunInvestmentSecHashLive026',
+    '2fedea2e-12a0-4b09-a1ec-0887623928db',
+    'IretomiwaSun2026',
+    'IretomiwaSunInvestmentSecHash2026'
+  ].filter(Boolean);
+
   if (hash && !validHashes.includes(hash)) {
     console.warn(`[Webhook] Invalid signature received: ${hash}`);
     return res.status(401).json({ status: 'invalid signature' });
