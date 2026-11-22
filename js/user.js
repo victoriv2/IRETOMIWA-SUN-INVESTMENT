@@ -1108,6 +1108,7 @@ const UserApp = (() => {
     const flwTrust    = document.getElementById('save-flw-trust');
     const quickAmts   = document.getElementById('save-quick-amounts');
     const withDest    = document.getElementById('withdrawal-dest-fields');
+    let isWithdrawalSubmitting = false;
 
     function setFormMode(mode) {
       const amtInput = document.getElementById('save-amount');
@@ -1678,8 +1679,6 @@ const UserApp = (() => {
       }
 
       proceedWithPayoutSubmission();
-
-      let isWithdrawalSubmitting = false;
 
       function proceedWithPayoutSubmission() {
         if (isWithdrawalSubmitting) {
@@ -3129,10 +3128,17 @@ const UserApp = (() => {
       });
     }
 
+    let isUnlockActionSubmitting = false;
+
     async function handleUnlockAction(payoutToBank) {
+      if (isUnlockActionSubmitting) return;
       const idInput = document.getElementById('unlock-active-lock-id');
       const lockId = idInput ? idInput.value : '';
       if (!lockId) return;
+
+      isUnlockActionSubmitting = true;
+      if (btnUnlockBal) btnUnlockBal.disabled = true;
+      if (btnUnlockBank) btnUnlockBank.disabled = true;
 
       const errBox  = document.getElementById('user-unlock-error');
       const succBox = document.getElementById('user-unlock-success');
@@ -3146,6 +3152,9 @@ const UserApp = (() => {
             errBox.textContent = 'No saved payout bank found. Please set your bank details in More -> Bank Account Details first, or choose Unlock to Available Savings.';
             errBox.classList.remove('hidden');
           }
+          isUnlockActionSubmitting = false;
+          if (btnUnlockBal) btnUnlockBal.disabled = false;
+          if (btnUnlockBank) btnUnlockBank.disabled = false;
           return;
         }
       }
@@ -3167,15 +3176,24 @@ const UserApp = (() => {
           renderSafeLockHub();
 
           setTimeout(() => {
+            isUnlockActionSubmitting = false;
+            if (btnUnlockBal) btnUnlockBal.disabled = false;
+            if (btnUnlockBank) btnUnlockBank.disabled = false;
             if (unlockModal) unlockModal.classList.add('hidden');
           }, 1500);
         } else {
+          isUnlockActionSubmitting = false;
+          if (btnUnlockBal) btnUnlockBal.disabled = false;
+          if (btnUnlockBank) btnUnlockBank.disabled = false;
           if (errBox) {
             errBox.textContent = res.error || 'Failed to unlock funds.';
             errBox.classList.remove('hidden');
           }
         }
       } catch (err) {
+        isUnlockActionSubmitting = false;
+        if (btnUnlockBal) btnUnlockBal.disabled = false;
+        if (btnUnlockBank) btnUnlockBank.disabled = false;
         if (errBox) {
           errBox.textContent = err.message || 'Error unlocking lock.';
           errBox.classList.remove('hidden');
