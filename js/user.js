@@ -3277,6 +3277,35 @@ const UserApp = (() => {
       initUserExports();
       initCopyIdButton();
       checkPendingFlutterwaveRedirect();
+
+      // Realtime cross-tab & cloud sync listeners for user view (min withdrawal, commission, balance, transactions)
+      window.addEventListener('storage', (e) => {
+        if (!e.key || e.key === 'sun_min_withdrawal_amount' || e.key === 'sun_commission_percentage' || e.key === 'sun_transactions' || e.key === 'sun_users' || e.key === 'sun_locked_savings') {
+          if (typeof DB !== 'undefined' && DB.updateMinWithdrawalDOM) {
+            DB.updateMinWithdrawalDOM();
+          }
+          try { renderTotal(); } catch(e) {}
+          try { renderSavingsList(); } catch(e) {}
+          try {
+            const hub = document.getElementById('view-safelock-hub');
+            if (hub && !hub.classList.contains('hidden')) renderSafeLockHub();
+          } catch(e) {}
+        }
+      });
+
+      if (typeof DB !== 'undefined' && DB.onSync) {
+        DB.onSync(() => {
+          if (typeof DB.updateMinWithdrawalDOM === 'function') {
+            DB.updateMinWithdrawalDOM();
+          }
+          try { renderTotal(); } catch(e) {}
+          try { renderSavingsList(); } catch(e) {}
+          try {
+            const hub = document.getElementById('view-safelock-hub');
+            if (hub && !hub.classList.contains('hidden')) renderSafeLockHub();
+          } catch(e) {}
+        });
+      }
     },
 
     refresh() {

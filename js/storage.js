@@ -1551,6 +1551,13 @@ const DB = {
     if (h1) h1.textContent = '₦' + formatted;
     const h2 = document.getElementById('with-min-val-hint-2');
     if (h2) h2.textContent = '₦' + formatted;
+
+    const typeInp = document.getElementById('save-type');
+    const amtInput = document.getElementById('save-amount');
+    if (amtInput && typeInp && typeInp.value === 'withdrawal') {
+      amtInput.placeholder = `Min. ${formatted}`;
+      amtInput.min = String(val);
+    }
   },
 
   getAllLocks() {
