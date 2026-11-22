@@ -3393,6 +3393,8 @@ const UserApp = (() => {
       if (uid) {
         currentUserId = uid;
         startClock();
+        try { if (DB.updateMinWithdrawalDOM) DB.updateMinWithdrawalDOM(); } catch(e) {}
+        try { if (DB.updateMinBalanceRetentionDOM) DB.updateMinBalanceRetentionDOM(); } catch(e) {}
         try { renderSavingsList(); } catch(e) {}
         try { renderTotal(); } catch(e) {}
         try { renderMoreUserInfo(); } catch(e) {}

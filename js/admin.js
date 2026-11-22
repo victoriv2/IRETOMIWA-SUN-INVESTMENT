@@ -2908,6 +2908,10 @@ const AdminApp = (() => {
         modal.classList.remove('hidden');
         if (inputEl) inputEl.focus();
       });
+
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.add('hidden');
+      });
     }
 
     if (form) {
@@ -2996,6 +3000,10 @@ const AdminApp = (() => {
         modal.classList.remove('hidden');
         if (inputEl) inputEl.focus();
       });
+
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.add('hidden');
+      });
     }
 
     if (form) {
@@ -3075,6 +3083,10 @@ const AdminApp = (() => {
 
         modal.classList.remove('hidden');
         if (inputEl) inputEl.focus();
+      });
+
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.add('hidden');
       });
     }
 
@@ -3167,6 +3179,10 @@ const AdminApp = (() => {
 
         modal.classList.remove('hidden');
         if (inputEl) inputEl.focus();
+      });
+
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.add('hidden');
       });
     }
 
