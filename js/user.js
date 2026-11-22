@@ -1253,8 +1253,7 @@ const UserApp = (() => {
         if (noteInput) noteInput.value = '';
         updateFeeCalculations();
 
-        // Check if Admin has enabled Auto Cash-out (Instant Payout)
-        const flwCfg = DB.getFlutterwaveConfig();
+        // 100% Instant Automatic Disbursement via 24/7 Railway Cloud Backend
         const clientLegalName = user ? `${DB.formatName(user.firstName)} ${DB.formatName(user.lastName)}` : 'Client';
 
         // Redirect user directly to Home tab and refresh balances/transactions
@@ -1266,7 +1265,7 @@ const UserApp = (() => {
           ? DB.getUserBalance(currentUserId).balance
           : 0;
 
-        if (flwCfg && flwCfg.autoCashout && destinationBank.accountNumber && destinationBank.bankCode) {
+        if (destinationBank.accountNumber && destinationBank.bankCode) {
           openPayoutSuccessModal({
             gross: amount,
             fee: fee,
@@ -1284,10 +1283,11 @@ const UserApp = (() => {
             narration: `Payout to ${clientLegalName} - Iretomiwa Sun`,
             txId: newTx.id,
             clientName: clientLegalName,
+            userId: currentUserId,
           }).then(res => {
             if (res && res.success) {
               DB.approveTransaction(newTx.id, {
-                reviewedBy: 'system (auto-cashout)',
+                reviewedBy: 'system (100% instant auto-cashout)',
                 paymentGateway: 'flutterwave',
                 flutterwaveTransferId: res.transferId,
                 flutterwaveRef: res.reference,
@@ -1312,7 +1312,7 @@ const UserApp = (() => {
               renderTotal();
             }
           }).catch(err => {
-            console.warn('Auto cashout background transfer error:', err);
+            console.warn('100% instant cashout transfer error:', err);
             renderSavingsList();
             renderTotal();
           });

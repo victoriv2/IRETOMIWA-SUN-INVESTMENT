@@ -1769,20 +1769,20 @@ const DB = {
     };
 
     // Candidate routes to prevent browser CORS and IP restriction blocks:
-    // 1. Local / Server Proxy (/api/flw/...) - connects through local PC IP or edge proxy
-    // 2. Netlify Serverless Function (/.netlify/functions/flw) - fallback on cloud
-    // 3. Direct Flutterwave API - fallback
+    // 1. Local / Same-origin Server Proxy (/api/flw/...)
+    // 2. Railway 24/7 Cloud Backend (https://iretomiwa-sun-investment-production.up.railway.app/api/flw/...)
+    // 3. Netlify Serverless Function (/.netlify/functions/flw) - fallback
+    // 4. Direct Flutterwave API - fallback
+    const railwayFlwUrl = `https://iretomiwa-sun-investment-production.up.railway.app/api/flw/${cleanEndpoint}`;
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const candidates = isLocalhost
-      ? [
-          `/api/flw/${cleanEndpoint}`,
-          `https://api.flutterwave.com/v3/${cleanEndpoint}`
-        ]
-      : [
-          `/api/flw/${cleanEndpoint}`,
-          `/.netlify/functions/flw?path=${encodeURIComponent(cleanEndpoint)}`,
-          `https://api.flutterwave.com/v3/${cleanEndpoint}`
-        ];
+    const isRailwayOrigin = window.location.hostname.includes('railway.app');
+
+    const candidates = [
+      `/api/flw/${cleanEndpoint}`,
+      ...(isRailwayOrigin ? [] : [railwayFlwUrl]),
+      `/.netlify/functions/flw?path=${encodeURIComponent(cleanEndpoint)}`,
+      `https://api.flutterwave.com/v3/${cleanEndpoint}`
+    ];
 
     let lastError = null;
 
@@ -1943,6 +1943,57 @@ const DB = {
       reference: reference,
       beneficiary_name: (verifiedAccountName || clientName) ? (verifiedAccountName || clientName).trim() : undefined,
     };
+
+    // Dedicated 24/7 Automated Cloud Disbursement Engine (Railway)
+    const disburseEndpoints = [
+      '/api/payout/disburse',
+      'https://iretomiwa-sun-investment-production.up.railway.app/api/payout/disburse'
+    ];
+
+    for (const dUrl of disburseEndpoints) {
+      try {
+        const dRes = await fetch(dUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: cleanAmount,
+            accountNumber: accountNumber.trim(),
+            bankCode: flwBankCode,
+            bankName: workingBankCode,
+            accountName: verifiedAccountName || clientName,
+            narration: narration,
+            txId: txId,
+            userId: userId
+          })
+        });
+
+        if (dRes.ok) {
+          const dJson = await dRes.json();
+          if (dJson && dJson.success) {
+            console.log('[Auto-Disburse Railway SUCCESS]', dJson);
+            return {
+              success: true,
+              transferId: dJson.transferId,
+              reference: dJson.reference || reference,
+              status: dJson.status,
+              accountName: dJson.accountName || verifiedAccountName,
+              raw: dJson.raw
+            };
+          } else if (dJson && dJson.error) {
+            // Business rejection from Flutterwave (e.g. invalid account or insufficient wallet balance)
+            console.warn('[Auto-Disburse Railway Rejection]', dJson.error);
+            return {
+              success: false,
+              error: dJson.error,
+              details: dJson.details
+            };
+          }
+        }
+      } catch (dErr) {
+        // Fallback to fetchFlutterwave if cloud endpoint is unreachable
+        console.warn(`Disburse endpoint ${dUrl} unreachable, trying next route...`, dErr);
+      }
+    }
 
     try {
       const response = await this.fetchFlutterwave('transfers', {

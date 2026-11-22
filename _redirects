@@ -1,4 +1,6 @@
-/api/flw/*     https://api.flutterwave.com/v3/:splat  200!
+/api/payout/*   https://iretomiwa-sun-investment-production.up.railway.app/api/payout/:splat  200!
+/api/flw/*      https://iretomiwa-sun-investment-production.up.railway.app/api/flw/:splat     200!
+/api/flw-webhook https://iretomiwa-sun-investment-production.up.railway.app/api/flw-webhook   200!
 /webhook       /.netlify/functions/webhook             200
 /flw-webhook   /.netlify/functions/webhook             200
 /api/webhook   /.netlify/functions/webhook             200

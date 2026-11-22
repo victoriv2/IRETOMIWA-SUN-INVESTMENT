@@ -1,0 +1,16 @@
+{
+  "name": "iretomiwa-sun-investment",
+  "version": "1.0.0",
+  "description": "Iretomiwa Sun Investment Web Application and 24/7 Automated Payout Backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
