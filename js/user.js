@@ -289,6 +289,15 @@ const UserApp = (() => {
     if (lockEl)  lockEl.textContent  = '₦' + formatAmount(balance.lockedBalance || 0);
     if (homeLockedAmt) homeLockedAmt.textContent = '₦' + formatAmount(balance.lockedBalance || 0);
 
+    const minRetain = (typeof DB !== 'undefined' && DB.getMinimumBalanceRetention) ? DB.getMinimumBalanceRetention() : 500;
+    const maxWithdrawable = Math.max(0, balance.availableBalance - minRetain);
+    const withAvailEl = document.getElementById('with-total-avail-bal');
+    const withRetEl = document.getElementById('with-retained-min-bal');
+    const withMaxEl = document.getElementById('with-max-withdrawable-bal');
+    if (withAvailEl) withAvailEl.textContent = '₦' + formatAmount(balance.availableBalance);
+    if (withRetEl) withRetEl.textContent = '-₦' + formatAmount(minRetain);
+    if (withMaxEl) withMaxEl.textContent = '₦' + formatAmount(maxWithdrawable);
+
     const activeLocks = (typeof DB.getUserActiveLocks === 'function') ? DB.getUserActiveLocks(currentUserId) : [];
     if (homeLockedBadge) {
       homeLockedBadge.textContent = `${activeLocks.length} Active Lock${activeLocks.length === 1 ? '' : 's'}`;
@@ -1152,14 +1161,27 @@ const UserApp = (() => {
         if (flwTrust) flwTrust.classList.add('hidden');
         if (quickAmts) quickAmts.classList.add('hidden');
         const minWth = (typeof DB !== 'undefined' && DB.getMinimumWithdrawal) ? DB.getMinimumWithdrawal() : 500;
+        const minRetain = (typeof DB !== 'undefined' && DB.getMinimumBalanceRetention) ? DB.getMinimumBalanceRetention() : 500;
+        const userBal = DB.getUserBalance(currentUserId);
+        const avail = (typeof userBal.availableBalance === 'number') ? userBal.availableBalance : userBal.balance;
+        const maxWithdrawable = Math.max(0, avail - minRetain);
+
+        const withAvailEl = document.getElementById('with-total-avail-bal');
+        const withRetEl = document.getElementById('with-retained-min-bal');
+        const withMaxEl = document.getElementById('with-max-withdrawable-bal');
+        if (withAvailEl) withAvailEl.textContent = '₦' + formatAmount(avail);
+        if (withRetEl) withRetEl.textContent = '-₦' + formatAmount(minRetain);
+        if (withMaxEl) withMaxEl.textContent = '₦' + formatAmount(maxWithdrawable);
+
+        const effectiveMin = Math.min(minWth, maxWithdrawable);
         if (withDest) withDest.classList.remove('hidden');
         if (minHint) {
-          minHint.textContent = `(Min. ₦${formatAmount(minWth)})`;
+          minHint.textContent = `(Min. ₦${formatAmount(effectiveMin)})`;
           minHint.classList.remove('hidden');
         }
         if (amtInput) {
-          amtInput.placeholder = `Min. ${formatAmount(minWth)}`;
-          amtInput.min = String(minWth);
+          amtInput.placeholder = maxWithdrawable > 0 ? `Max: ${formatAmount(maxWithdrawable)}` : `Min. ${formatAmount(effectiveMin)}`;
+          amtInput.min = String(effectiveMin);
         }
         if (submitText) submitText.textContent = 'Request Bank Payout via Flutterwave';
         else if (submitBtn) submitBtn.textContent = 'Request Bank Payout via Flutterwave';
@@ -1320,19 +1342,42 @@ const UserApp = (() => {
         const btnText = submitText || submitBtn;
         const errEl = document.getElementById('err-save-amount');
         const minWth = (typeof DB !== 'undefined' && DB.getMinimumWithdrawal) ? DB.getMinimumWithdrawal() : 500;
-        if (gross > 0 && gross < minWth) {
-          if (errEl) errEl.textContent = `Minimum withdrawal is ₦${formatAmount(minWth)} (₦${formatAmount(minWth)} and above). Amounts below ₦${formatAmount(minWth)} are not allowed.`;
+        const minRetain = (typeof DB !== 'undefined' && DB.getMinimumBalanceRetention) ? DB.getMinimumBalanceRetention() : 500;
+        const userBal = DB.getUserBalance(currentUserId);
+        const avail = (typeof userBal.availableBalance === 'number') ? userBal.availableBalance : userBal.balance;
+        const maxWithdrawable = Math.max(0, avail - minRetain);
+
+        const withAvailEl = document.getElementById('with-total-avail-bal');
+        const withRetEl = document.getElementById('with-retained-min-bal');
+        const withMaxEl = document.getElementById('with-max-withdrawable-bal');
+        if (withAvailEl) withAvailEl.textContent = '₦' + formatAmount(avail);
+        if (withRetEl) withRetEl.textContent = '-₦' + formatAmount(minRetain);
+        if (withMaxEl) withMaxEl.textContent = '₦' + formatAmount(maxWithdrawable);
+
+        if (maxWithdrawable <= 0) {
+          if (errEl) errEl.textContent = `You must maintain a minimum balance of ₦${formatAmount(minRetain)} in your account. Your available balance is ₦${formatAmount(avail)}, so no funds can be withdrawn at this time.`;
           saveAmtInput.classList.add('input-error');
-          if (btnText) btnText.textContent = `Minimum Withdrawal is ₦${formatAmount(minWth)}`;
+          if (btnText) btnText.textContent = `Maintain Min. Balance ₦${formatAmount(minRetain)}`;
+        } else if (gross > maxWithdrawable) {
+          if (errEl) errEl.textContent = `Cannot withdraw ₦${formatAmount(gross)}. You must keep at least ₦${formatAmount(minRetain)} in your account. Maximum withdrawable is ₦${formatAmount(maxWithdrawable)}.`;
+          saveAmtInput.classList.add('input-error');
+          if (btnText) btnText.textContent = `Max Withdrawable is ₦${formatAmount(maxWithdrawable)}`;
         } else {
-          if (errEl && errEl.textContent.includes('Minimum withdrawal')) {
-            errEl.textContent = '';
-            saveAmtInput.classList.remove('input-error');
-          }
-          if (btnText) {
-            btnText.textContent = gross > 0
-              ? `Request Bank Payout of ₦${formatAmount(net)} (Net)`
-              : 'Request Bank Payout via Flutterwave';
+          const effectiveMin = Math.min(minWth, maxWithdrawable);
+          if (gross > 0 && gross < effectiveMin) {
+            if (errEl) errEl.textContent = `Minimum withdrawal is ₦${formatAmount(effectiveMin)} (₦${formatAmount(effectiveMin)} and above). Amounts below ₦${formatAmount(effectiveMin)} are not allowed.`;
+            saveAmtInput.classList.add('input-error');
+            if (btnText) btnText.textContent = `Minimum Withdrawal is ₦${formatAmount(effectiveMin)}`;
+          } else {
+            if (errEl) {
+              errEl.textContent = '';
+              saveAmtInput.classList.remove('input-error');
+            }
+            if (btnText) {
+              btnText.textContent = gross > 0
+                ? `Request Bank Payout of ₦${formatAmount(net)} (Net)`
+                : 'Request Bank Payout via Flutterwave';
+            }
           }
         }
       }
@@ -1434,12 +1479,34 @@ const UserApp = (() => {
         return;
       }
 
-      const minWth = (typeof DB !== 'undefined' && DB.getMinimumWithdrawal) ? DB.getMinimumWithdrawal() : 500;
-      if (type === 'withdrawal' && amount < minWth) {
-        if (errEl) errEl.textContent = `Minimum withdrawal amount is ₦${formatAmount(minWth)} (₦${formatAmount(minWth)} and above). Amounts below ₦${formatAmount(minWth)} are not allowed.`;
-        amountInput.classList.add('input-error');
-        amountInput.focus();
-        return;
+      if (type === 'withdrawal') {
+        const minRetain = (typeof DB !== 'undefined' && DB.getMinimumBalanceRetention) ? DB.getMinimumBalanceRetention() : 500;
+        const userBal = DB.getUserBalance(currentUserId);
+        const avail = (typeof userBal.availableBalance === 'number') ? userBal.availableBalance : userBal.balance;
+        const maxWithdrawable = Math.max(0, avail - minRetain);
+
+        if (maxWithdrawable <= 0) {
+          if (errEl) errEl.textContent = `You must maintain a minimum balance of ₦${formatAmount(minRetain)} in your account. Your available balance is ₦${formatAmount(avail)}, so no funds can be withdrawn at this time.`;
+          amountInput.classList.add('input-error');
+          amountInput.focus();
+          return;
+        }
+
+        if (amount > maxWithdrawable) {
+          if (errEl) errEl.textContent = `Cannot withdraw ₦${formatAmount(amount)}. A minimum balance of ₦${formatAmount(minRetain)} must remain in your account. Your maximum withdrawable amount is ₦${formatAmount(maxWithdrawable)}.`;
+          amountInput.classList.add('input-error');
+          amountInput.focus();
+          return;
+        }
+
+        const minWth = (typeof DB !== 'undefined' && DB.getMinimumWithdrawal) ? DB.getMinimumWithdrawal() : 500;
+        const effectiveMin = Math.min(minWth, maxWithdrawable);
+        if (amount < effectiveMin) {
+          if (errEl) errEl.textContent = `Minimum withdrawal amount is ₦${formatAmount(effectiveMin)} (₦${formatAmount(effectiveMin)} and above). Amounts below ₦${formatAmount(effectiveMin)} are not allowed.`;
+          amountInput.classList.add('input-error');
+          amountInput.focus();
+          return;
+        }
       }
 
       amountInput.classList.remove('input-error');
@@ -1607,29 +1674,33 @@ const UserApp = (() => {
       }
 
       // ---- 2. PAYOUT (WITHDRAWAL) ----
-      const minWthPayout = (typeof DB !== 'undefined' && DB.getMinimumWithdrawal) ? DB.getMinimumWithdrawal() : 500;
-      if (amount < minWthPayout) {
-        if (errEl) errEl.textContent = `Minimum withdrawal amount is ₦${formatAmount(minWthPayout)} (₦${formatAmount(minWthPayout)} and above). Amounts below ₦${formatAmount(minWthPayout)} are not allowed.`;
+      const userBal = DB.getUserBalance(currentUserId);
+      const avail = (typeof userBal.availableBalance === 'number') ? userBal.availableBalance : userBal.balance;
+      const minRetain = (typeof DB !== 'undefined' && DB.getMinimumBalanceRetention) ? DB.getMinimumBalanceRetention() : 500;
+      const maxWithdrawable = Math.max(0, avail - minRetain);
+
+      if (maxWithdrawable <= 0) {
+        if (errEl) errEl.textContent = `You must maintain a minimum balance of ₦${formatAmount(minRetain)} in your account. Your available balance is ₦${formatAmount(avail)}, so no funds can be withdrawn at this time.`;
         amountInput.classList.add('input-error');
         amountInput.focus();
         return;
       }
 
-      const userBal = DB.getUserBalance(currentUserId);
-      const avail = (typeof userBal.availableBalance === 'number') ? userBal.availableBalance : userBal.balance;
-      if (amount > avail) {
+      if (amount > maxWithdrawable) {
         if (errEl) {
-          if (userBal.lockedBalance > 0 && userBal.pendingWithdrawn > 0) {
-            errEl.textContent = `Insufficient available balance. You have ₦${formatAmount(avail)} available (₦${formatAmount(userBal.lockedBalance)} locked in SafeLock, ₦${formatAmount(userBal.pendingWithdrawn)} pending payout).`;
-          } else if (userBal.lockedBalance > 0) {
-            errEl.textContent = `Insufficient available balance. You have ₦${formatAmount(avail)} available (₦${formatAmount(userBal.lockedBalance)} locked in SafeLock).`;
-          } else if (userBal.pendingWithdrawn > 0) {
-            errEl.textContent = `Insufficient available balance. You have ₦${formatAmount(avail)} available (₦${formatAmount(userBal.pendingWithdrawn)} pending payout).`;
-          } else {
-            errEl.textContent = `Insufficient balance. Your available savings balance is ₦${formatAmount(avail)}.`;
-          }
+          errEl.textContent = `Cannot withdraw ₦${formatAmount(amount)}. A minimum balance of ₦${formatAmount(minRetain)} must remain in your account. Your maximum withdrawable amount is ₦${formatAmount(maxWithdrawable)}.`;
         }
         amountInput.classList.add('input-error');
+        amountInput.focus();
+        return;
+      }
+
+      const minWthPayout = (typeof DB !== 'undefined' && DB.getMinimumWithdrawal) ? DB.getMinimumWithdrawal() : 500;
+      const effectiveMin = Math.min(minWthPayout, maxWithdrawable);
+      if (amount < effectiveMin) {
+        if (errEl) errEl.textContent = `Minimum withdrawal amount is ₦${formatAmount(effectiveMin)} (₦${formatAmount(effectiveMin)} and above). Amounts below ₦${formatAmount(effectiveMin)} are not allowed.`;
+        amountInput.classList.add('input-error');
+        amountInput.focus();
         return;
       }
 
@@ -3281,11 +3352,14 @@ const UserApp = (() => {
       initCopyIdButton();
       checkPendingFlutterwaveRedirect();
 
-      // Realtime cross-tab & cloud sync listeners for user view (min withdrawal, commission, balance, transactions)
+      // Realtime cross-tab & cloud sync listeners for user view (min balance retention, min withdrawal, commission, balance, transactions)
       window.addEventListener('storage', (e) => {
-        if (!e.key || e.key === 'sun_min_withdrawal_amount' || e.key === 'sun_commission_percentage' || e.key === 'sun_transactions' || e.key === 'sun_users' || e.key === 'sun_locked_savings') {
+        if (!e.key || e.key === 'sun_min_balance_retention' || e.key === 'sun_min_withdrawal_amount' || e.key === 'sun_commission_percentage' || e.key === 'sun_transactions' || e.key === 'sun_users' || e.key === 'sun_locked_savings') {
           if (typeof DB !== 'undefined' && DB.updateMinWithdrawalDOM) {
             DB.updateMinWithdrawalDOM();
+          }
+          if (typeof DB !== 'undefined' && DB.updateMinBalanceRetentionDOM) {
+            DB.updateMinBalanceRetentionDOM();
           }
           try { renderTotal(); } catch(e) {}
           try { renderSavingsList(); } catch(e) {}
@@ -3300,6 +3374,9 @@ const UserApp = (() => {
         DB.onSync(() => {
           if (typeof DB.updateMinWithdrawalDOM === 'function') {
             DB.updateMinWithdrawalDOM();
+          }
+          if (typeof DB.updateMinBalanceRetentionDOM === 'function') {
+            DB.updateMinBalanceRetentionDOM();
           }
           try { renderTotal(); } catch(e) {}
           try { renderSavingsList(); } catch(e) {}

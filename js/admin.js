@@ -2266,6 +2266,10 @@ const AdminApp = (() => {
     const minWthBadge = document.getElementById('admin-more-min-withdrawal-badge');
     if (minWthBadge) minWthBadge.textContent = '₦' + formatAmount(minWthAmt);
 
+    const minRetainAmt = (typeof DB !== 'undefined' && DB.getMinimumBalanceRetention) ? DB.getMinimumBalanceRetention() : 500;
+    const minRetainBadge = document.getElementById('admin-more-min-balance-badge');
+    if (minRetainBadge) minRetainBadge.textContent = '₦' + formatAmount(minRetainAmt);
+
     const uEl = document.getElementById('more-stat-users');
     const bEl = document.getElementById('more-stat-balance');
     const dEl = document.getElementById('more-stat-deposits');
@@ -3125,6 +3129,98 @@ const AdminApp = (() => {
         } catch (err) {
           if (errBox) {
             errBox.textContent = err.message || 'Failed to update minimum withdrawal limit.';
+            errBox.classList.remove('hidden');
+          }
+        }
+      });
+    }
+  }
+
+  // Admin Minimum Account Balance Retention Modal
+  function initAdminMinBalance() {
+    const openBtn = document.getElementById('btn-admin-change-min-balance');
+    const modal   = document.getElementById('modal-admin-min-balance');
+    const form    = document.getElementById('admin-min-balance-form');
+
+    if (openBtn && modal) {
+      openBtn.addEventListener('click', () => {
+        const errEl   = document.getElementById('err-admin-min-balance');
+        const errBox  = document.getElementById('admin-min-balance-error');
+        const succBox = document.getElementById('admin-min-balance-success');
+        const dispEl  = document.getElementById('admin-current-min-balance-display');
+        const inputEl = document.getElementById('admin-min-balance-input');
+
+        if (errEl)   errEl.textContent = '';
+        if (errBox)  errBox.classList.add('hidden');
+        if (succBox) succBox.classList.add('hidden');
+
+        const currentRet = (typeof DB !== 'undefined' && DB.getMinimumBalanceRetention) ? DB.getMinimumBalanceRetention() : 500;
+        if (dispEl)  dispEl.textContent = '₦' + formatAmount(currentRet);
+        if (inputEl) {
+          inputEl.value = currentRet;
+          if (typeof window.disableNumberInputWheelScroll === 'function') {
+            window.disableNumberInputWheelScroll(inputEl);
+          } else {
+            inputEl.addEventListener('wheel', (e) => { e.preventDefault(); e.target.blur(); }, { passive: false });
+          }
+        }
+
+        modal.classList.remove('hidden');
+        if (inputEl) inputEl.focus();
+      });
+    }
+
+    // Preset pills (₦0, ₦100, ₦500, ₦1,000, ₦2,000, ₦5,000)
+    document.querySelectorAll('.admin-min-balance-preset').forEach(preset => {
+      preset.addEventListener('click', () => {
+        const inputEl = document.getElementById('admin-min-balance-input');
+        if (inputEl) {
+          inputEl.value = preset.dataset.min;
+          inputEl.focus();
+        }
+      });
+    });
+
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const errEl   = document.getElementById('err-admin-min-balance');
+        const errBox  = document.getElementById('admin-min-balance-error');
+        const succBox = document.getElementById('admin-min-balance-success');
+        const inputEl = document.getElementById('admin-min-balance-input');
+        const dispEl  = document.getElementById('admin-current-min-balance-display');
+
+        if (errEl)   errEl.textContent = '';
+        if (errBox)  errBox.classList.add('hidden');
+        if (succBox) succBox.classList.add('hidden');
+
+        const val = inputEl ? inputEl.value.replace(/,/g, '').trim() : '';
+        const num = parseFloat(val);
+
+        if (val === '' || isNaN(num) || num < 0) {
+          if (errEl) errEl.textContent = 'Please enter a valid minimum balance amount in Naira (e.g. 500 or 0 to disable).';
+          return;
+        }
+
+        try {
+          const updated = DB.setMinimumBalanceRetention(num);
+          const formatted = '₦' + formatAmount(updated);
+          if (dispEl) dispEl.textContent = formatted;
+          const badge = document.getElementById('admin-more-min-balance-badge');
+          if (badge) badge.textContent = formatted;
+
+          if (succBox) {
+            succBox.textContent = `Minimum account balance successfully updated to ${formatted}. Clients must retain at least this amount in their savings.`;
+            succBox.classList.remove('hidden');
+          }
+
+          setTimeout(() => {
+            if (modal) modal.classList.add('hidden');
+          }, 1200);
+        } catch (err) {
+          if (errBox) {
+            errBox.textContent = err.message || 'Failed to update minimum account balance.';
             errBox.classList.remove('hidden');
           }
         }
@@ -4155,6 +4251,7 @@ const AdminApp = (() => {
     initAdminCommission();
     initAdminLockPenalty();
     initAdminMinWithdrawal();
+    initAdminMinBalance();
     initAdminChangeEmail();
     initAdminChangePassword();
     initAdminFactoryReset();

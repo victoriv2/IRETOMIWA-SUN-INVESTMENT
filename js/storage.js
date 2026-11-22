@@ -514,6 +514,12 @@ const DB = {
             mergedFlw.min_withdrawal_amount = this.getMinimumWithdrawal();
             mergedFlw.min_withdrawal_updated_at = locMinUp;
           }
+          const locRetUp = localStorage.getItem('sun_min_balance_retention_updated_at') || '1970-01-01T00:00:00.000Z';
+          const cldRetUp = (cloudFlw && cloudFlw.min_balance_retention_updated_at) ? cloudFlw.min_balance_retention_updated_at : '1970-01-01T00:00:00.000Z';
+          if (locRetUp > cldRetUp) {
+            mergedFlw.min_balance_retention = this.getMinimumBalanceRetention();
+            mergedFlw.min_balance_retention_updated_at = locRetUp;
+          }
           localStorage.setItem('sun_flutterwave_config', JSON.stringify(mergedFlw));
         }
       }
@@ -560,6 +566,21 @@ const DB = {
         }
       }
 
+      // Merge Minimum Balance Retention with timestamp priority
+      const localRetain = this.getMinimumBalanceRetention();
+      const localRetainUpdated = localStorage.getItem('sun_min_balance_retention_updated_at') || '1970-01-01T00:00:00.000Z';
+      const cloudRetainUpdated = (cloudFlw && cloudFlw.min_balance_retention_updated_at) ? cloudFlw.min_balance_retention_updated_at : '1970-01-01T00:00:00.000Z';
+      let finalRetain = localRetain;
+
+      if (cloudFlw && typeof cloudFlw === 'object' && cloudFlw.min_balance_retention !== undefined) {
+        const cr = parseFloat(cloudFlw.min_balance_retention);
+        if (!isNaN(cr) && cr >= 0 && cloudRetainUpdated > localRetainUpdated) {
+          finalRetain = cr;
+          localStorage.setItem('sun_min_balance_retention', String(finalRetain));
+          localStorage.setItem('sun_min_balance_retention_updated_at', cloudRetainUpdated);
+        }
+      }
+
       // Merge Locked Savings from Cloud
       if (cloudFlw && typeof cloudFlw === 'object') {
         if (Array.isArray(cloudFlw.locked_savings)) {
@@ -582,7 +603,7 @@ const DB = {
         }
       }
 
-      // Safely embed commission rate, lock penalty, and min withdrawal in flutterwave_config JSON to match Supabase schema
+      // Safely embed commission rate, lock penalty, min withdrawal, and min balance retention in flutterwave_config JSON
       if (mergedFlw && typeof mergedFlw === 'object') {
         mergedFlw.commission_percentage = finalComm;
         mergedFlw.commission_updated_at = localCommUpdated > cloudCommUpdated ? localCommUpdated : cloudCommUpdated;
@@ -591,6 +612,8 @@ const DB = {
         mergedFlw.locked_savings = this.getAllLocks();
         mergedFlw.min_withdrawal_amount = finalMin;
         mergedFlw.min_withdrawal_updated_at = localMinUpdated > cloudMinUpdated ? localMinUpdated : cloudMinUpdated;
+        mergedFlw.min_balance_retention = finalRetain;
+        mergedFlw.min_balance_retention_updated_at = localRetainUpdated > cloudRetainUpdated ? localRetainUpdated : cloudRetainUpdated;
       }
 
       const payload = {
@@ -698,6 +721,16 @@ const DB = {
               localStorage.setItem('sun_min_withdrawal_amount', String(mVal));
               localStorage.setItem('sun_min_withdrawal_updated_at', cloudMinUp);
               try { this.updateMinWithdrawalDOM(mVal); } catch(e) {}
+            }
+          }
+          if (activeFlw.min_balance_retention !== undefined) {
+            const rVal = parseFloat(activeFlw.min_balance_retention);
+            const cloudRetUp = activeFlw.min_balance_retention_updated_at || '1970-01-01T00:00:00.000Z';
+            const locRetUp = localStorage.getItem('sun_min_balance_retention_updated_at') || '1970-01-01T00:00:00.000Z';
+            if (!isNaN(rVal) && rVal >= 0 && cloudRetUp >= locRetUp) {
+              localStorage.setItem('sun_min_balance_retention', String(rVal));
+              localStorage.setItem('sun_min_balance_retention_updated_at', cloudRetUp);
+              try { this.updateMinBalanceRetentionDOM(rVal); } catch(e) {}
             }
           }
         }
@@ -843,6 +876,16 @@ const DB = {
             localStorage.setItem('sun_min_withdrawal_amount', String(mVal));
             localStorage.setItem('sun_min_withdrawal_updated_at', cloudMinUpdated);
             try { this.updateMinWithdrawalDOM(mVal); } catch(e) {}
+          }
+        }
+        const localRetainUpdated = localStorage.getItem('sun_min_balance_retention_updated_at') || '1970-01-01T00:00:00.000Z';
+        const cloudRetainUpdated = (cloudFlw && cloudFlw.min_balance_retention_updated_at) ? cloudFlw.min_balance_retention_updated_at : '1970-01-01T00:00:00.000Z';
+        if (cloudFlw.min_balance_retention !== undefined) {
+          const rVal = parseFloat(cloudFlw.min_balance_retention);
+          if (!isNaN(rVal) && rVal >= 0 && cloudRetainUpdated > localRetainUpdated) {
+            localStorage.setItem('sun_min_balance_retention', String(rVal));
+            localStorage.setItem('sun_min_balance_retention_updated_at', cloudRetainUpdated);
+            try { this.updateMinBalanceRetentionDOM(rVal); } catch(e) {}
           }
         }
       }
@@ -1084,9 +1127,23 @@ const DB = {
     const assignedStatus = status || (isUser ? 'pending' : 'approved');
 
     const minWth = (typeof this.getMinimumWithdrawal === 'function') ? this.getMinimumWithdrawal() : 500;
-    if (isUser && (type === 'withdrawal' || type === 'payout') && (parseFloat(amount) || 0) < minWth) {
-      console.warn(`Rejected withdrawal below minimum ₦${minWth}:`, amount);
-      return null;
+    const minRetain = (typeof this.getMinimumBalanceRetention === 'function') ? this.getMinimumBalanceRetention() : 500;
+    if (isUser && (type === 'withdrawal' || type === 'payout')) {
+      const parsedAmt = parseFloat(amount) || 0;
+      const userBal = this.getUserBalance(userId);
+      const avail = (typeof userBal.availableBalance === 'number') ? userBal.availableBalance : userBal.balance;
+      const maxWithdrawable = Math.max(0, avail - minRetain);
+
+      if (parsedAmt > maxWithdrawable) {
+        console.warn(`Rejected withdrawal exceeding withdrawable limit ₦${maxWithdrawable} (Retaining ₦${minRetain}):`, amount);
+        return null;
+      }
+
+      const allowedMin = Math.min(minWth, maxWithdrawable);
+      if (parsedAmt < allowedMin && maxWithdrawable >= allowedMin) {
+        console.warn(`Rejected withdrawal below minimum ₦${allowedMin}:`, amount);
+        return null;
+      }
     }
 
     const tx = {
@@ -1244,12 +1301,16 @@ const DB = {
 
     const balance = Math.max(0, totalDeposited - totalWithdrawn);
     const availableBalance = Math.max(0, balance - pendingWithdrawn - lockedBalance);
+    const minRetainedBalance = (typeof this.getMinimumBalanceRetention === 'function') ? this.getMinimumBalanceRetention() : 500;
+    const withdrawableBalance = Math.max(0, availableBalance - minRetainedBalance);
 
     return {
       totalDeposited,
       totalWithdrawn,
       balance,
       availableBalance,
+      minRetainedBalance,
+      withdrawableBalance,
       lockedBalance,
       pendingDeposits,
       pendingWithdrawn,
@@ -1559,6 +1620,59 @@ const DB = {
       amtInput.placeholder = `Min. ${formatted}`;
       amtInput.min = String(val);
     }
+  },
+
+  // ---- MINIMUM ACCOUNT BALANCE TO MAINTAIN (RETENTION) ----
+  getMinimumBalanceRetention() {
+    try {
+      const stored = localStorage.getItem('sun_min_balance_retention');
+      if (stored !== null && stored !== undefined && stored !== '') {
+        const parsed = parseFloat(stored);
+        if (!isNaN(parsed) && parsed >= 0) {
+          return parsed;
+        }
+      }
+    } catch(e) {}
+    return 500; // Default ₦500 minimum retained balance
+  },
+
+  setMinimumBalanceRetention(amount) {
+    const num = parseFloat(amount);
+    if (isNaN(num) || num < 0) {
+      throw new Error('Minimum account balance must be a valid non-negative number (or 0 to disable).');
+    }
+    const rounded = Math.round(num * 100) / 100;
+    const nowIso = new Date().toISOString();
+    localStorage.setItem('sun_min_balance_retention', String(rounded));
+    localStorage.setItem('sun_min_balance_retention_updated_at', nowIso);
+
+    try {
+      const flwCfg = this.getFlutterwaveConfig();
+      flwCfg.min_balance_retention = rounded;
+      flwCfg.min_balance_retention_updated_at = nowIso;
+      flwCfg.updatedAt = nowIso;
+      localStorage.setItem('sun_flutterwave_config', JSON.stringify(flwCfg));
+    } catch (e) {}
+
+    try {
+      this.updateMinBalanceRetentionDOM(rounded);
+    } catch(e) {}
+
+    this.scheduleCloudPush();
+    return rounded;
+  },
+
+  updateMinBalanceRetentionDOM(retVal) {
+    const val = (retVal !== undefined && retVal !== null) ? retVal : this.getMinimumBalanceRetention();
+    const formatted = this.formatAmount(val);
+    document.querySelectorAll('.min-balance-badge, #admin-more-min-balance-badge').forEach(el => {
+      el.textContent = '₦' + formatted;
+    });
+    document.querySelectorAll('.min-balance-display, #admin-current-min-balance-display').forEach(el => {
+      el.textContent = '₦' + formatted;
+    });
+    const retEl = document.getElementById('with-retained-min-bal');
+    if (retEl) retEl.textContent = '-₦' + formatted;
   },
 
   getAllLocks() {

@@ -58,7 +58,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261122_FLW_BTN_PRIMARY_V101';
+      var APP_BUILD_VER = '20261122_MIN_BALANCE_SYSTEM_V102';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -583,6 +583,21 @@
                 </div>
                 <div style="font-size: 12px; font-weight: 600; color: #92400e; background: #fef3c7; border: 1px solid #fde68a; border-radius: 6px; padding: 6px 10px; margin-bottom: 8px;">
                   Minimum withdrawal is <span id="with-min-val-hint">₦500.00</span> (<span id="with-min-val-hint-2">₦500.00</span> and above).
+                </div>
+                <!-- Minimum Account Balance Retention Summary -->
+                <div id="with-balance-retention-info" style="font-size: 12px; font-weight: 600; color: #1e40af; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; line-height: 1.5;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                    <span style="color: #475569;">Total Savings Balance:</span>
+                    <strong style="color: #0f172a;" id="with-total-avail-bal">₦0.00</strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 3px; color: #b45309;">
+                    <span>Minimum Balance Retained:</span>
+                    <strong id="with-retained-min-bal">-₦500.00</strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; border-top: 1px dashed #93c5fd; padding-top: 4px; color: #1e3a8a;">
+                    <span style="font-weight: 700;">Max Withdrawable Now:</span>
+                    <strong id="with-max-withdrawable-bal" style="font-weight: 800; font-size: 13.5px; color: #1d4ed8;">₦0.00</strong>
+                  </div>
                 </div>
                 <div style="display:flex; justify-content:space-between; margin-bottom: 5px;">
                   <span style="color: #713f12;">Gross Savings Requested:</span>
@@ -1775,6 +1790,23 @@
               </span>
             </button>
 
+            <button type="button" class="more-menu-item" id="btn-admin-change-min-balance">
+              <span class="more-menu-icon" style="color: #0284c7; background: #e0f2fe;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+              </span>
+              <span class="more-menu-label" style="display: flex; align-items: center; justify-content: space-between; width: 100%; padding-right: 8px;">
+                <span>Minimum Balance to Maintain</span>
+                <span class="status-badge" id="admin-more-min-balance-badge" style="background: #e0f2fe; color: #0369a1; font-weight: 800; font-size: 11px; padding: 2px 8px; border-radius: 999px;">₦500.00</span>
+              </span>
+              <span class="more-menu-arrow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </span>
+            </button>
+
             <button type="button" class="more-menu-item" id="btn-admin-change-email">
               <span class="more-menu-icon" style="color: #2563eb; background: #dbeafe;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2549,6 +2581,55 @@
     </div>
   </div>
 
+  <!-- Modal: Admin Minimum Account Balance to Maintain (Retention) -->
+  <div id="modal-admin-min-balance" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Minimum Balance to Maintain</h3>
+        <button type="button" class="modal-close" data-modal="modal-admin-min-balance" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div style="background: #f0f9ff; border: 1.5px solid #bae6fd; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px;">
+        <span style="font-size: 11.5px; font-weight: 700; color: #0369a1; text-transform: uppercase; letter-spacing: 0.5px;">Current Minimum Account Balance</span>
+        <div style="font-size: 22px; font-weight: 800; color: #0c4a6e; margin-top: 2px;" id="admin-current-min-balance-display">₦500.00</div>
+        <small style="display:block; margin-top:4px; font-size:11.5px; color:#0284c7; line-height: 1.45;">
+          Clients must retain at least this balance in their account. For example, if a client deposits ₦600.00 and minimum balance is ₦500.00, they can only withdraw up to ₦100.00. Use 0 to allow withdrawing the entire balance.
+        </small>
+      </div>
+
+      <form id="admin-min-balance-form" novalidate>
+        <div class="form-group">
+          <label for="admin-min-balance-input">New Minimum Account Balance Figure (₦)</label>
+          <div style="position: relative;">
+            <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-weight: 800; color: var(--text-muted); font-size: 15px; pointer-events: none;">₦</span>
+            <input type="text" inputmode="decimal" id="admin-min-balance-input" placeholder="e.g. 500" style="padding-left: 32px;" autocomplete="off" />
+          </div>
+          <span class="field-error" id="err-admin-min-balance"></span>
+          <div class="quick-amounts-grid" style="margin-top: 8px;">
+            <button type="button" class="quick-amt-pill admin-min-balance-preset" data-min="0">₦0 (Off)</button>
+            <button type="button" class="quick-amt-pill admin-min-balance-preset" data-min="100">₦100</button>
+            <button type="button" class="quick-amt-pill admin-min-balance-preset" data-min="500">₦500</button>
+            <button type="button" class="quick-amt-pill admin-min-balance-preset" data-min="1000">₦1,000</button>
+            <button type="button" class="quick-amt-pill admin-min-balance-preset" data-min="2000">₦2,000</button>
+            <button type="button" class="quick-amt-pill admin-min-balance-preset" data-min="5000">₦5,000</button>
+          </div>
+          <small style="display:block; margin-top:6px; font-size:11.5px; color:var(--text-muted);">
+            Set the minimum savings balance clients must keep in their account. Use 0 to allow withdrawing the full balance.
+          </small>
+        </div>
+
+        <div id="admin-min-balance-error" class="form-error hidden"></div>
+        <div id="admin-min-balance-success" class="form-success hidden"></div>
+        <button type="submit" class="btn-primary btn-full">Save Minimum Balance</button>
+      </form>
+    </div>
+  </div>
+
   <!-- ============================================
        MODAL: USER LOCK MONEY (SAFELOCK)
        ============================================ -->
@@ -3288,13 +3369,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261122_v101"></script>
-  <script src="js/picker.js?v=20261122_v101"></script>
+  <script src="js/storage.js?v=20261122_v102"></script>
+  <script src="js/picker.js?v=20261122_v102"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261122_v101"></script>
-  <script src="js/auth.js?v=20261122_v101"></script>
-  <script src="js/user.js?v=20261122_v101"></script>
-  <script src="js/admin.js?v=20261122_v101"></script>
-  <script src="js/app.js?v=20261122_v101"></script>
+  <script src="js/export.js?v=20261122_v102"></script>
+  <script src="js/auth.js?v=20261122_v102"></script>
+  <script src="js/user.js?v=20261122_v102"></script>
+  <script src="js/admin.js?v=20261122_v102"></script>
+  <script src="js/app.js?v=20261122_v102"></script>
 </body>
 </html>
