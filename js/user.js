@@ -1136,10 +1136,14 @@ const UserApp = (() => {
       const avail = (typeof userBal.availableBalance === 'number') ? userBal.availableBalance : userBal.balance;
       if (amount > avail) {
         if (errEl) {
-          if (userBal.pendingWithdrawn && userBal.pendingWithdrawn > 0) {
+          if (userBal.lockedBalance > 0 && userBal.pendingWithdrawn > 0) {
+            errEl.textContent = `Insufficient available balance. You have ₦${formatAmount(avail)} available (₦${formatAmount(userBal.lockedBalance)} locked in SafeLock, ₦${formatAmount(userBal.pendingWithdrawn)} pending payout).`;
+          } else if (userBal.lockedBalance > 0) {
+            errEl.textContent = `Insufficient available balance. You have ₦${formatAmount(avail)} available (₦${formatAmount(userBal.lockedBalance)} locked in SafeLock).`;
+          } else if (userBal.pendingWithdrawn > 0) {
             errEl.textContent = `Insufficient available balance. You have ₦${formatAmount(avail)} available (₦${formatAmount(userBal.pendingWithdrawn)} pending payout).`;
           } else {
-            errEl.textContent = `Insufficient balance. Your current savings balance is ₦${formatAmount(userBal.balance)}.`;
+            errEl.textContent = `Insufficient balance. Your available savings balance is ₦${formatAmount(avail)}.`;
           }
         }
         amountInput.classList.add('input-error');

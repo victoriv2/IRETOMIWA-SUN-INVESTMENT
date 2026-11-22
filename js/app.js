@@ -337,11 +337,14 @@ document.addEventListener('wheel', function(e) {
   const activeEl = document.activeElement;
   const isActiveNumber = activeEl && activeEl.tagName === 'INPUT' && activeEl.type === 'number';
 
-  if (isTargetNumber || isActiveNumber) {
+  if (isTargetNumber) {
     e.preventDefault();
-    if (isTargetNumber && typeof target.blur === 'function') {
+    if (typeof target.blur === 'function') {
       target.blur();
-    } else if (isActiveNumber && typeof activeEl.blur === 'function') {
+    }
+  } else if (isActiveNumber) {
+    // If user scrolls page outside the input, blur the number input so it cannot increment, but let page scroll
+    if (typeof activeEl.blur === 'function') {
       activeEl.blur();
     }
   }
