@@ -512,10 +512,40 @@ const DB = {
         localStorage.setItem('sun_commission_updated_at', cloudCommUpdated);
       }
 
-      // Safely embed commission rate in flutterwave_config JSON to match Supabase schema
+      // Merge Early Break Penalty & Locked Savings from Cloud
+      if (cloudFlw && typeof cloudFlw === 'object') {
+        if (cloudFlw.lock_penalty_percentage !== undefined) {
+          const cp = parseFloat(cloudFlw.lock_penalty_percentage);
+          if (!isNaN(cp) && cp >= 0 && cp <= 100) {
+            localStorage.setItem('sun_lock_penalty_percentage', String(cp));
+          }
+        }
+        if (Array.isArray(cloudFlw.locked_savings)) {
+          const localLocks = this.getAllLocks();
+          const lockMap = new Map();
+          localLocks.forEach(l => { if (l && l.id) lockMap.set(l.id, l); });
+          cloudFlw.locked_savings.forEach(l => {
+            if (l && l.id) {
+              if (!lockMap.has(l.id)) {
+                lockMap.set(l.id, l);
+              } else {
+                const localL = lockMap.get(l.id);
+                if (localL.status === 'active' && l.status !== 'active') {
+                  lockMap.set(l.id, l);
+                }
+              }
+            }
+          });
+          localStorage.setItem('sun_locked_savings', JSON.stringify(Array.from(lockMap.values())));
+        }
+      }
+
+      // Safely embed commission rate and locked savings in flutterwave_config JSON to match Supabase schema
       if (mergedFlw && typeof mergedFlw === 'object') {
         mergedFlw.commission_percentage = finalComm;
         mergedFlw.commission_updated_at = localCommUpdated > cloudCommUpdated ? localCommUpdated : cloudCommUpdated;
+        mergedFlw.lock_penalty_percentage = this.getLockPenaltyRate();
+        mergedFlw.locked_savings = this.getAllLocks();
       }
 
       const payload = {
@@ -1054,30 +1084,35 @@ const DB = {
       const amt = parseFloat(t.amount) || 0;
       const status = t.status || 'approved'; // existing legacy records default to approved
       const isPayout = (t.type === 'withdrawal' || t.type === 'payout');
+      const isDeposit = (t.type === 'deposit');
 
       if (status === 'approved' || status === 'successful') {
         if (isPayout) {
           totalWithdrawn += amt;
-        } else {
+        } else if (isDeposit) {
           totalDeposited += amt;
         }
       } else if (status === 'pending') {
         if (isPayout) {
           pendingWithdrawn += amt;
-        } else {
+        } else if (isDeposit) {
           pendingDeposits += amt;
         }
       }
     });
 
+    const activeLocks = (typeof this.getUserActiveLocks === 'function') ? this.getUserActiveLocks(userId) : [];
+    const lockedBalance = activeLocks.reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
+
     const balance = Math.max(0, totalDeposited - totalWithdrawn);
-    const availableBalance = Math.max(0, balance - pendingWithdrawn);
+    const availableBalance = Math.max(0, balance - pendingWithdrawn - lockedBalance);
 
     return {
       totalDeposited,
       totalWithdrawn,
       balance,
       availableBalance,
+      lockedBalance,
       pendingDeposits,
       pendingWithdrawn,
     };
@@ -1125,27 +1160,38 @@ const DB = {
       const amt = parseFloat(t.amount) || 0;
       const status = t.status || 'approved';
       const isPayout = (t.type === 'withdrawal' || t.type === 'payout');
+      const isDeposit = (t.type === 'deposit');
 
       if (status === 'approved' || status === 'successful') {
         if (isPayout) {
           totalWithdrawn += amt;
-        } else {
+        } else if (isDeposit) {
           totalDeposited += amt;
         }
       } else if (status === 'pending') {
         pendingCount++;
         if (isPayout) {
           pendingPayouts += amt;
-        } else {
+        } else if (isDeposit) {
           pendingDeposits += amt;
         }
       }
     });
 
+    const allLocks = (typeof this.getAllLocks === 'function') ? this.getAllLocks() : [];
+    const totalLocked = allLocks
+      .filter(l => l.status === 'active')
+      .reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
+
+    const totalBalance = Math.max(0, totalDeposited - totalWithdrawn);
+    const availableBalance = Math.max(0, totalBalance - totalLocked - pendingPayouts);
+
     return {
       totalDeposited,
       totalWithdrawn,
-      totalBalance: Math.max(0, totalDeposited - totalWithdrawn),
+      totalBalance,
+      totalLocked,
+      availableBalance,
       userCount: users.length,
       pendingCount,
       pendingDeposits,
@@ -1272,6 +1318,241 @@ const DB = {
 
     this.scheduleCloudPush();
     return rounded;
+  },
+
+  // ---- SAFELOCK (LOCKED SAVINGS) & EARLY BREAK PENALTY ----
+  getLockPenaltyRate() {
+    try {
+      const stored = localStorage.getItem('sun_lock_penalty_percentage');
+      if (stored !== null && stored !== undefined && stored !== '') {
+        const parsed = parseFloat(stored);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return 5; // Default 5% early break penalty
+  },
+
+  setLockPenaltyRate(rate) {
+    const num = parseFloat(rate);
+    if (isNaN(num) || num < 0 || num > 100) {
+      throw new Error('Lock penalty rate must be a valid percentage between 0% and 100%.');
+    }
+    const rounded = Math.round(num * 100) / 100;
+    const nowIso = new Date().toISOString();
+    localStorage.setItem('sun_lock_penalty_percentage', String(rounded));
+    localStorage.setItem('sun_lock_penalty_updated_at', nowIso);
+
+    try {
+      const flwCfg = this.getFlutterwaveConfig();
+      flwCfg.lock_penalty_percentage = rounded;
+      flwCfg.lock_penalty_updated_at = nowIso;
+      flwCfg.updatedAt = nowIso;
+      localStorage.setItem('sun_flutterwave_config', JSON.stringify(flwCfg));
+    } catch (e) {}
+
+    const adminBadge = document.getElementById('admin-more-lock-penalty-badge');
+    if (adminBadge) adminBadge.textContent = `${rounded}%`;
+
+    this.scheduleCloudPush();
+    return rounded;
+  },
+
+  getAllLocks() {
+    try {
+      const raw = localStorage.getItem('sun_locked_savings');
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  },
+
+  getUserLocks(userId) {
+    if (!userId) return [];
+    return this.getAllLocks()
+      .filter(l => String(l.userId) === String(userId))
+      .sort((a, b) => new Date(b.lockedAt || 0) - new Date(a.lockedAt || 0));
+  },
+
+  getUserActiveLocks(userId) {
+    return this.getUserLocks(userId).filter(l => l.status === 'active');
+  },
+
+  getLockById(lockId) {
+    if (!lockId) return null;
+    return this.getAllLocks().find(l => l.id === lockId) || null;
+  },
+
+  createLock({ userId, title, amount, dueDate }) {
+    if (!userId) throw new Error('User ID is required.');
+    const user = this.getUserById(userId);
+    if (!user) throw new Error('User account not found.');
+
+    const cleanAmount = parseFloat(amount);
+    if (isNaN(cleanAmount) || cleanAmount < 500) {
+      throw new Error('Minimum lock amount is ₦500.00 (₦500.00 and above).');
+    }
+
+    if (!dueDate) throw new Error('Please select a target maturity/due date.');
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const dueStr = String(dueDate).slice(0, 10);
+    if (dueStr <= todayStr) {
+      throw new Error('Maturity date must be a future date (tomorrow or later).');
+    }
+
+    const userBal = this.getUserBalance(userId);
+    if (cleanAmount > userBal.availableBalance) {
+      throw new Error(`Insufficient available balance. You only have ₦${Number(userBal.availableBalance).toLocaleString('en-NG', { minimumFractionDigits: 2 })} available to lock.`);
+    }
+
+    const lockTitle = (title && title.trim()) ? title.trim() : 'Target SafeLock';
+    const lockId = 'lock_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+
+    const lock = {
+      id: lockId,
+      userId: userId,
+      title: lockTitle,
+      amount: cleanAmount,
+      lockedAt: new Date().toISOString(),
+      dueDate: dueStr,
+      status: 'active',
+      penaltyRateAtCreation: this.getLockPenaltyRate(),
+      penaltyAmount: 0,
+      netReturned: 0,
+      unlockedAt: null,
+      unlockType: null
+    };
+
+    const allLocks = this.getAllLocks();
+    allLocks.unshift(lock);
+    localStorage.setItem('sun_locked_savings', JSON.stringify(allLocks));
+
+    // Record informative lock allocation note in user transactions
+    const dueParts = dueStr.split('-');
+    const dueFormatted = (dueParts.length === 3) ? `${dueParts[2]}/${dueParts[1]}/${dueParts[0]}` : dueStr;
+    this.addTransaction({
+      userId,
+      type: 'lock',
+      amount: cleanAmount,
+      category: 'SafeLock Allocation',
+      note: `SafeLock: ${lockTitle} (Matures ${dueFormatted})`,
+      recordedBy: 'user',
+      status: 'approved'
+    });
+
+    this.scheduleCloudPush();
+    return { success: true, lock };
+  },
+
+  unlockLock(lockId, options = {}) {
+    const allLocks = this.getAllLocks();
+    const lockIndex = allLocks.findIndex(l => l.id === lockId);
+    if (lockIndex === -1) {
+      return { success: false, error: 'Lock record could not be found.' };
+    }
+
+    const lock = allLocks[lockIndex];
+    if (lock.status !== 'active') {
+      return { success: false, error: 'This lock is no longer active.' };
+    }
+
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const dueStr = String(lock.dueDate).slice(0, 10);
+    const isEarly = (todayStr < dueStr);
+
+    let penaltyRate = 0;
+    let penaltyAmount = 0;
+    let netAmount = parseFloat(lock.amount) || 0;
+
+    if (isEarly) {
+      penaltyRate = this.getLockPenaltyRate();
+      penaltyAmount = Math.round(netAmount * (penaltyRate / 100) * 100) / 100;
+      netAmount = Math.max(0, Math.round((netAmount - penaltyAmount) * 100) / 100);
+
+      // Record penalty deduction as approved withdrawal
+      if (penaltyAmount > 0) {
+        this.addTransaction({
+          userId: lock.userId,
+          type: 'withdrawal',
+          amount: penaltyAmount,
+          category: 'Early Lock Break Penalty',
+          note: `Early Lock Break Penalty (${penaltyRate}%) - ${lock.title}`,
+          recordedBy: 'system',
+          status: 'approved'
+        });
+      }
+
+      // Record release note
+      this.addTransaction({
+        userId: lock.userId,
+        type: 'lock_release',
+        amount: netAmount,
+        category: 'SafeLock Release',
+        note: `SafeLock Early Break Released: ${lock.title} (Net: ₦${Number(netAmount).toLocaleString('en-NG', { minimumFractionDigits: 2 })})`,
+        recordedBy: 'system',
+        status: 'approved'
+      });
+
+      lock.status = 'broken';
+      lock.penaltyRate = penaltyRate;
+      lock.penaltyAmount = penaltyAmount;
+      lock.netReturned = netAmount;
+      lock.unlockedAt = new Date().toISOString();
+      lock.unlockType = 'early_break';
+    } else {
+      // Matured on or after due date (0% penalty)
+      this.addTransaction({
+        userId: lock.userId,
+        type: 'lock_release',
+        amount: netAmount,
+        category: 'SafeLock Release',
+        note: `SafeLock Matured & Released: ${lock.title} (100% ₦${Number(netAmount).toLocaleString('en-NG', { minimumFractionDigits: 2 })})`,
+        recordedBy: 'system',
+        status: 'approved'
+      });
+
+      lock.status = 'unlocked';
+      lock.penaltyRate = 0;
+      lock.penaltyAmount = 0;
+      lock.netReturned = netAmount;
+      lock.unlockedAt = new Date().toISOString();
+      lock.unlockType = 'mature';
+    }
+
+    allLocks[lockIndex] = lock;
+    localStorage.setItem('sun_locked_savings', JSON.stringify(allLocks));
+    this.scheduleCloudPush();
+
+    // If user requested direct payout to destination bank
+    let payoutResult = null;
+    if (options && options.payoutToBank && netAmount >= 500) {
+      const savedBank = this.getUserPayoutBank(lock.userId);
+      if (savedBank && savedBank.accountNumber) {
+        payoutResult = this.addTransaction({
+          userId: lock.userId,
+          type: 'withdrawal',
+          amount: netAmount,
+          category: 'SafeLock Payout',
+          note: `SafeLock Payout to ${savedBank.bankName || 'Bank'} (${savedBank.accountNumber})`,
+          recordedBy: 'user',
+          status: 'pending',
+          destinationBank: savedBank
+        });
+      }
+    }
+
+    return {
+      success: true,
+      lock,
+      isEarly,
+      penaltyRate,
+      penaltyAmount,
+      netAmount,
+      payoutResult
+    };
   },
   getAdminSession() {
     try {

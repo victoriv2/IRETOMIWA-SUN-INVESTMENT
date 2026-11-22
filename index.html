@@ -58,7 +58,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261122_WITHDRAW_V73';
+      var APP_BUILD_VER = '20261122_SAFELOCK_V74';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -80,8 +80,8 @@
       }
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="css/global.css?v=20261122_v73" />
-  <link rel="stylesheet" href="css/auth.css?v=20261122_v73" />
+  <link rel="stylesheet" href="css/global.css?v=20261122_v74" />
+  <link rel="stylesheet" href="css/auth.css?v=20261122_v74" />
   <style>
     /* Gentle pre-boot session hints - JavaScript has full priority without !important blocking */
     html.is-user-logged-in #page-login { display: none; }
@@ -344,6 +344,19 @@
                 </div>
                 <span class="stat-box-value stat-box-value--debit" id="user-total-withdrawn">₦0.00</span>
               </div>
+
+              <div class="home-stat-divider" aria-hidden="true"></div>
+
+              <div class="home-stat-box">
+                <div class="stat-mini-pill" style="background: rgba(245, 158, 11, 0.2); color: #fde68a;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                  <span class="stat-box-label" style="color: #fde68a;">Locked</span>
+                </div>
+                <span class="stat-box-value" style="color: #fef08a;" id="user-total-locked">₦0.00</span>
+              </div>
             </div>
           </div>
         </div>
@@ -353,6 +366,42 @@
 
         <!-- Dedicated Permanent Savings Account Banner / Card -->
         <div id="user-dedicated-account-card-wrap" class="dedicated-card-container"></div>
+
+        <!-- SafeLock (Locked Savings) Dashboard Section -->
+        <div id="user-safelock-card-wrap" style="margin-bottom: 20px;">
+          <div style="background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%); border: 1.5px solid #fde68a; border-radius: 14px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 10px; background: #fef3c7; color: #b45309; flex-shrink: 0;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                </span>
+                <div>
+                  <h4 style="font-size: 13.5px; font-weight: 800; color: #78350f; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">SafeLock (Locked Savings)</h4>
+                  <small style="font-size: 11.5px; color: #92400e; display: block; margin-top: 1px;">Lock money towards a target date</small>
+                </div>
+              </div>
+              <button type="button" class="btn-primary" id="btn-open-lock-modal" style="padding: 7px 13px; font-size: 12px; border-radius: 8px; font-weight: 700; white-space: nowrap;">
+                + Lock Money
+              </button>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 10px 14px; background: #fffdf5; border-radius: 10px; margin-bottom: 12px; border: 1px solid #fef08a;">
+              <div>
+                <span style="font-size: 11px; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.3px;">Currently Locked</span>
+                <div style="font-size: 20px; font-weight: 900; color: #78350f; margin-top: 2px;" id="user-home-locked-amount">₦0.00</div>
+              </div>
+              <span id="user-home-locked-count-badge" style="font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: #fef3c7; color: #92400e;">0 Active Locks</span>
+            </div>
+
+            <!-- List of Active Locks Container -->
+            <div id="user-active-locks-container">
+              <!-- Dynamically rendered via JS -->
+            </div>
+          </div>
+        </div>
 
         <!-- Unified Date Filter: dd Month yyyy -->
         <div class="unified-date-bar">
@@ -428,6 +477,25 @@
         <div class="save-container">
           <h2 class="save-title" id="save-page-title">Save Money</h2>
           <p class="save-subtitle" id="save-page-subtitle">Transfer money directly to your savings via Flutterwave Bank Transfer</p>
+
+          <!-- SafeLock Quick Suggestion Banner -->
+          <div style="background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 10px; padding: 11px 14px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; background: #fef3c7; color: #b45309; flex-shrink: 0;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+              </span>
+              <div>
+                <strong style="font-size: 12.5px; color: #78350f; display: block;">Looking to Lock Funds?</strong>
+                <span style="font-size: 11px; color: #92400e;">Lock money towards a future maturity date with SafeLock</span>
+              </div>
+            </div>
+            <button type="button" class="btn-secondary" id="btn-save-tab-open-lock" style="padding: 6px 12px; font-size: 11.5px; border-radius: 7px; font-weight: 700; white-space: nowrap; background: #fff; border: 1.5px solid #fde68a; color: #92400e;">
+              Lock Money
+            </button>
+          </div>
           
           <form id="save-form" novalidate>
             <!-- Transaction Type -->
@@ -648,6 +716,24 @@
               </span>
             </button>
 
+            <button class="more-menu-item" id="btn-user-more-safelock">
+              <span class="more-menu-icon" style="color: #b45309; background: #fef3c7;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+              </span>
+              <div style="flex: 1; text-align: left;">
+                <span class="more-menu-label" style="display: block;">SafeLock (Locked Savings)</span>
+                <span style="display: block; font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Lock money towards a target date</span>
+              </div>
+              <span class="more-menu-arrow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </span>
+            </button>
+
             <button class="more-menu-item" id="btn-user-bank-details">
               <span class="more-menu-icon" style="color: #047857; background: #d1fae5;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -852,6 +938,19 @@
             <div class="summary-card-body">
               <p class="summary-card-label">Total Payouts (Outflow)</p>
               <p class="summary-card-value" id="admin-all-payouts">₦0.00</p>
+            </div>
+          </div>
+
+          <div class="summary-card">
+            <div class="summary-card-icon" style="color:#b45309; background:#fef3c7;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </div>
+            <div class="summary-card-body">
+              <p class="summary-card-label">Total Locked Funds</p>
+              <p class="summary-card-value" id="admin-all-locked">₦0.00</p>
             </div>
           </div>
 
@@ -1570,6 +1669,24 @@
               </span>
             </button>
 
+            <button type="button" class="more-menu-item" id="btn-admin-change-lock-penalty">
+              <span class="more-menu-icon" style="color: #b45309; background: #fef3c7;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+              </span>
+              <span class="more-menu-label" style="display: flex; align-items: center; justify-content: space-between; width: 100%; padding-right: 8px;">
+                <span>Early Lock Break Penalty</span>
+                <span class="status-badge" id="admin-more-lock-penalty-badge" style="background: #fef3c7; color: #92400e; font-weight: 800; font-size: 11px; padding: 2px 8px; border-radius: 999px;">5%</span>
+              </span>
+              <span class="more-menu-arrow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </span>
+            </button>
+
             <button type="button" class="more-menu-item" id="btn-admin-change-email">
               <span class="more-menu-icon" style="color: #2563eb; background: #dbeafe;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2063,6 +2180,10 @@
             <span class="profile-field-value" style="font-size:16px; font-weight:800; color:var(--primary);" id="vp-balance"></span>
           </div>
           <div class="profile-field">
+            <span class="profile-field-label">Locked Savings (SafeLock)</span>
+            <span class="profile-field-value" style="font-size:16px; font-weight:800; color:#b45309;" id="vp-locked">₦0.00</span>
+          </div>
+          <div class="profile-field">
             <span class="profile-field-label">Member Since</span>
             <span class="profile-field-value" id="vp-joined"></span>
           </div>
@@ -2247,6 +2368,192 @@
         <div id="admin-comm-success" class="form-success hidden"></div>
         <button type="submit" class="btn-primary btn-full">Save Commission Rate</button>
       </form>
+    </div>
+  </div>
+
+  <!-- ============================================
+       MODAL: ADMIN ADJUST LOCKED SAVINGS EARLY BREAK PENALTY
+       ============================================ -->
+  <div id="modal-admin-lock-penalty" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Early Lock Break Penalty</h3>
+        <button type="button" class="modal-close" data-modal="modal-admin-lock-penalty" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div style="background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px;">
+        <span style="font-size: 11.5px; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px;">Current Early Break Penalty</span>
+        <div style="font-size: 22px; font-weight: 800; color: #78350f; margin-top: 2px;" id="admin-current-lock-penalty-display">5%</div>
+        <small style="display:block; margin-top:4px; font-size:11.5px; color:#b45309; line-height: 1.4;">
+          This percentage is automatically deducted from a client's locked savings whenever they unlock or withdraw before their chosen maturity due date.
+        </small>
+      </div>
+
+      <form id="admin-lock-penalty-form" novalidate>
+        <div class="form-group">
+          <label for="admin-lock-penalty-input">New Early Break Penalty Rate (%)</label>
+          <div style="position: relative;">
+            <input type="number" id="admin-lock-penalty-input" step="0.1" min="0" max="100" placeholder="e.g. 5" style="padding-right: 36px;" />
+            <span style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-weight: 700; color: var(--text-muted); font-size: 14px; pointer-events: none;">%</span>
+          </div>
+          <span class="field-error" id="err-admin-lock-penalty"></span>
+          <small style="display:block; margin-top:6px; font-size:11.5px; color:var(--text-muted);">
+            Enter a penalty percentage between 0% and 100% (e.g., 5 for 5%).
+          </small>
+        </div>
+
+        <div id="admin-lock-penalty-error" class="form-error hidden"></div>
+        <div id="admin-lock-penalty-success" class="form-success hidden"></div>
+        <button type="submit" class="btn-primary btn-full">Save Penalty Rate</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================
+       MODAL: USER LOCK MONEY (SAFELOCK)
+       ============================================ -->
+  <div id="modal-user-lock-money" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Lock Money (SafeLock)</h3>
+        <button type="button" class="modal-close" data-modal="modal-user-lock-money" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 11.5px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">Available to Lock</span>
+          <span style="font-size: 16px; font-weight: 900; color: #14532d;" id="user-lock-modal-avail-bal">₦0.00</span>
+        </div>
+        <small style="display:block; margin-top:4px; font-size:11.5px; color:#15803d; line-height: 1.4;">
+          Locked money is committed until your chosen target date. If unlocked or withdrawn before the due date, a <strong id="user-lock-modal-penalty-rate-txt">5%</strong> early break fee is deducted.
+        </small>
+      </div>
+
+      <form id="user-lock-money-form" novalidate>
+        <div class="form-group">
+          <label for="lock-title-input">Target / Purpose</label>
+          <input type="text" id="lock-title-input" placeholder="e.g. House Rent, Business Capital, School Fees" maxlength="60" />
+          <span class="field-error" id="err-lock-title"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="lock-amount-input">Amount to Lock (₦) <span style="font-size: 11px; font-weight: 700; color: #b45309;">(Min. ₦500.00)</span></label>
+          <input type="number" id="lock-amount-input" min="500" step="0.01" placeholder="Min. 500.00" />
+          <div class="quick-amounts-grid" style="margin-top: 8px;">
+            <button type="button" class="quick-amt-pill lock-amt-percent-pill" data-pct="25">25%</button>
+            <button type="button" class="quick-amt-pill lock-amt-percent-pill" data-pct="50">50%</button>
+            <button type="button" class="quick-amt-pill lock-amt-percent-pill" data-pct="75">75%</button>
+            <button type="button" class="quick-amt-pill lock-amt-percent-pill" data-pct="100">100% (Max)</button>
+          </div>
+          <span class="field-error" id="err-lock-amount"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="lock-due-date-input">Target Maturity / Due Date (When to withdraw)</label>
+          <input type="date" id="lock-due-date-input" style="font-family: inherit; font-size: 14.5px;" />
+          <div class="quick-amounts-grid" style="margin-top: 8px;">
+            <button type="button" class="quick-amt-pill lock-duration-pill" data-days="7">+7 Days</button>
+            <button type="button" class="quick-amt-pill lock-duration-pill" data-days="30">+1 Month</button>
+            <button type="button" class="quick-amt-pill lock-duration-pill" data-days="90">+3 Months</button>
+            <button type="button" class="quick-amt-pill lock-duration-pill" data-days="180">+6 Months</button>
+            <button type="button" class="quick-amt-pill lock-duration-pill" data-days="365">+1 Year</button>
+          </div>
+          <span class="field-error" id="err-lock-due-date"></span>
+        </div>
+
+        <!-- Lock Summary Preview Card -->
+        <div id="lock-summary-preview" style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; font-size: 12.5px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+            <span style="color:var(--text-muted);">Amount to Lock:</span>
+            <strong id="lock-prev-amount" style="color:var(--text-primary);">₦0.00</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+            <span style="color:var(--text-muted);">Target Maturity Date:</span>
+            <strong id="lock-prev-due-date" style="color:#047857;">--</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+            <span style="color:var(--text-muted);">Early Break Penalty:</span>
+            <strong id="lock-prev-penalty" style="color:#b45309;">5% if broken early</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; border-top:1px dashed #cbd5e1; padding-top:6px; margin-top:4px;">
+            <span style="color:var(--text-muted);">Remaining Available Balance:</span>
+            <strong id="lock-prev-rem-bal" style="color:var(--text-primary);">₦0.00</strong>
+          </div>
+        </div>
+
+        <div id="user-lock-error" class="form-error hidden"></div>
+        <div id="user-lock-success" class="form-success hidden"></div>
+
+        <button type="submit" class="btn-primary btn-full" id="btn-submit-lock-money">Confirm & Lock Money</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================
+       MODAL: USER UNLOCK / EARLY BREAK MONEY
+       ============================================ -->
+  <div id="modal-user-unlock-money" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="unlock-modal-title">SafeLock Details</h3>
+        <button type="button" class="modal-close" data-modal="modal-user-unlock-money" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <input type="hidden" id="unlock-active-lock-id" value="" />
+
+      <!-- Status Banner (Early Break Warning vs Mature) -->
+      <div id="unlock-status-banner" style="border-radius: 10px; padding: 12px 14px; margin-bottom: 16px;"></div>
+
+      <!-- Financial Breakdown Card -->
+      <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 14px; margin-bottom: 16px; font-size: 13px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+          <span style="color:var(--text-muted);">Lock Target / Purpose:</span>
+          <strong id="unlock-detail-title" style="color:var(--text-primary);">--</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+          <span style="color:var(--text-muted);">Original Locked Amount:</span>
+          <strong id="unlock-detail-gross" style="color:var(--text-primary); font-size:14px;">₦0.00</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+          <span style="color:var(--text-muted);">Maturity / Due Date:</span>
+          <strong id="unlock-detail-due" style="color:var(--text-primary);">--</strong>
+        </div>
+        <div id="unlock-penalty-row" style="display:flex; justify-content:space-between; margin-bottom:6px;">
+          <span style="color:#b45309;" id="unlock-penalty-label">Early Break Penalty (5%):</span>
+          <strong id="unlock-detail-penalty" style="color:#dc2626;">-₦0.00</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; border-top:1.5px dashed #cbd5e1; padding-top:8px; margin-top:6px;">
+          <span style="font-weight:700; color:var(--text-primary);">Net Amount to Return:</span>
+          <strong id="unlock-detail-net" style="color:#166534; font-size:16px;">₦0.00</strong>
+        </div>
+      </div>
+
+      <div id="user-unlock-error" class="form-error hidden"></div>
+      <div id="user-unlock-success" class="form-success hidden"></div>
+
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <button type="button" class="btn-primary btn-full" id="btn-confirm-unlock-to-balance">
+          Unlock to Available Savings
+        </button>
+        <button type="button" class="btn-secondary btn-full" id="btn-confirm-unlock-to-bank" style="border: 1.5px solid #166534; color: #166534; background: #f0fdf4;">
+          Unlock & Request Bank Payout
+        </button>
+        <button type="button" class="btn-outline btn-full" id="btn-cancel-unlock">
+          Keep Locked
+        </button>
+      </div>
     </div>
   </div>
 
@@ -2824,13 +3131,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261122_v73"></script>
-  <script src="js/picker.js?v=20261122_v73"></script>
+  <script src="js/storage.js?v=20261122_v74"></script>
+  <script src="js/picker.js?v=20261122_v74"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261122_v73"></script>
-  <script src="js/auth.js?v=20261122_v73"></script>
-  <script src="js/user.js?v=20261122_v73"></script>
-  <script src="js/admin.js?v=20261122_v73"></script>
-  <script src="js/app.js?v=20261122_v73"></script>
+  <script src="js/export.js?v=20261122_v74"></script>
+  <script src="js/auth.js?v=20261122_v74"></script>
+  <script src="js/user.js?v=20261122_v74"></script>
+  <script src="js/admin.js?v=20261122_v74"></script>
+  <script src="js/app.js?v=20261122_v74"></script>
 </body>
 </html>

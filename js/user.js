@@ -275,9 +275,22 @@ const UserApp = (() => {
     const totalEl = document.getElementById('user-total-saved');
     const depEl   = document.getElementById('user-total-deposited');
     const wthEl   = document.getElementById('user-total-withdrawn');
-    if (totalEl) totalEl.textContent = '₦' + formatAmount(balance.balance);
+    const lockEl  = document.getElementById('user-total-locked');
+    const homeLockedAmt = document.getElementById('user-home-locked-amount');
+    const homeLockedBadge = document.getElementById('user-home-locked-count-badge');
+
+    if (totalEl) totalEl.textContent = '₦' + formatAmount(balance.availableBalance);
     if (depEl)   depEl.textContent   = '₦' + formatAmount(balance.totalDeposited);
     if (wthEl)   wthEl.textContent   = '₦' + formatAmount(balance.totalWithdrawn);
+    if (lockEl)  lockEl.textContent  = '₦' + formatAmount(balance.lockedBalance || 0);
+    if (homeLockedAmt) homeLockedAmt.textContent = '₦' + formatAmount(balance.lockedBalance || 0);
+
+    const activeLocks = (typeof DB.getUserActiveLocks === 'function') ? DB.getUserActiveLocks(currentUserId) : [];
+    if (homeLockedBadge) {
+      homeLockedBadge.textContent = `${activeLocks.length} Active Lock${activeLocks.length === 1 ? '' : 's'}`;
+    }
+
+    renderUserActiveLocks();
 
     const pendingNotice = document.getElementById('user-pending-notice');
     if (pendingNotice) {
@@ -295,6 +308,170 @@ const UserApp = (() => {
         pendingNotice.classList.add('hidden');
       }
     }
+  }
+
+  // ---- SafeLock (Locked Savings) Active Cards Rendering ----
+  function renderUserActiveLocks() {
+    const container = document.getElementById('user-active-locks-container');
+    if (!container) return;
+
+    const activeLocks = (typeof DB.getUserActiveLocks === 'function') ? DB.getUserActiveLocks(currentUserId) : [];
+    if (activeLocks.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 12px 10px; background: rgba(254, 243, 199, 0.4); border-radius: 8px; border: 1px dashed #fde68a;">
+          <p style="font-size: 12.5px; color: #92400e; margin: 0; font-weight: 500;">
+            No active locked funds. Tap "+ Lock Money" to commit funds towards a target date.
+          </p>
+        </div>`;
+      return;
+    }
+
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    const html = activeLocks.map(l => {
+      const dueStr = String(l.dueDate).slice(0, 10);
+      const isEarly = (todayStr < dueStr);
+
+      const dueObj = new Date(dueStr + 'T00:00:00');
+      const dueFormatted = !isNaN(dueObj.getTime())
+        ? dueObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+        : dueStr;
+
+      let daysRemaining = 0;
+      if (isEarly) {
+        const nowDate = new Date(todayStr + 'T00:00:00');
+        const diff = dueObj.getTime() - nowDate.getTime();
+        daysRemaining = Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+      }
+
+      const statusBadge = isEarly
+        ? `<span style="background: #fef3c7; color: #92400e; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} left
+          </span>`
+        : `<span style="background: #dcfce7; color: #15803d; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            Matured (0% Fee)
+          </span>`;
+
+      const actionBtn = isEarly
+        ? `<button type="button" class="btn-outline btn-unlock-lock" data-lock-id="${l.id}" style="padding: 5px 11px; font-size: 11.5px; border-color: #d97706; color: #b45309; font-weight: 700; border-radius: 7px; background: #fff;">
+            Unlock / Break
+          </button>`
+        : `<button type="button" class="btn-primary btn-unlock-lock" data-lock-id="${l.id}" style="padding: 5px 12px; font-size: 11.5px; background: #166534; font-weight: 700; border-radius: 7px;">
+            Unlock Full Amount
+          </button>`;
+
+      return `
+        <div style="background: #ffffff; border: 1.5px solid #fde68a; border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+            <div>
+              <strong style="font-size: 13.5px; color: #1e293b; display: block;">${escapeHtml(l.title || 'SafeLock')}</strong>
+              <span style="font-size: 11.5px; color: var(--text-muted);">Due: ${dueFormatted}</span>
+            </div>
+            ${statusBadge}
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; border-top: 1px dashed #f1f5f9; padding-top: 8px;">
+            <div>
+              <span style="font-size: 11px; color: var(--text-muted); display: block;">Locked Amount</span>
+              <strong style="font-size: 15px; font-weight: 900; color: #78350f;">₦${formatAmount(l.amount)}</strong>
+            </div>
+            ${actionBtn}
+          </div>
+        </div>`;
+    }).join('');
+
+    container.innerHTML = html;
+
+    container.querySelectorAll('.btn-unlock-lock').forEach(btn => {
+      btn.addEventListener('click', () => {
+        openUnlockModal(btn.dataset.lockId);
+      });
+    });
+  }
+
+  function openUnlockModal(lockId) {
+    const lock = DB.getLockById(lockId);
+    if (!lock) return;
+
+    const modal = document.getElementById('modal-user-unlock-money');
+    if (!modal) return;
+
+    const titleEl   = document.getElementById('unlock-modal-title');
+    const idInput   = document.getElementById('unlock-active-lock-id');
+    const bannerEl  = document.getElementById('unlock-status-banner');
+    const detTitle  = document.getElementById('unlock-detail-title');
+    const detGross  = document.getElementById('unlock-detail-gross');
+    const detDue    = document.getElementById('unlock-detail-due');
+    const detPenRow = document.getElementById('unlock-penalty-row');
+    const detPenLbl = document.getElementById('unlock-penalty-label');
+    const detPenAmt = document.getElementById('unlock-detail-penalty');
+    const detNet    = document.getElementById('unlock-detail-net');
+    const btnBal    = document.getElementById('btn-confirm-unlock-to-balance');
+    const btnBank   = document.getElementById('btn-confirm-unlock-to-bank');
+    const errEl     = document.getElementById('user-unlock-error');
+    const succEl    = document.getElementById('user-unlock-success');
+
+    if (errEl) errEl.classList.add('hidden');
+    if (succEl) succEl.classList.add('hidden');
+    if (idInput) idInput.value = lock.id;
+
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const dueStr = String(lock.dueDate).slice(0, 10);
+    const isEarly = (todayStr < dueStr);
+
+    const dueObj = new Date(dueStr + 'T00:00:00');
+    const dueFormatted = !isNaN(dueObj.getTime())
+      ? dueObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      : dueStr;
+
+    if (detTitle) detTitle.textContent = lock.title || 'SafeLock';
+    if (detGross) detGross.textContent = '₦' + formatAmount(lock.amount);
+    if (detDue)   detDue.textContent   = dueFormatted;
+
+    const penaltyRate = DB.getLockPenaltyRate();
+    const penaltyAmount = isEarly ? (Math.round(lock.amount * (penaltyRate / 100) * 100) / 100) : 0;
+    const netAmount = Math.max(0, Math.round((lock.amount - penaltyAmount) * 100) / 100);
+
+    if (isEarly) {
+      if (titleEl) titleEl.textContent = 'Early SafeLock Break';
+      const nowDate = new Date(todayStr + 'T00:00:00');
+      const diff = dueObj.getTime() - nowDate.getTime();
+      const daysRemaining = Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+
+      if (bannerEl) {
+        bannerEl.style.cssText = 'background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; color: #92400e; font-size: 12.5px;';
+        bannerEl.innerHTML = `
+          <strong style="display:block; font-size:13px; margin-bottom:3px; color:#78350f;">Early Lock Break Notice</strong>
+          <span>This lock is scheduled to mature on <strong>${dueFormatted}</strong> (${daysRemaining} day${daysRemaining === 1 ? '' : 's'} remaining). Unlocking or withdrawing before the due date incurs an Early Break Penalty of <strong>${penaltyRate}%</strong> (-₦${formatAmount(penaltyAmount)}). Net refund: <strong>₦${formatAmount(netAmount)}</strong>.</span>`;
+      }
+
+      if (detPenRow) detPenRow.style.display = 'flex';
+      if (detPenLbl) detPenLbl.textContent = `Early Break Penalty (${penaltyRate}%):`;
+      if (detPenAmt) detPenAmt.textContent = `-₦${formatAmount(penaltyAmount)}`;
+      if (detNet)    detNet.textContent    = `₦${formatAmount(netAmount)}`;
+
+      if (btnBal) btnBal.textContent = `Confirm Early Unlock (Return ₦${formatAmount(netAmount)})`;
+      if (btnBank) btnBank.textContent = `Unlock & Request Payout of ₦${formatAmount(netAmount)} to Bank`;
+    } else {
+      if (titleEl) titleEl.textContent = 'SafeLock Matured';
+      if (bannerEl) {
+        bannerEl.style.cssText = 'background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; color: #166534; font-size: 12.5px;';
+        bannerEl.innerHTML = `
+          <strong style="display:block; font-size:13px; margin-bottom:3px; color:#14532d;">SafeLock Reached Maturity!</strong>
+          <span>Congratulations! Your lock reached its maturity date on <strong>${dueFormatted}</strong>. No penalty fee applies. You receive 100% of your locked funds.</span>`;
+      }
+
+      if (detPenRow) detPenRow.style.display = 'none';
+      if (detNet)    detNet.textContent    = `₦${formatAmount(lock.amount)}`;
+
+      if (btnBal) btnBal.textContent = `Unlock ₦${formatAmount(lock.amount)} to Available Savings`;
+      if (btnBank) btnBank.textContent = `Unlock & Request Payout of ₦${formatAmount(lock.amount)} to Bank`;
+    }
+
+    modal.classList.remove('hidden');
   }
 
   function formatAmount(n) {
@@ -2147,6 +2324,265 @@ const UserApp = (() => {
     } catch(e) {}
   }
 
+  // ---- SafeLock (Locked Savings) Modal & Interaction Handlers ----
+  function initSafeLock() {
+    const lockModal = document.getElementById('modal-user-lock-money');
+    const unlockModal = document.getElementById('modal-user-unlock-money');
+    const openBtns = [
+      document.getElementById('btn-open-lock-modal'),
+      document.getElementById('btn-save-tab-open-lock'),
+      document.getElementById('btn-user-more-safelock')
+    ];
+
+    function openLockForm() {
+      if (!lockModal) return;
+      const userBal = DB.getUserBalance(currentUserId);
+      const availEl = document.getElementById('user-lock-modal-avail-bal');
+      const rateTxt = document.getElementById('user-lock-modal-penalty-rate-txt');
+      const amtInput = document.getElementById('lock-amount-input');
+      const titleInput = document.getElementById('lock-title-input');
+      const dateInput = document.getElementById('lock-due-date-input');
+      const errEl = document.getElementById('user-lock-error');
+      const succEl = document.getElementById('user-lock-success');
+
+      if (errEl) errEl.classList.add('hidden');
+      if (succEl) succEl.classList.add('hidden');
+      if (availEl) availEl.textContent = '₦' + formatAmount(userBal.availableBalance);
+      if (rateTxt) rateTxt.textContent = `${DB.getLockPenaltyRate()}%`;
+
+      if (amtInput) {
+        amtInput.value = '';
+        if (typeof window.disableNumberInputWheelScroll === 'function') {
+          window.disableNumberInputWheelScroll(amtInput);
+        }
+      }
+      if (titleInput) titleInput.value = '';
+
+      if (dateInput) {
+        const tomorrow = new Date(Date.now() + 86400000);
+        const y = tomorrow.getFullYear();
+        const m = String(tomorrow.getMonth() + 1).padStart(2, '0');
+        const d = String(tomorrow.getDate()).padStart(2, '0');
+        const minStr = `${y}-${m}-${d}`;
+        dateInput.min = minStr;
+        dateInput.value = minStr;
+      }
+
+      updateLockPreview();
+      lockModal.classList.remove('hidden');
+    }
+
+    openBtns.forEach(btn => {
+      if (btn) btn.addEventListener('click', openLockForm);
+    });
+
+    // Quick percentage pills (25%, 50%, 75%, 100%)
+    document.querySelectorAll('.lock-amt-percent-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        const amtInput = document.getElementById('lock-amount-input');
+        if (!amtInput) return;
+        const pct = parseFloat(pill.dataset.pct) || 100;
+        const userBal = DB.getUserBalance(currentUserId);
+        const calc = Math.max(0, Math.floor((userBal.availableBalance * (pct / 100)) * 100) / 100);
+        amtInput.value = calc > 0 ? calc.toFixed(2) : '';
+        updateLockPreview();
+      });
+    });
+
+    // Quick duration pills (+7 Days, +30 Days, +90 Days, +180 Days, +365 Days)
+    document.querySelectorAll('.lock-duration-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        const dateInput = document.getElementById('lock-due-date-input');
+        if (!dateInput) return;
+        const days = parseInt(pill.dataset.days, 10) || 30;
+        const targetDate = new Date(Date.now() + (days * 86400000));
+        const y = targetDate.getFullYear();
+        const m = String(targetDate.getMonth() + 1).padStart(2, '0');
+        const d = String(targetDate.getDate()).padStart(2, '0');
+        dateInput.value = `${y}-${m}-${d}`;
+        updateLockPreview();
+      });
+    });
+
+    function updateLockPreview() {
+      const amtInput = document.getElementById('lock-amount-input');
+      const dateInput = document.getElementById('lock-due-date-input');
+      const prevAmt = document.getElementById('lock-prev-amount');
+      const prevDate = document.getElementById('lock-prev-due-date');
+      const prevPen = document.getElementById('lock-prev-penalty');
+      const prevRem = document.getElementById('lock-prev-rem-bal');
+
+      const amt = parseFloat((amtInput && amtInput.value) || 0) || 0;
+      const userBal = DB.getUserBalance(currentUserId);
+      const rem = Math.max(0, userBal.availableBalance - amt);
+      const penaltyRate = DB.getLockPenaltyRate();
+
+      if (prevAmt) prevAmt.textContent = '₦' + formatAmount(amt);
+      if (prevRem) prevRem.textContent = '₦' + formatAmount(rem);
+      if (prevPen) prevPen.textContent = `${penaltyRate}% if broken early`;
+
+      if (prevDate && dateInput && dateInput.value) {
+        const dObj = new Date(dateInput.value + 'T00:00:00');
+        prevDate.textContent = !isNaN(dObj.getTime())
+          ? dObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+          : dateInput.value;
+      } else if (prevDate) {
+        prevDate.textContent = '--';
+      }
+    }
+
+    const lockAmtInput = document.getElementById('lock-amount-input');
+    const lockDateInput = document.getElementById('lock-due-date-input');
+    if (lockAmtInput) lockAmtInput.addEventListener('input', updateLockPreview);
+    if (lockDateInput) lockDateInput.addEventListener('input', updateLockPreview);
+
+    // Handle Lock Form Submit
+    const lockForm = document.getElementById('user-lock-money-form');
+    if (lockForm) {
+      lockForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const titleInp = document.getElementById('lock-title-input');
+        const amtInp   = document.getElementById('lock-amount-input');
+        const dateInp  = document.getElementById('lock-due-date-input');
+        const errAmt   = document.getElementById('err-lock-amount');
+        const errDate  = document.getElementById('err-lock-due-date');
+        const errBox   = document.getElementById('user-lock-error');
+        const succBox  = document.getElementById('user-lock-success');
+
+        if (errAmt) errAmt.textContent = '';
+        if (errDate) errDate.textContent = '';
+        if (errBox) errBox.classList.add('hidden');
+        if (succBox) succBox.classList.add('hidden');
+
+        const titleVal = (titleInp && titleInp.value.trim()) || 'Target SafeLock';
+        const amtVal = parseFloat((amtInp && amtInp.value) || 0);
+        const dateVal = (dateInp && dateInp.value) || '';
+
+        if (!amtVal || isNaN(amtVal) || amtVal < 500) {
+          if (errAmt) errAmt.textContent = 'Minimum lock amount is ₦500.00 (₦500.00 and above).';
+          if (amtInp) amtInp.classList.add('input-error');
+          return;
+        }
+
+        const userBal = DB.getUserBalance(currentUserId);
+        if (amtVal > userBal.availableBalance) {
+          if (errAmt) errAmt.textContent = `Insufficient available balance. You only have ₦${formatAmount(userBal.availableBalance)} available to lock.`;
+          if (amtInp) amtInp.classList.add('input-error');
+          return;
+        }
+
+        if (!dateVal) {
+          if (errDate) errDate.textContent = 'Please choose a target maturity date.';
+          return;
+        }
+
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        if (dateVal <= todayStr) {
+          if (errDate) errDate.textContent = 'Maturity date must be a future date (tomorrow or later).';
+          return;
+        }
+
+        try {
+          const res = DB.createLock({
+            userId: currentUserId,
+            title: titleVal,
+            amount: amtVal,
+            dueDate: dateVal
+          });
+
+          if (res.success) {
+            if (succBox) {
+              succBox.textContent = `Successfully locked ₦${formatAmount(amtVal)} until ${res.lock.dueDate}.`;
+              succBox.classList.remove('hidden');
+            }
+            renderTotal();
+            renderSavingsList();
+            setTimeout(() => {
+              if (lockModal) lockModal.classList.add('hidden');
+            }, 1200);
+          }
+        } catch (err) {
+          if (errBox) {
+            errBox.textContent = err.message || 'Error creating lock.';
+            errBox.classList.remove('hidden');
+          }
+        }
+      });
+    }
+
+    // Handle Unlock Actions
+    const btnUnlockBal = document.getElementById('btn-confirm-unlock-to-balance');
+    const btnUnlockBank = document.getElementById('btn-confirm-unlock-to-bank');
+    const btnCancelUnlock = document.getElementById('btn-cancel-unlock');
+
+    if (btnCancelUnlock && unlockModal) {
+      btnCancelUnlock.addEventListener('click', () => {
+        unlockModal.classList.add('hidden');
+      });
+    }
+
+    async function handleUnlockAction(payoutToBank) {
+      const idInput = document.getElementById('unlock-active-lock-id');
+      const lockId = idInput ? idInput.value : '';
+      if (!lockId) return;
+
+      const errBox  = document.getElementById('user-unlock-error');
+      const succBox = document.getElementById('user-unlock-success');
+      if (errBox) errBox.classList.add('hidden');
+      if (succBox) succBox.classList.add('hidden');
+
+      if (payoutToBank) {
+        const savedBank = DB.getUserPayoutBank(currentUserId);
+        if (!savedBank || !savedBank.accountNumber) {
+          if (errBox) {
+            errBox.textContent = 'No saved payout bank found. Please set your bank details in More -> Bank Account Details first, or choose Unlock to Available Savings.';
+            errBox.classList.remove('hidden');
+          }
+          return;
+        }
+      }
+
+      try {
+        const res = DB.unlockLock(lockId, { payoutToBank: !!payoutToBank });
+        if (res.success) {
+          const msg = res.isEarly
+            ? `Early unlock processed. ₦${formatAmount(res.penaltyAmount)} (${res.penaltyRate}%) penalty deducted. ₦${formatAmount(res.netAmount)} released ${payoutToBank ? 'and submitted for bank payout.' : 'back to available savings.'}`
+            : `SafeLock unlocked successfully! Full ₦${formatAmount(res.netAmount)} released ${payoutToBank ? 'and submitted for bank payout.' : 'back to available savings.'}`;
+
+          if (succBox) {
+            succBox.textContent = msg;
+            succBox.classList.remove('hidden');
+          }
+
+          renderTotal();
+          renderSavingsList();
+
+          setTimeout(() => {
+            if (unlockModal) unlockModal.classList.add('hidden');
+          }, 1500);
+        } else {
+          if (errBox) {
+            errBox.textContent = res.error || 'Failed to unlock funds.';
+            errBox.classList.remove('hidden');
+          }
+        }
+      } catch (err) {
+        if (errBox) {
+          errBox.textContent = err.message || 'Error unlocking lock.';
+          errBox.classList.remove('hidden');
+        }
+      }
+    }
+
+    if (btnUnlockBal) {
+      btnUnlockBal.addEventListener('click', () => handleUnlockAction(false));
+    }
+    if (btnUnlockBank) {
+      btnUnlockBank.addEventListener('click', () => handleUnlockAction(true));
+    }
+  }
+
   // ---- Public API ----
   return {
     load(userId) {
@@ -2178,6 +2614,7 @@ const UserApp = (() => {
       initTabs();
       initDateFilterGroup();
       initSaveForm();
+      initSafeLock();
       initEditProfile();
       initUserBankDetailsModal();
       initDedicatedAccountModal();

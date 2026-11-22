@@ -127,6 +127,8 @@ const AdminApp = (() => {
     if (usrEl) usrEl.textContent = users.length;
     if (depEl) depEl.textContent = '₦' + formatAmount(systemTotals.totalDeposited);
     if (payEl) payEl.textContent = '₦' + formatAmount(systemTotals.totalWithdrawn);
+    const lockEl = document.getElementById('admin-all-locked');
+    if (lockEl) lockEl.textContent = '₦' + formatAmount(systemTotals.totalLocked || 0);
     updatePendingBadge();
 
     // Filter by search query
@@ -232,6 +234,8 @@ const AdminApp = (() => {
     if (depEl) depEl.textContent = '₦' + formatAmount(userBal.totalDeposited);
     if (wthEl) wthEl.textContent = '₦' + formatAmount(userBal.totalWithdrawn);
     if (balEl) balEl.textContent = '₦' + formatAmount(userBal.balance);
+    const vpLockEl = document.getElementById('vp-locked');
+    if (vpLockEl) vpLockEl.textContent = '₦' + formatAmount(userBal.lockedBalance || 0);
     if (jnEl) jnEl.textContent = joined;
 
     // Dedicated Virtual Account in Admin Profile Modal
@@ -2149,6 +2153,10 @@ const AdminApp = (() => {
     const commBadge = document.getElementById('admin-more-commission-badge');
     if (commBadge) commBadge.textContent = `${commRate}%`;
 
+    const lockPenaltyRate = (typeof DB !== 'undefined' && DB.getLockPenaltyRate) ? DB.getLockPenaltyRate() : 5;
+    const lockPenaltyBadge = document.getElementById('admin-more-lock-penalty-badge');
+    if (lockPenaltyBadge) lockPenaltyBadge.textContent = `${lockPenaltyRate}%`;
+
     const uEl = document.getElementById('more-stat-users');
     const bEl = document.getElementById('more-stat-balance');
     const dEl = document.getElementById('more-stat-deposits');
@@ -2833,6 +2841,86 @@ const AdminApp = (() => {
         } catch (err) {
           if (errBox) {
             errBox.textContent = err.message || 'Failed to update commission rate.';
+            errBox.classList.remove('hidden');
+          }
+        }
+      });
+    }
+  }
+
+  // Admin Early Lock Break Penalty Modal
+  function initAdminLockPenalty() {
+    const openBtn = document.getElementById('btn-admin-change-lock-penalty');
+    const modal   = document.getElementById('modal-admin-lock-penalty');
+    const form    = document.getElementById('admin-lock-penalty-form');
+
+    if (openBtn && modal) {
+      openBtn.addEventListener('click', () => {
+        const errEl   = document.getElementById('err-admin-lock-penalty');
+        const errBox  = document.getElementById('admin-lock-penalty-error');
+        const succBox = document.getElementById('admin-lock-penalty-success');
+        const dispEl  = document.getElementById('admin-current-lock-penalty-display');
+        const inputEl = document.getElementById('admin-lock-penalty-input');
+
+        if (errEl)   errEl.textContent = '';
+        if (errBox)  errBox.classList.add('hidden');
+        if (succBox) succBox.classList.add('hidden');
+
+        const currentRate = (typeof DB !== 'undefined' && DB.getLockPenaltyRate) ? DB.getLockPenaltyRate() : 5;
+        if (dispEl)  dispEl.textContent = `${currentRate}%`;
+        if (inputEl) {
+          inputEl.value = currentRate;
+          if (typeof window.disableNumberInputWheelScroll === 'function') {
+            window.disableNumberInputWheelScroll(inputEl);
+          } else {
+            inputEl.addEventListener('wheel', (e) => { e.preventDefault(); e.target.blur(); }, { passive: false });
+          }
+        }
+
+        modal.classList.remove('hidden');
+        if (inputEl) inputEl.focus();
+      });
+    }
+
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const errEl   = document.getElementById('err-admin-lock-penalty');
+        const errBox  = document.getElementById('admin-lock-penalty-error');
+        const succBox = document.getElementById('admin-lock-penalty-success');
+        const inputEl = document.getElementById('admin-lock-penalty-input');
+        const dispEl  = document.getElementById('admin-current-lock-penalty-display');
+
+        if (errEl)   errEl.textContent = '';
+        if (errBox)  errBox.classList.add('hidden');
+        if (succBox) succBox.classList.add('hidden');
+
+        const val = inputEl ? inputEl.value.trim() : '';
+        const num = parseFloat(val);
+
+        if (val === '' || isNaN(num) || num < 0 || num > 100) {
+          if (errEl) errEl.textContent = 'Please enter a valid penalty percentage between 0% and 100%.';
+          return;
+        }
+
+        try {
+          const updated = DB.setLockPenaltyRate(num);
+          if (dispEl) dispEl.textContent = `${updated}%`;
+          const badge = document.getElementById('admin-more-lock-penalty-badge');
+          if (badge) badge.textContent = `${updated}%`;
+
+          if (succBox) {
+            succBox.textContent = `Early lock break penalty rate updated to ${updated}% successfully.`;
+            succBox.classList.remove('hidden');
+          }
+
+          setTimeout(() => {
+            if (modal) modal.classList.add('hidden');
+          }, 1200);
+        } catch (err) {
+          if (errBox) {
+            errBox.textContent = err.message || 'Failed to update penalty rate.';
             errBox.classList.remove('hidden');
           }
         }
@@ -3861,6 +3949,7 @@ const AdminApp = (() => {
     initRecordForm();
     initPayoutsPicker();
     initAdminCommission();
+    initAdminLockPenalty();
     initAdminChangeEmail();
     initAdminChangePassword();
     initAdminFactoryReset();
