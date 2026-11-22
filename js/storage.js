@@ -540,12 +540,14 @@ const DB = {
         }
       }
 
-      // Safely embed commission rate and locked savings in flutterwave_config JSON to match Supabase schema
+      // Safely embed commission rate, lock penalty, and min withdrawal in flutterwave_config JSON to match Supabase schema
       if (mergedFlw && typeof mergedFlw === 'object') {
         mergedFlw.commission_percentage = finalComm;
         mergedFlw.commission_updated_at = localCommUpdated > cloudCommUpdated ? localCommUpdated : cloudCommUpdated;
         mergedFlw.lock_penalty_percentage = this.getLockPenaltyRate();
         mergedFlw.locked_savings = this.getAllLocks();
+        mergedFlw.min_withdrawal_amount = this.getMinimumWithdrawal();
+        mergedFlw.min_withdrawal_updated_at = localStorage.getItem('sun_min_withdrawal_updated_at') || new Date().toISOString();
       }
 
       const payload = {
@@ -639,6 +641,13 @@ const DB = {
           }
           if (activeFlw.lock_penalty_percentage !== undefined) {
             localStorage.setItem('sun_lock_penalty_percentage', String(activeFlw.lock_penalty_percentage));
+          }
+          if (activeFlw.min_withdrawal_amount !== undefined) {
+            const mVal = parseFloat(activeFlw.min_withdrawal_amount);
+            if (!isNaN(mVal) && mVal >= 0) {
+              localStorage.setItem('sun_min_withdrawal_amount', String(mVal));
+              try { this.updateMinWithdrawalDOM(mVal); } catch(e) {}
+            }
           }
         }
         const cloudComm = record.commission_percentage !== undefined ? record.commission_percentage : record.commissionPercentage;
@@ -759,6 +768,13 @@ const DB = {
             }
           });
           localStorage.setItem('sun_locked_savings', JSON.stringify(Array.from(lockMap.values())));
+        }
+        if (cloudFlw.min_withdrawal_amount !== undefined) {
+          const mVal = parseFloat(cloudFlw.min_withdrawal_amount);
+          if (!isNaN(mVal) && mVal >= 0) {
+            localStorage.setItem('sun_min_withdrawal_amount', String(mVal));
+            try { this.updateMinWithdrawalDOM(mVal); } catch(e) {}
+          }
         }
       }
 
@@ -1397,6 +1413,63 @@ const DB = {
     return rounded;
   },
 
+  // ---- MINIMUM WITHDRAWAL LIMIT CONFIGURATION ----
+  getMinimumWithdrawal() {
+    try {
+      const stored = localStorage.getItem('sun_min_withdrawal_amount');
+      if (stored !== null && stored !== undefined && stored !== '') {
+        const parsed = parseFloat(stored);
+        if (!isNaN(parsed) && parsed >= 0) {
+          return parsed;
+        }
+      }
+    } catch(e) {}
+    return 500;
+  },
+
+  setMinimumWithdrawal(amount) {
+    const num = parseFloat(amount);
+    if (isNaN(num) || num < 0) {
+      throw new Error('Minimum withdrawal amount must be a valid positive number.');
+    }
+    const rounded = Math.round(num * 100) / 100;
+    const nowIso = new Date().toISOString();
+    localStorage.setItem('sun_min_withdrawal_amount', String(rounded));
+    localStorage.setItem('sun_min_withdrawal_updated_at', nowIso);
+
+    try {
+      const flwCfg = this.getFlutterwaveConfig();
+      flwCfg.min_withdrawal_amount = rounded;
+      flwCfg.min_withdrawal_updated_at = nowIso;
+      flwCfg.updatedAt = nowIso;
+      localStorage.setItem('sun_flutterwave_config', JSON.stringify(flwCfg));
+    } catch (e) {}
+
+    try {
+      this.updateMinWithdrawalDOM(rounded);
+    } catch(e) {}
+
+    this.scheduleCloudPush();
+    return rounded;
+  },
+
+  updateMinWithdrawalDOM(minVal) {
+    const val = (minVal !== undefined && minVal !== null) ? minVal : this.getMinimumWithdrawal();
+    const formatted = Number(val).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    document.querySelectorAll('.min-withdrawal-badge, #admin-more-min-withdrawal-badge').forEach(el => {
+      el.textContent = '₦' + formatted;
+    });
+    document.querySelectorAll('.min-withdrawal-display, #admin-current-min-withdrawal-display').forEach(el => {
+      el.textContent = '₦' + formatted;
+    });
+    const hint = document.getElementById('save-amount-min-hint');
+    if (hint) hint.textContent = `(Min. ₦${formatted})`;
+    const h1 = document.getElementById('with-min-val-hint');
+    if (h1) h1.textContent = '₦' + formatted;
+    const h2 = document.getElementById('with-min-val-hint-2');
+    if (h2) h2.textContent = '₦' + formatted;
+  },
+
   getAllLocks() {
     try {
       const raw = localStorage.getItem('sun_locked_savings');
@@ -1963,7 +2036,8 @@ const DB = {
             accountName: verifiedAccountName || clientName,
             narration: narration,
             txId: txId,
-            userId: userId
+            userId: userId,
+            minWithdrawal: this.getMinimumWithdrawal()
           })
         });
 

@@ -2157,6 +2157,10 @@ const AdminApp = (() => {
     const lockPenaltyBadge = document.getElementById('admin-more-lock-penalty-badge');
     if (lockPenaltyBadge) lockPenaltyBadge.textContent = `${lockPenaltyRate}%`;
 
+    const minWthAmt = (typeof DB !== 'undefined' && DB.getMinimumWithdrawal) ? DB.getMinimumWithdrawal() : 500;
+    const minWthBadge = document.getElementById('admin-more-min-withdrawal-badge');
+    if (minWthBadge) minWthBadge.textContent = '₦' + formatAmount(minWthAmt);
+
     const uEl = document.getElementById('more-stat-users');
     const bEl = document.getElementById('more-stat-balance');
     const dEl = document.getElementById('more-stat-deposits');
@@ -2921,6 +2925,98 @@ const AdminApp = (() => {
         } catch (err) {
           if (errBox) {
             errBox.textContent = err.message || 'Failed to update penalty rate.';
+            errBox.classList.remove('hidden');
+          }
+        }
+      });
+    }
+  }
+
+  // Admin Minimum Withdrawal Limit Modal
+  function initAdminMinWithdrawal() {
+    const openBtn = document.getElementById('btn-admin-change-min-withdrawal');
+    const modal   = document.getElementById('modal-admin-min-withdrawal');
+    const form    = document.getElementById('admin-min-withdrawal-form');
+
+    if (openBtn && modal) {
+      openBtn.addEventListener('click', () => {
+        const errEl   = document.getElementById('err-admin-min-withdrawal');
+        const errBox  = document.getElementById('admin-min-withdrawal-error');
+        const succBox = document.getElementById('admin-min-withdrawal-success');
+        const dispEl  = document.getElementById('admin-current-min-withdrawal-display');
+        const inputEl = document.getElementById('admin-min-withdrawal-input');
+
+        if (errEl)   errEl.textContent = '';
+        if (errBox)  errBox.classList.add('hidden');
+        if (succBox) succBox.classList.add('hidden');
+
+        const currentMin = (typeof DB !== 'undefined' && DB.getMinimumWithdrawal) ? DB.getMinimumWithdrawal() : 500;
+        if (dispEl)  dispEl.textContent = '₦' + formatAmount(currentMin);
+        if (inputEl) {
+          inputEl.value = currentMin;
+          if (typeof window.disableNumberInputWheelScroll === 'function') {
+            window.disableNumberInputWheelScroll(inputEl);
+          } else {
+            inputEl.addEventListener('wheel', (e) => { e.preventDefault(); e.target.blur(); }, { passive: false });
+          }
+        }
+
+        modal.classList.remove('hidden');
+        if (inputEl) inputEl.focus();
+      });
+    }
+
+    // Preset pills (₦100, ₦500, ₦1,000, ₦2,000, ₦5,000)
+    document.querySelectorAll('.admin-min-withdrawal-preset').forEach(preset => {
+      preset.addEventListener('click', () => {
+        const inputEl = document.getElementById('admin-min-withdrawal-input');
+        if (inputEl) {
+          inputEl.value = preset.dataset.min;
+          inputEl.focus();
+        }
+      });
+    });
+
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const errEl   = document.getElementById('err-admin-min-withdrawal');
+        const errBox  = document.getElementById('admin-min-withdrawal-error');
+        const succBox = document.getElementById('admin-min-withdrawal-success');
+        const inputEl = document.getElementById('admin-min-withdrawal-input');
+        const dispEl  = document.getElementById('admin-current-min-withdrawal-display');
+
+        if (errEl)   errEl.textContent = '';
+        if (errBox)  errBox.classList.add('hidden');
+        if (succBox) succBox.classList.add('hidden');
+
+        const val = inputEl ? inputEl.value.trim() : '';
+        const num = parseFloat(val);
+
+        if (val === '' || isNaN(num) || num < 0) {
+          if (errEl) errEl.textContent = 'Please enter a valid minimum withdrawal amount in Naira (e.g. 500).';
+          return;
+        }
+
+        try {
+          const updated = DB.setMinimumWithdrawal(num);
+          const formatted = '₦' + formatAmount(updated);
+          if (dispEl) dispEl.textContent = formatted;
+          const badge = document.getElementById('admin-more-min-withdrawal-badge');
+          if (badge) badge.textContent = formatted;
+
+          if (succBox) {
+            succBox.textContent = `Minimum withdrawal limit successfully updated to ${formatted}.`;
+            succBox.classList.remove('hidden');
+          }
+
+          setTimeout(() => {
+            if (modal) modal.classList.add('hidden');
+          }, 1200);
+        } catch (err) {
+          if (errBox) {
+            errBox.textContent = err.message || 'Failed to update minimum withdrawal limit.';
             errBox.classList.remove('hidden');
           }
         }
@@ -3950,6 +4046,7 @@ const AdminApp = (() => {
     initPayoutsPicker();
     initAdminCommission();
     initAdminLockPenalty();
+    initAdminMinWithdrawal();
     initAdminChangeEmail();
     initAdminChangePassword();
     initAdminFactoryReset();

@@ -680,11 +680,15 @@ const UserApp = (() => {
         if (flwCard) flwCard.classList.add('hidden');
         if (flwTrust) flwTrust.classList.add('hidden');
         if (quickAmts) quickAmts.classList.add('hidden');
+        const minWth = (typeof DB !== 'undefined' && DB.getMinimumWithdrawal) ? DB.getMinimumWithdrawal() : 500;
         if (withDest) withDest.classList.remove('hidden');
-        if (minHint) minHint.classList.remove('hidden');
+        if (minHint) {
+          minHint.textContent = `(Min. ₦${formatAmount(minWth)})`;
+          minHint.classList.remove('hidden');
+        }
         if (amtInput) {
-          amtInput.placeholder = 'Min. 500.00';
-          amtInput.min = '500';
+          amtInput.placeholder = `Min. ${formatAmount(minWth)}`;
+          amtInput.min = String(minWth);
         }
         if (submitText) submitText.textContent = 'Request Bank Payout via Flutterwave';
         else if (submitBtn) submitBtn.textContent = 'Request Bank Payout via Flutterwave';
@@ -828,10 +832,13 @@ const UserApp = (() => {
       const fee = Math.round(gross * feeRate * 100) / 100;
       const net = Math.max(0, Math.round((gross - fee) * 100) / 100);
 
-      // Dynamically update commission badges in UI
+      // Dynamically update commission & minimum withdrawal badges in UI
       document.querySelectorAll('.comm-rate-badge').forEach(badge => {
         badge.textContent = `${commRate}%`;
       });
+      if (typeof DB !== 'undefined' && DB.updateMinWithdrawalDOM) {
+        DB.updateMinWithdrawalDOM();
+      }
 
       if (withGrossEl) withGrossEl.textContent = `₦${formatAmount(gross)}`;
       if (withFeeEl)   withFeeEl.textContent   = `-₦${formatAmount(fee)}`;
@@ -840,10 +847,11 @@ const UserApp = (() => {
       if (typeInput && typeInput.value === 'withdrawal') {
         const btnText = submitText || submitBtn;
         const errEl = document.getElementById('err-save-amount');
-        if (gross > 0 && gross < 500) {
-          if (errEl) errEl.textContent = 'Minimum withdrawal is ₦500.00 (₦500.00 and above). Amounts below ₦500.00 are not allowed.';
+        const minWth = (typeof DB !== 'undefined' && DB.getMinimumWithdrawal) ? DB.getMinimumWithdrawal() : 500;
+        if (gross > 0 && gross < minWth) {
+          if (errEl) errEl.textContent = `Minimum withdrawal is ₦${formatAmount(minWth)} (₦${formatAmount(minWth)} and above). Amounts below ₦${formatAmount(minWth)} are not allowed.`;
           saveAmtInput.classList.add('input-error');
-          if (btnText) btnText.textContent = 'Minimum Withdrawal is ₦500.00';
+          if (btnText) btnText.textContent = `Minimum Withdrawal is ₦${formatAmount(minWth)}`;
         } else {
           if (errEl && errEl.textContent.includes('Minimum withdrawal')) {
             errEl.textContent = '';
@@ -953,8 +961,9 @@ const UserApp = (() => {
         return;
       }
 
-      if (type === 'withdrawal' && amount < 500) {
-        if (errEl) errEl.textContent = 'Minimum withdrawal amount is ₦500.00 (₦500.00 and above). Amounts below ₦500.00 are not allowed.';
+      const minWth = (typeof DB !== 'undefined' && DB.getMinimumWithdrawal) ? DB.getMinimumWithdrawal() : 500;
+      if (type === 'withdrawal' && amount < minWth) {
+        if (errEl) errEl.textContent = `Minimum withdrawal amount is ₦${formatAmount(minWth)} (₦${formatAmount(minWth)} and above). Amounts below ₦${formatAmount(minWth)} are not allowed.`;
         amountInput.classList.add('input-error');
         amountInput.focus();
         return;
@@ -1125,8 +1134,9 @@ const UserApp = (() => {
       }
 
       // ---- 2. PAYOUT (WITHDRAWAL) ----
-      if (amount < 500) {
-        if (errEl) errEl.textContent = 'Minimum withdrawal amount is ₦500.00 (₦500.00 and above). Amounts below ₦500.00 are not allowed.';
+      const minWthPayout = (typeof DB !== 'undefined' && DB.getMinimumWithdrawal) ? DB.getMinimumWithdrawal() : 500;
+      if (amount < minWthPayout) {
+        if (errEl) errEl.textContent = `Minimum withdrawal amount is ₦${formatAmount(minWthPayout)} (₦${formatAmount(minWthPayout)} and above). Amounts below ₦${formatAmount(minWthPayout)} are not allowed.`;
         amountInput.classList.add('input-error');
         amountInput.focus();
         return;

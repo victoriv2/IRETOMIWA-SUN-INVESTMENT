@@ -71,10 +71,14 @@ app.post('/api/payout/disburse', async (req, res) => {
     } = req.body;
 
     const cleanAmount = parseFloat(amount);
-    if (isNaN(cleanAmount) || cleanAmount < 500) {
+    const minThreshold = (req.body.minWithdrawal !== undefined && !isNaN(parseFloat(req.body.minWithdrawal)))
+      ? parseFloat(req.body.minWithdrawal)
+      : parseFloat(process.env.MIN_WITHDRAWAL || 500);
+
+    if (isNaN(cleanAmount) || cleanAmount < minThreshold) {
       return res.status(400).json({
         success: false,
-        error: 'Minimum withdrawal amount is ₦500.00 (₦500.00 and above).'
+        error: `Minimum withdrawal amount is ₦${minThreshold.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (₦${minThreshold.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} and above).`
       });
     }
 
