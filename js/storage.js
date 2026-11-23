@@ -639,6 +639,9 @@ const DB = {
         mergedFlw.payout_delay_updated_at = localDelayUpdated > cloudDelayUpdated ? localDelayUpdated : cloudDelayUpdated;
       }
 
+      mergedFlw.kudisms_config = this.getKudiSmsConfig();
+      mergedFlw.email_config = this.getEmailConfig();
+
       const payload = {
         id: this.SUPABASE.SYNC_ID,
         users: mergedUsers,
@@ -647,6 +650,7 @@ const DB = {
         custom_categories: mergedCats,
         flutterwave_config: mergedFlw,
         kudisms_config: this.getKudiSmsConfig(),
+        email_config: this.getEmailConfig(),
         reset_id: SYSTEM_RESET_ID,
         updated_at: new Date().toISOString(),
       };
@@ -851,11 +855,20 @@ const DB = {
       }
 
       // KudiSMS config sync
-      const cloudKudi = record.kudisms_config || record.kudismsConfig || null;
+      const cloudKudi = record.kudisms_config || record.kudismsConfig || (cloudFlw && cloudFlw.kudisms_config) || null;
       if (cloudKudi && typeof cloudKudi === 'object') {
         const localKudi = this.getKudiSmsConfig();
         if (cloudKudi.updatedAt && (!localKudi.updatedAt || cloudKudi.updatedAt >= localKudi.updatedAt)) {
           localStorage.setItem('sun_kudisms_config', JSON.stringify({ ...localKudi, ...cloudKudi }));
+        }
+      }
+
+      // Email config sync (Password Reset OTP)
+      const cloudEmail = record.email_config || record.emailConfig || (cloudFlw && cloudFlw.email_config) || null;
+      if (cloudEmail && typeof cloudEmail === 'object') {
+        const localEmail = this.getEmailConfig();
+        if (cloudEmail.updatedAt && (!localEmail.updatedAt || cloudEmail.updatedAt >= localEmail.updatedAt)) {
+          localStorage.setItem('sun_email_config', JSON.stringify({ ...localEmail, ...cloudEmail }));
         }
       }
 
@@ -2151,6 +2164,66 @@ const DB = {
       updatedAt: nowIso
     };
     localStorage.setItem('sun_kudisms_config', JSON.stringify(newCfg));
+    this.scheduleCloudPush();
+    return newCfg;
+  },
+
+  // ---- EMAIL GATEWAY CONFIG (PASSWORD RESET OTP) ----
+  getEmailConfig() {
+    const defaultEmail = 'johnidowuboluwatife@gmail.com';
+    try {
+      const raw = localStorage.getItem('sun_email_config');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          provider: parsed.provider || 'gmail',
+          senderEmail: (parsed.senderEmail || parsed.smtpUser || defaultEmail).trim(),
+          smtpUser: (parsed.smtpUser || parsed.senderEmail || defaultEmail).trim(),
+          smtpPass: (parsed.smtpPass || '').trim(),
+          resendKey: (parsed.resendKey || '').trim(),
+          brevoKey: (parsed.brevoKey || '').trim(),
+          smtpHost: (parsed.smtpHost || 'smtp.gmail.com').trim(),
+          smtpPort: parseInt(parsed.smtpPort || 465, 10),
+          updatedAt: parsed.updatedAt || '1970-01-01T00:00:00.000Z'
+        };
+      }
+    } catch(e) {}
+    return {
+      provider: 'gmail',
+      senderEmail: defaultEmail,
+      smtpUser: defaultEmail,
+      smtpPass: '',
+      resendKey: '',
+      brevoKey: '',
+      smtpHost: 'smtp.gmail.com',
+      smtpPort: 465,
+      updatedAt: '1970-01-01T00:00:00.000Z'
+    };
+  },
+  setEmailConfig(cfg = {}) {
+    const current = this.getEmailConfig();
+    const provider = cfg.provider || current.provider || 'gmail';
+    const senderEmail = (cfg.senderEmail || current.senderEmail || '').trim();
+    const smtpUser = (cfg.smtpUser || senderEmail || current.smtpUser || '').trim();
+    const smtpPass = (cfg.smtpPass !== undefined ? cfg.smtpPass : current.smtpPass).trim();
+    const resendKey = (cfg.resendKey !== undefined ? cfg.resendKey : current.resendKey).trim();
+    const brevoKey = (cfg.brevoKey !== undefined ? cfg.brevoKey : current.brevoKey).trim();
+    const smtpHost = (cfg.smtpHost || current.smtpHost || 'smtp.gmail.com').trim();
+    const smtpPort = parseInt(cfg.smtpPort || current.smtpPort || 465, 10);
+    const nowIso = new Date().toISOString();
+
+    const newCfg = {
+      provider,
+      senderEmail,
+      smtpUser,
+      smtpPass,
+      resendKey,
+      brevoKey,
+      smtpHost,
+      smtpPort,
+      updatedAt: nowIso
+    };
+    localStorage.setItem('sun_email_config', JSON.stringify(newCfg));
     this.scheduleCloudPush();
     return newCfg;
   },

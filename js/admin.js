@@ -2652,6 +2652,247 @@ const AdminApp = (() => {
     });
   }
 
+  function initAdminEmailSettings() {
+    const form = document.getElementById('admin-email-config-form');
+    const providerSel = document.getElementById('admin-email-provider');
+    const senderInp = document.getElementById('admin-email-sender');
+    const passInp = document.getElementById('admin-email-smtp-pass');
+    const resendInp = document.getElementById('admin-email-resend-key');
+    const brevoInp = document.getElementById('admin-email-brevo-key');
+    const hostInp = document.getElementById('admin-email-smtp-host');
+    const portInp = document.getElementById('admin-email-smtp-port');
+    const statusBadge = document.getElementById('admin-email-status-badge');
+    const togglePassBtn = document.getElementById('btn-toggle-smtp-pass');
+    const testBtn = document.getElementById('btn-send-test-email');
+    const testRecipientInp = document.getElementById('admin-email-test-recipient');
+    const testResultBox = document.getElementById('admin-email-test-result');
+    const msgBox = document.getElementById('admin-email-msg');
+
+    if (!form) return;
+
+    // Load saved settings
+    const emailCfg = DB.getEmailConfig ? DB.getEmailConfig() : {};
+    if (providerSel) providerSel.value = emailCfg.provider || 'gmail';
+    if (senderInp) senderInp.value = emailCfg.senderEmail || 'johnidowuboluwatife@gmail.com';
+    if (passInp) passInp.value = emailCfg.smtpPass || '';
+    if (resendInp) resendInp.value = emailCfg.resendKey || '';
+    if (brevoInp) brevoInp.value = emailCfg.brevoKey || '';
+    if (hostInp) hostInp.value = emailCfg.smtpHost || 'smtp.gmail.com';
+    if (portInp) portInp.value = emailCfg.smtpPort || 465;
+    if (testRecipientInp && !testRecipientInp.value) {
+      testRecipientInp.value = emailCfg.senderEmail || 'johnidowuboluwatife@gmail.com';
+    }
+
+    function updateVisibility() {
+      const p = providerSel ? providerSel.value : 'gmail';
+      const grpPass = document.getElementById('group-email-smtp-pass');
+      const grpResend = document.getElementById('group-email-resend-key');
+      const grpBrevo = document.getElementById('group-email-brevo-key');
+      const grpCustom = document.getElementById('group-email-custom-smtp');
+      const authHint = document.getElementById('admin-email-auth-hint');
+
+      if (grpPass) grpPass.classList.add('hidden');
+      if (grpResend) grpResend.classList.add('hidden');
+      if (grpBrevo) grpBrevo.classList.add('hidden');
+      if (grpCustom) grpCustom.classList.add('hidden');
+
+      if (p === 'gmail') {
+        if (grpPass) grpPass.classList.remove('hidden');
+        if (authHint) authHint.innerHTML = 'Generate in your Google Account: <strong>myaccount.google.com/apppasswords</strong> (requires 2-Step Verification turned ON).';
+      } else if (p === 'resend') {
+        if (grpResend) grpResend.classList.remove('hidden');
+      } else if (p === 'brevo') {
+        if (grpBrevo) grpBrevo.classList.remove('hidden');
+      } else if (p === 'smtp') {
+        if (grpPass) grpPass.classList.remove('hidden');
+        if (grpCustom) grpCustom.classList.remove('hidden');
+        if (authHint) authHint.textContent = 'Enter your custom SMTP account password.';
+      }
+
+      updateStatusBadge();
+    }
+
+    function updateStatusBadge() {
+      if (!statusBadge) return;
+      const p = providerSel ? providerSel.value : 'gmail';
+      const hasPass = passInp && passInp.value.trim().length > 0;
+      const hasResend = resendInp && resendInp.value.trim().length > 0;
+      const hasBrevo = brevoInp && brevoInp.value.trim().length > 0;
+
+      const isConfigured = (p === 'gmail' && hasPass) ||
+        (p === 'resend' && hasResend) ||
+        (p === 'brevo' && hasBrevo) ||
+        (p === 'smtp' && hasPass);
+
+      if (isConfigured) {
+        statusBadge.textContent = 'Active';
+        statusBadge.className = 'status-badge status-badge--approved';
+        statusBadge.style.background = '#dcfce7';
+        statusBadge.style.color = '#15803d';
+        statusBadge.style.border = '1px solid #86efac';
+      } else {
+        statusBadge.textContent = 'Setup Needed';
+        statusBadge.className = 'status-badge status-badge--pending';
+        statusBadge.style.background = '#fef3c7';
+        statusBadge.style.color = '#b45309';
+        statusBadge.style.border = '1px solid #fde68a';
+      }
+    }
+
+    if (providerSel) {
+      providerSel.addEventListener('change', updateVisibility);
+    }
+    if (passInp) passInp.addEventListener('input', updateStatusBadge);
+    if (resendInp) resendInp.addEventListener('input', updateStatusBadge);
+    if (brevoInp) brevoInp.addEventListener('input', updateStatusBadge);
+
+    updateVisibility();
+
+    // Toggle Show/Hide Password
+    if (togglePassBtn && passInp) {
+      togglePassBtn.addEventListener('click', () => {
+        if (passInp.type === 'password') {
+          passInp.type = 'text';
+          togglePassBtn.textContent = 'Hide';
+        } else {
+          passInp.type = 'password';
+          togglePassBtn.textContent = 'Show';
+        }
+      });
+    }
+
+    // Save Settings
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const provider = providerSel ? providerSel.value : 'gmail';
+      const senderEmail = (senderInp ? senderInp.value.trim() : '') || 'johnidowuboluwatife@gmail.com';
+      const smtpPass = passInp ? passInp.value.trim() : '';
+      const resendKey = resendInp ? resendInp.value.trim() : '';
+      const brevoKey = brevoInp ? brevoInp.value.trim() : '';
+      const smtpHost = hostInp ? hostInp.value.trim() : 'smtp.gmail.com';
+      const smtpPort = portInp ? parseInt(portInp.value || '465', 10) : 465;
+
+      DB.setEmailConfig({
+        provider,
+        senderEmail,
+        smtpUser: senderEmail,
+        smtpPass,
+        resendKey,
+        brevoKey,
+        smtpHost,
+        smtpPort
+      });
+
+      if (msgBox) {
+        msgBox.textContent = 'Email settings saved and synced successfully!';
+        msgBox.style.background = '#dcfce7';
+        msgBox.style.color = '#15803d';
+        msgBox.style.border = '1px solid #bbf7d0';
+        msgBox.classList.remove('hidden');
+        setTimeout(() => msgBox.classList.add('hidden'), 3500);
+      }
+
+      updateStatusBadge();
+    });
+
+    // Test Email Dispatch
+    if (testBtn) {
+      testBtn.addEventListener('click', async () => {
+        const recipient = testRecipientInp ? testRecipientInp.value.trim() : '';
+        if (!recipient || !recipient.includes('@')) {
+          if (testResultBox) {
+            testResultBox.textContent = 'Please enter a valid recipient email address.';
+            testResultBox.style.background = '#fef2f2';
+            testResultBox.style.color = '#dc2626';
+            testResultBox.style.border = '1px solid #fecaca';
+            testResultBox.classList.remove('hidden');
+          }
+          return;
+        }
+
+        testBtn.disabled = true;
+        const origHtml = testBtn.innerHTML;
+        testBtn.textContent = 'Sending...';
+
+        if (testResultBox) {
+          testResultBox.textContent = 'Dispatching test OTP email...';
+          testResultBox.style.background = '#eff6ff';
+          testResultBox.style.color = '#1d4ed8';
+          testResultBox.style.border = '1px solid #bfdbfe';
+          testResultBox.classList.remove('hidden');
+        }
+
+        const payload = {
+          recipient,
+          config: {
+            provider: providerSel ? providerSel.value : 'gmail',
+            senderEmail: senderInp ? senderInp.value.trim() : '',
+            smtpUser: senderInp ? senderInp.value.trim() : '',
+            smtpPass: passInp ? passInp.value.trim() : '',
+            resendKey: resendInp ? resendInp.value.trim() : '',
+            brevoKey: brevoInp ? brevoInp.value.trim() : '',
+            smtpHost: hostInp ? hostInp.value.trim() : 'smtp.gmail.com',
+            smtpPort: portInp ? parseInt(portInp.value || '465', 10) : 465
+          }
+        };
+
+        try {
+          const endpoints = [
+            '/api/email/test',
+            'https://iretomiwa-sun-investment-production.up.railway.app/api/email/test'
+          ];
+          let resp = null;
+          let data = null;
+
+          for (const ep of endpoints) {
+            try {
+              const res = await fetch(ep, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+              const ctype = res.headers.get('content-type') || '';
+              if (ctype.includes('application/json')) {
+                resp = res;
+                data = await res.json();
+                break;
+              }
+            } catch (err) {
+              // try next
+            }
+          }
+
+          if (data && data.success) {
+            if (testResultBox) {
+              testResultBox.textContent = data.message || `Test OTP email sent to ${recipient}! Check your inbox or spam.`;
+              testResultBox.style.background = '#dcfce7';
+              testResultBox.style.color = '#15803d';
+              testResultBox.style.border = '1px solid #86efac';
+            }
+          } else {
+            const err = data?.error || 'Failed to dispatch test email.';
+            if (testResultBox) {
+              testResultBox.textContent = err;
+              testResultBox.style.background = '#fef2f2';
+              testResultBox.style.color = '#dc2626';
+              testResultBox.style.border = '1px solid #fecaca';
+            }
+          }
+        } catch (e) {
+          if (testResultBox) {
+            testResultBox.textContent = 'Network error connecting to email service: ' + e.message;
+            testResultBox.style.background = '#fef2f2';
+            testResultBox.style.color = '#dc2626';
+            testResultBox.style.border = '1px solid #fecaca';
+          }
+        } finally {
+          testBtn.disabled = false;
+          testBtn.innerHTML = origHtml;
+        }
+      });
+    }
+  }
+
   // ============================================
   // ADMIN REALTIME DEVICE NOTIFICATION SYSTEM
   // ============================================
@@ -4568,6 +4809,7 @@ const AdminApp = (() => {
     initAdminFactoryReset();
     initAdminFlutterwaveSettings();
     initAdminKudiSmsSettings();
+    initAdminEmailSettings();
     initAdminNotifications();
     initAdminExports();
     initLogout();

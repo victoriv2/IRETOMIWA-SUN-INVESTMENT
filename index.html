@@ -58,7 +58,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261123_KUDISMS_OTP_V106';
+      var APP_BUILD_VER = '20261123_EMAIL_OTP_V107';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -1733,6 +1733,107 @@
                 <button type="submit" class="btn-primary" id="btn-save-kudisms-config" style="padding:10px 18px; font-size:13px; font-weight:700; border-radius: 8px;">
                   Save SMS Settings
                 </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Email Gateway & Password Reset OTP Card -->
+          <div class="admin-card" style="margin-top: 18px; margin-bottom: 22px; width: 100%; max-width: 100%; box-sizing: border-box; text-align: left; background: var(--bg-card); border: 1px solid rgba(9, 84, 38, 0.08); border-radius: 14px; padding: 18px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:6px; background:#fef3c7; color:#b45309;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                </span>
+                <strong style="font-size:14.5px; color:var(--text-primary);">Email Gateway & Password Reset OTP</strong>
+              </div>
+              <span class="status-badge" id="admin-email-status-badge" style="font-size:11px; padding:3px 8px; border-radius:6px;">Checking...</span>
+            </div>
+            <p style="font-size:12.5px; color:var(--text-muted); line-height:1.45; margin-bottom: 14px;">
+              Used for delivering 6-digit password reset OTP verification codes directly to client email inboxes.
+            </p>
+
+            <form id="admin-email-config-form" novalidate autocomplete="off">
+              <div class="form-group" style="margin-bottom:12px; width: 100%; box-sizing: border-box;">
+                <label for="admin-email-provider" style="font-size:12px; font-weight:700;">Email Service Provider</label>
+                <select id="admin-email-provider" style="width:100%; max-width:100%; box-sizing:border-box; height:42px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-size:13px; font-weight:600; background:var(--bg-input);">
+                  <option value="gmail">Gmail / Google Workspace (Recommended)</option>
+                  <option value="resend">Resend API (3,000 free emails/mo)</option>
+                  <option value="brevo">Brevo API (300 free emails/day)</option>
+                  <option value="smtp">Custom SMTP Server</option>
+                </select>
+              </div>
+
+              <div class="form-group" style="margin-bottom:12px; width: 100%; box-sizing: border-box;">
+                <label for="admin-email-sender" style="font-size:12px; font-weight:700;">Sender Email Address</label>
+                <input type="email" id="admin-email-sender" autocomplete="off" placeholder="johnidowuboluwatife@gmail.com" value="johnidowuboluwatife@gmail.com" style="width:100%; max-width:100%; box-sizing:border-box; height:42px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-size:13px;" />
+                <small style="display:block; margin-top:4px; font-size:11px; color:var(--text-muted);" id="admin-email-sender-hint">
+                  The email address from which client reset codes will be dispatched.
+                </small>
+              </div>
+
+              <!-- Gmail / SMTP Password Field -->
+              <div class="form-group" id="group-email-smtp-pass" style="margin-bottom:14px; width: 100%; box-sizing: border-box;">
+                <label for="admin-email-smtp-pass" style="font-size:12px; font-weight:700;">Google App Password (16 Characters)</label>
+                <div style="position:relative; width: 100%;">
+                  <input type="password" id="admin-email-smtp-pass" autocomplete="new-password" placeholder="xxxx xxxx xxxx xxxx" style="width:100%; max-width:100%; box-sizing:border-box; height:42px; padding:0 44px 0 12px; border-radius:8px; border:1px solid var(--border); font-family:monospace; font-size:13px;" />
+                  <button type="button" id="btn-toggle-smtp-pass" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:11px; font-weight:700;">Show</button>
+                </div>
+                <small style="display:block; margin-top:5px; font-size:11px; color:var(--text-muted); line-height:1.4;" id="admin-email-auth-hint">
+                  Generate in your Google Account: <strong>myaccount.google.com/apppasswords</strong> (requires 2-Step Verification turned ON).
+                </small>
+              </div>
+
+              <!-- Resend API Key Field -->
+              <div class="form-group hidden" id="group-email-resend-key" style="margin-bottom:14px; width: 100%; box-sizing: border-box;">
+                <label for="admin-email-resend-key" style="font-size:12px; font-weight:700;">Resend API Key</label>
+                <input type="password" id="admin-email-resend-key" autocomplete="new-password" placeholder="re_xxxxxxxxxxxxxxxxxxxx" style="width:100%; max-width:100%; box-sizing:border-box; height:42px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-family:monospace; font-size:13px;" />
+                <small style="display:block; margin-top:5px; font-size:11px; color:var(--text-muted);">
+                  Obtain free from <strong>resend.com/api-keys</strong> (instant setup, 3,000 free emails/month).
+                </small>
+              </div>
+
+              <!-- Brevo API Key Field -->
+              <div class="form-group hidden" id="group-email-brevo-key" style="margin-bottom:14px; width: 100%; box-sizing: border-box;">
+                <label for="admin-email-brevo-key" style="font-size:12px; font-weight:700;">Brevo API Key</label>
+                <input type="password" id="admin-email-brevo-key" autocomplete="new-password" placeholder="xkeysib-xxxxxxxxxxxxxxxxxxxx" style="width:100%; max-width:100%; box-sizing:border-box; height:42px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-family:monospace; font-size:13px;" />
+                <small style="display:block; margin-top:5px; font-size:11px; color:var(--text-muted);">
+                  Obtain from <strong>app.brevo.com/settings/keys/api</strong> (300 free emails/day).
+                </small>
+              </div>
+
+              <!-- Custom SMTP Fields -->
+              <div class="hidden" id="group-email-custom-smtp" style="margin-bottom:14px; width: 100%; box-sizing: border-box;">
+                <div style="display:grid; grid-template-columns: 2fr 1fr; gap:10px;">
+                  <div class="form-group">
+                    <label for="admin-email-smtp-host" style="font-size:11.5px; font-weight:700;">SMTP Host</label>
+                    <input type="text" id="admin-email-smtp-host" placeholder="smtp.gmail.com" style="width:100%; height:38px; padding:0 10px; border-radius:8px; border:1px solid var(--border); font-size:12.5px;" />
+                  </div>
+                  <div class="form-group">
+                    <label for="admin-email-smtp-port" style="font-size:11.5px; font-weight:700;">Port</label>
+                    <input type="number" id="admin-email-smtp-port" placeholder="465" style="width:100%; height:38px; padding:0 10px; border-radius:8px; border:1px solid var(--border); font-size:12.5px;" />
+                  </div>
+                </div>
+              </div>
+
+              <div id="admin-email-msg" class="hidden" style="font-size:12px; padding:8px 12px; border-radius:6px; margin-bottom:12px; width: 100%; box-sizing: border-box;"></div>
+
+              <div style="display:flex; flex-wrap:wrap; gap:10px; width: 100%; box-sizing: border-box;">
+                <button type="submit" class="btn-primary" id="btn-save-email-config" style="padding:10px 18px; font-size:13px; font-weight:700; border-radius: 8px;">
+                  Save Email Settings
+                </button>
+              </div>
+
+              <!-- Test Email Dispatch Widget -->
+              <div style="margin-top:16px; padding-top:14px; border-top:1px dashed var(--border); width: 100%; box-sizing: border-box;">
+                <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Test Email Dispatch</label>
+                <div style="display:flex; gap:8px;">
+                  <input type="email" id="admin-email-test-recipient" placeholder="Recipient email address" value="johnidowuboluwatife@gmail.com" style="flex:1; height:38px; padding:0 10px; border-radius:8px; border:1px solid var(--border); font-size:12.5px;" />
+                  <button type="button" id="btn-send-test-email" style="display:inline-flex; align-items:center; gap:5px; padding:0 14px; height:38px; font-size:12px; font-weight:700; border-radius:8px; border:1px solid #16a34a; background:#f0fdf4; color:#15803d; cursor:pointer; white-space:nowrap;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    Send Test Email
+                  </button>
+                </div>
+                <div id="admin-email-test-result" class="hidden" style="margin-top:8px; font-size:11.5px; line-height:1.4; padding:8px 10px; border-radius:6px;"></div>
               </div>
             </form>
           </div>
@@ -3734,13 +3835,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261123_v106"></script>
-  <script src="js/picker.js?v=20261123_v106"></script>
+  <script src="js/storage.js?v=20261123_v107"></script>
+  <script src="js/picker.js?v=20261123_v107"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261123_v106"></script>
-  <script src="js/auth.js?v=20261123_v106"></script>
-  <script src="js/user.js?v=20261123_v106"></script>
-  <script src="js/admin.js?v=20261123_v106"></script>
-  <script src="js/app.js?v=20261123_v106"></script>
+  <script src="js/export.js?v=20261123_v107"></script>
+  <script src="js/auth.js?v=20261123_v107"></script>
+  <script src="js/user.js?v=20261123_v107"></script>
+  <script src="js/admin.js?v=20261123_v107"></script>
+  <script src="js/app.js?v=20261123_v107"></script>
 </body>
 </html>

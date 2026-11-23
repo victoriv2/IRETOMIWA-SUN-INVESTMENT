@@ -7,6 +7,13 @@ const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
 
+let nodemailer = null;
+try {
+  nodemailer = require('nodemailer');
+} catch (e) {
+  console.warn('[Email] nodemailer module not installed locally:', e.message);
+}
+
 const app = express();
 const PORT = process.env.PORT || 8080;
 
@@ -318,7 +325,8 @@ async function getSupabaseCloudData() {
   const row = (Array.isArray(rows) && rows[0]) ? rows[0] : (rows || {});
   const users = Array.isArray(row.users) ? row.users : [];
   const kudismsConfig = row.kudisms_config || row.kudismsConfig || {};
-  return { row, users, kudismsConfig };
+  const emailConfig = row.email_config || row.emailConfig || {};
+  return { row, users, kudismsConfig, emailConfig };
 }
 
 // Helper: Mask phone number (e.g. 08188087715 -> 081****7715)
@@ -382,6 +390,164 @@ async function sendKudiSmsMessage(recipientPhone, message, config = {}) {
   return { ok: res.ok, status: res.status, data };
 }
 
+// Helper: Branded HTML Email Template for OTP Password Reset
+function getOtpHtmlTemplate(otp) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Password Reset OTP</title>
+</head>
+<body style="margin: 0; padding: 24px 12px; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <div style="max-width: 480px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+    <div style="background: #0f3d24; padding: 24px; text-align: center;">
+      <h2 style="color: #ffffff; margin: 0; font-size: 19px; font-weight: 800; letter-spacing: 0.5px;">IRETOMIWA SUN INVESTMENT</h2>
+      <p style="color: #86efac; margin: 4px 0 0 0; font-size: 12.5px;">Savings and Loans Enterprise</p>
+    </div>
+    <div style="padding: 26px 24px;">
+      <h3 style="color: #1e293b; font-size: 16px; margin: 0 0 10px 0; font-weight: 700;">Password Reset Code</h3>
+      <p style="color: #475569; font-size: 13.5px; line-height: 1.5; margin: 0 0 18px 0;">
+        You requested a password reset for your Iretomiwa Sun account. Use the 6-digit verification code below:
+      </p>
+      <div style="background: #f0fdf4; border: 2px dashed #16a34a; border-radius: 10px; padding: 18px; text-align: center; margin: 0 0 20px 0;">
+        <span style="font-size: 32px; font-weight: 900; letter-spacing: 10px; color: #14532d; font-family: monospace;">${otp}</span>
+        <p style="margin: 6px 0 0 0; font-size: 12px; color: #15803d; font-weight: 600;">Valid for 10 minutes</p>
+      </div>
+      <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin: 0 0 14px 0;">
+        If you did not request this password reset, please ignore this email. Never disclose this code to anyone.
+      </p>
+      <div style="border-top: 1px solid #f1f5f9; padding-top: 14px; text-align: center; font-size: 11px; color: #94a3b8;">
+        &copy; 2026 Iretomiwa Sun Investment Enterprise. All rights reserved.
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+// Helper: Dispatch Email OTP via configured provider (Gmail/SMTP, Resend API, Brevo API)
+async function sendOtpEmail(recipientEmail, otp, config = {}) {
+  const provider = (config.provider || 'gmail').toLowerCase();
+  const smtpUser = (config.smtpUser || config.user || config.senderEmail || process.env.SMTP_USER || '').trim();
+  const rawSmtpPass = (config.smtpPass || config.pass || process.env.SMTP_PASS || '').trim();
+  const smtpPass = rawSmtpPass.replace(/\s+/g, ''); // Strip all spaces (e.g. 16-char Google App Password)
+  const resendKey = (config.resendKey || config.apiKey || process.env.RESEND_API_KEY || '').trim();
+  const brevoKey = (config.brevoKey || process.env.BREVO_API_KEY || '').trim();
+  const senderEmail = (config.senderEmail || config.fromEmail || smtpUser || 'support@iretomiwasun.com').trim();
+
+  console.log(`[Email OTP] Dispatching 6-digit OTP to ${recipientEmail} via provider "${provider}"`);
+
+  // 1. Try Resend HTTP API (if configured or provider is resend)
+  if (resendKey && (provider === 'resend' || !smtpPass)) {
+    try {
+      // Resend requires verified domain or onboarding@resend.dev for testing
+      const fromAddress = (senderEmail.endsWith('@resend.dev') || senderEmail.includes('@iretomiwasun.com'))
+        ? `Iretomiwa Sun Investment <${senderEmail}>`
+        : 'Iretomiwa Sun <onboarding@resend.dev>';
+
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: fromAddress,
+          to: recipientEmail,
+          subject: 'Your Password Reset OTP - Iretomiwa Sun Investment',
+          html: getOtpHtmlTemplate(otp)
+        })
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok) {
+        console.log(`[Email SUCCESS] Sent via Resend to ${recipientEmail}`);
+        return { success: true, provider: 'resend', data };
+      }
+      console.warn('[Email] Resend API error:', data);
+      return { success: false, provider: 'resend', error: data?.message || 'Resend API error' };
+    } catch (e) {
+      console.warn('[Email] Resend error:', e.message);
+      return { success: false, provider: 'resend', error: e.message };
+    }
+  }
+
+  // 2. Try Brevo HTTP API (if configured or provider is brevo)
+  if (brevoKey && (provider === 'brevo' || !smtpPass)) {
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': brevoKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sender: { name: 'Iretomiwa Sun Investment', email: senderEmail },
+          to: [{ email: recipientEmail }],
+          subject: 'Your Password Reset OTP - Iretomiwa Sun Investment',
+          htmlContent: getOtpHtmlTemplate(otp)
+        })
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok) {
+        console.log(`[Email SUCCESS] Sent via Brevo to ${recipientEmail}`);
+        return { success: true, provider: 'brevo', data };
+      }
+      console.warn('[Email] Brevo API error:', data);
+      return { success: false, provider: 'brevo', error: data?.message || 'Brevo API error' };
+    } catch (e) {
+      console.warn('[Email] Brevo error:', e.message);
+      return { success: false, provider: 'brevo', error: e.message };
+    }
+  }
+
+  // 3. Try Nodemailer (Gmail App Password or Custom SMTP)
+  if (smtpUser && smtpPass) {
+    if (!nodemailer) {
+      return { success: false, provider: 'smtp', error: 'Nodemailer module not available on server.' };
+    }
+    try {
+      const isCustomSmtp = provider === 'smtp' || (config.smtpHost && config.smtpHost !== 'smtp.gmail.com');
+      let transporterConfig;
+
+      if (isCustomSmtp) {
+        const port = parseInt(config.smtpPort || '465', 10);
+        transporterConfig = {
+          host: config.smtpHost || 'smtp.gmail.com',
+          port: port,
+          secure: port === 465,
+          auth: { user: smtpUser, pass: smtpPass }
+        };
+      } else {
+        // Default Gmail service (handles ports & SSL automatically)
+        transporterConfig = {
+          service: 'gmail',
+          auth: { user: smtpUser, pass: smtpPass }
+        };
+      }
+
+      const transporter = nodemailer.createTransport(transporterConfig);
+      const info = await transporter.sendMail({
+        from: `"Iretomiwa Sun Investment" <${smtpUser}>`,
+        to: recipientEmail,
+        subject: 'Your Password Reset OTP - Iretomiwa Sun Investment',
+        html: getOtpHtmlTemplate(otp)
+      });
+      console.log(`[Email SUCCESS] Sent via SMTP (${smtpUser}) to ${recipientEmail}:`, info?.messageId);
+      return { success: true, provider: isCustomSmtp ? 'custom_smtp' : 'gmail', info };
+    } catch (e) {
+      console.warn('[Email] SMTP send failed:', e.message);
+      return { success: false, provider: 'smtp', error: e.message };
+    }
+  }
+
+  // If no credentials configured yet
+  return {
+    success: false,
+    notice: 'Email dispatch is not configured yet. Please configure your email sender credentials in Admin -> More tab.'
+  };
+}
+
 // ==============================================================================
 // FORGOTTEN PASSWORD & OTP API ENDPOINTS
 // ==============================================================================
@@ -424,7 +590,7 @@ app.post('/api/auth/forgot-password/initiate', async (req, res) => {
     const cleanInput = String(identifier).trim().toLowerCase();
     const cleanDigits = String(identifier).trim().replace(/\D/g, '');
 
-    const { users, kudismsConfig } = await getSupabaseCloudData();
+    const { users, kudismsConfig, emailConfig } = await getSupabaseCloudData();
 
     // Find user across Client ID (ir00001), Email, and Phone
     const user = users.find(u => {
@@ -528,6 +694,8 @@ app.post('/api/auth/forgot-password/initiate', async (req, res) => {
       const sessionToken = crypto.randomBytes(24).toString('hex');
       const now = Date.now();
 
+      const emailRes = await sendOtpEmail(cleanUserEmail, otp, emailConfig);
+
       otpSessions.set(sessionToken, {
         sessionToken,
         userId: user.id,
@@ -542,6 +710,11 @@ app.post('/api/auth/forgot-password/initiate', async (req, res) => {
         verified: false
       });
 
+      let notice = null;
+      if (!emailRes.success) {
+        notice = emailRes.notice || (emailRes.error ? `Email notice: ${emailRes.error}` : null);
+      }
+
       return res.json({
         success: true,
         action: 'otp_sent',
@@ -549,7 +722,8 @@ app.post('/api/auth/forgot-password/initiate', async (req, res) => {
         channel: 'email',
         maskedDestination: maskedEmail,
         expiresIn: 600,
-        resendCooldown: 60
+        resendCooldown: 60,
+        notice
       });
     }
 
@@ -582,7 +756,7 @@ app.post('/api/auth/forgot-password/send-otp', async (req, res) => {
       }
     }
 
-    const { users, kudismsConfig } = await getSupabaseCloudData();
+    const { users, kudismsConfig, emailConfig } = await getSupabaseCloudData();
     const user = users.find(u => u.id === userId);
     if (!user) {
       return res.status(404).json({ success: false, error: 'User account not found.' });
@@ -633,6 +807,11 @@ app.post('/api/auth/forgot-password/send-otp', async (req, res) => {
         return res.status(400).json({ success: false, error: 'No email address attached to this account.' });
       }
       maskedDestination = maskEmail(email);
+
+      const emailRes = await sendOtpEmail(email, otp, emailConfig);
+      if (!emailRes.success) {
+        notice = emailRes.notice || (emailRes.error ? `Email notice: ${emailRes.error}` : null);
+      }
 
       otpSessions.set(newSessionToken, {
         sessionToken: newSessionToken,
@@ -804,6 +983,46 @@ app.post('/api/kudisms/test-sms', async (req, res) => {
       data: result.data
     });
   } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 7. Admin: Test Email dispatch
+app.post('/api/email/test', async (req, res) => {
+  try {
+    const { recipient, config: customConfig } = req.body || {};
+    const { emailConfig: cloudConfig } = await getSupabaseCloudData().catch(() => ({ emailConfig: {} }));
+    const activeConfig = Object.assign({}, cloudConfig, customConfig || {});
+
+    const targetEmail = (recipient || activeConfig.senderEmail || activeConfig.smtpUser || '').trim();
+    if (!targetEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please enter a valid recipient email address for testing.'
+      });
+    }
+
+    const testOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    console.log(`[Admin Test Email] Sending test OTP ${testOtp} to ${targetEmail}`);
+
+    const result = await sendOtpEmail(targetEmail, testOtp, activeConfig);
+
+    if (result.success) {
+      return res.json({
+        success: true,
+        provider: result.provider,
+        message: `Test email successfully dispatched to ${targetEmail} via ${result.provider}. Please check your inbox or spam folder!`,
+        data: result.data || result.info
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      error: result.error || result.notice || 'Failed to dispatch test email. Please check your credentials.',
+      details: result
+    });
+  } catch (err) {
+    console.error('[Admin Test Email ERROR]', err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
