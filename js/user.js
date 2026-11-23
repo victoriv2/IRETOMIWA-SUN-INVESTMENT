@@ -2649,6 +2649,21 @@ const UserApp = (() => {
       openModal('modal-change-password');
     });
 
+    const btnResetOtp = document.getElementById('btn-user-reset-otp');
+    if (btnResetOtp) {
+      btnResetOtp.addEventListener('click', () => {
+        closeModal('modal-change-password');
+        const user = DB.getUserById(currentUserId);
+        const identifier = user ? (user.phone || user.email || user.id) : '';
+        if (window.Auth && typeof window.Auth.openForgotPasswordModal === 'function') {
+          window.Auth.openForgotPasswordModal(identifier);
+        } else {
+          const fpModal = document.getElementById('modal-forgot-password');
+          if (fpModal) fpModal.classList.remove('hidden');
+        }
+      });
+    }
+
     const form = document.getElementById('change-password-form');
     if (!form) return;
 

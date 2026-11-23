@@ -2449,6 +2449,16 @@ const AdminApp = (() => {
     // Fetch live Flutterwave wallet balance
     fetchAndRenderFlwBalance();
 
+    // Populate KudiSMS Configuration fields
+    const kudiCfg = (typeof DB !== 'undefined' && DB.getKudiSmsConfig) ? DB.getKudiSmsConfig() : { senderID: 'IRETOMIWA', token: '' };
+    const kudiSenderInp = document.getElementById('admin-kudisms-sender-id');
+    const kudiTokenInp = document.getElementById('admin-kudisms-token');
+    const kudiSenderLbl = document.getElementById('admin-kudisms-sender-label');
+    if (kudiSenderInp) kudiSenderInp.value = kudiCfg.senderID || 'IRETOMIWA';
+    if (kudiTokenInp) kudiTokenInp.value = kudiCfg.token || 'fogAIJrnPUkDMLiRzj9FN5VO3dqQ7pevy4c2lhZEuKSBa1T8s0wGCbxXHYW6tm';
+    if (kudiSenderLbl) kudiSenderLbl.textContent = `Sender ID: ${kudiCfg.senderID || 'IRETOMIWA'}`;
+    fetchAndRenderKudiSmsBalance();
+
     // Render device notification preferences
     if (typeof renderNotificationSettings === 'function') {
       renderNotificationSettings();
@@ -2559,6 +2569,82 @@ const AdminApp = (() => {
       }
 
       renderMoreTab();
+    });
+  }
+
+  // KudiSMS Admin Settings Form Handler & Balance Refresh
+  let _kudismsBalanceFetching = false;
+  async function fetchAndRenderKudiSmsBalance() {
+    if (_kudismsBalanceFetching) return;
+    _kudismsBalanceFetching = true;
+    const balEl = document.getElementById('admin-kudisms-live-balance');
+    const senderLbl = document.getElementById('admin-kudisms-sender-label');
+    const refBtn = document.getElementById('btn-refresh-kudisms-balance');
+
+    if (balEl && balEl.textContent === 'Checking...') {
+      // keep checking
+    } else if (balEl) {
+      balEl.textContent = 'Checking...';
+    }
+    if (refBtn) refBtn.disabled = true;
+
+    try {
+      const res = await fetch('/api/kudisms/balance');
+      const data = await res.json().catch(() => null);
+
+      if (res.ok && data && data.success) {
+        if (balEl) balEl.textContent = '₦' + formatAmount(data.balance);
+        if (senderLbl && data.senderID) {
+          senderLbl.textContent = `Sender ID: ${data.senderID}`;
+        }
+      } else {
+        if (balEl) balEl.textContent = '₦0.00';
+      }
+    } catch (e) {
+      if (balEl) balEl.textContent = '₦0.00';
+    } finally {
+      _kudismsBalanceFetching = false;
+      if (refBtn) refBtn.disabled = false;
+    }
+  }
+
+  function initAdminKudiSmsSettings() {
+    const form = document.getElementById('admin-kudisms-config-form');
+    const senderInp = document.getElementById('admin-kudisms-sender-id');
+    const tokenInp = document.getElementById('admin-kudisms-token');
+    const refreshBtn = document.getElementById('btn-refresh-kudisms-balance');
+
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        fetchAndRenderKudiSmsBalance();
+      });
+    }
+
+    if (!form) return;
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const msgBox = document.getElementById('admin-kudisms-msg');
+
+      const senderID = (senderInp ? senderInp.value.trim().toUpperCase() : '') || 'IRETOMIWA';
+      const token = (tokenInp ? tokenInp.value.trim() : '') || 'fogAIJrnPUkDMLiRzj9FN5VO3dqQ7pevy4c2lhZEuKSBa1T8s0wGCbxXHYW6tm';
+
+      DB.setKudiSmsConfig({
+        senderID,
+        token
+      });
+
+      if (msgBox) {
+        msgBox.textContent = 'KudiSMS settings saved and synced successfully!';
+        msgBox.style.background = '#dcfce7';
+        msgBox.style.color = '#15803d';
+        msgBox.style.border = '1px solid #bbf7d0';
+        msgBox.classList.remove('hidden');
+        setTimeout(() => msgBox.classList.add('hidden'), 3500);
+      }
+
+      fetchAndRenderKudiSmsBalance();
     });
   }
 
@@ -4477,6 +4563,7 @@ const AdminApp = (() => {
     initAdminChangePassword();
     initAdminFactoryReset();
     initAdminFlutterwaveSettings();
+    initAdminKudiSmsSettings();
     initAdminNotifications();
     initAdminExports();
     initLogout();

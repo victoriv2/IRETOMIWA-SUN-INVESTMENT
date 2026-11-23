@@ -419,13 +419,683 @@ const Auth = (() => {
     if (adminToUser) adminToUser.addEventListener('click', (e) => { e.preventDefault(); localStorage.setItem('sun_active_portal', 'user'); App.navigate('login'); });
   }
 
+  // ============================================
+  // FORGOTTEN PASSWORD OTP RESET FLOW
+  // ============================================
+  let fpSession = {
+    userId: null,
+    identifier: '',
+    sessionToken: null,
+    channel: 'sms',
+    maskedPhone: '',
+    maskedEmail: '',
+    maskedDestination: '',
+    hasPhone: false,
+    hasEmail: false,
+    timerInterval: null,
+    cooldownInterval: null,
+    expiresAt: null
+  };
+
+  function setFpStep(stepNum) {
+    const titles = {
+      1: 'Reset Password',
+      2: 'Choose Verification Channel',
+      3: 'Enter 6-Digit Code',
+      4: 'Set New Password',
+      5: 'Password Reset Complete'
+    };
+
+    const titleEl = document.getElementById('fp-modal-title');
+    if (titleEl) titleEl.textContent = titles[stepNum] || 'Reset Password';
+
+    // Step bar indicator
+    for (let i = 1; i <= 4; i++) {
+      const bar = document.getElementById(`fp-bar-${i}`);
+      if (bar) {
+        bar.style.background = (i <= stepNum && stepNum !== 5) ? '#1e8a5a' : (stepNum === 5 ? '#1e8a5a' : '#e5e7eb');
+      }
+    }
+
+    // Toggle step contents
+    for (let s = 1; s <= 5; s++) {
+      const el = document.getElementById(`fp-step-${s}`);
+      if (el) el.classList.toggle('hidden', s !== stepNum);
+    }
+  }
+
+  function startFpExpiryTimer(expiresInSeconds = 600) {
+    if (fpSession.timerInterval) clearInterval(fpSession.timerInterval);
+    const expireTime = Date.now() + (expiresInSeconds * 1000);
+    fpSession.expiresAt = expireTime;
+
+    const updateTimer = () => {
+      const remainingMs = Math.max(0, expireTime - Date.now());
+      const totalSec = Math.floor(remainingMs / 1000);
+      const mins = Math.floor(totalSec / 60);
+      const secs = totalSec % 60;
+      const displayStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+      const timerEl = document.getElementById('fp-timer-seconds');
+      if (timerEl) timerEl.textContent = displayStr;
+
+      if (remainingMs <= 0) {
+        clearInterval(fpSession.timerInterval);
+        const errEl = document.getElementById('fp-error-3');
+        if (errEl) {
+          errEl.textContent = 'The 6-digit code has expired. Please request a new one.';
+          errEl.classList.remove('hidden');
+        }
+      }
+    };
+
+    updateTimer();
+    fpSession.timerInterval = setInterval(updateTimer, 1000);
+  }
+
+  function startFpResendCooldown(cooldownSeconds = 60) {
+    if (fpSession.cooldownInterval) clearInterval(fpSession.cooldownInterval);
+    const cooldownEndTime = Date.now() + (cooldownSeconds * 1000);
+
+    const resendBtn = document.getElementById('btn-fp-resend-otp');
+    const countdownSpan = document.getElementById('fp-resend-countdown');
+    if (!resendBtn) return;
+
+    resendBtn.disabled = true;
+    resendBtn.style.cursor = 'not-allowed';
+    resendBtn.style.color = '#64748b';
+
+    const updateCooldown = () => {
+      const remainingSec = Math.max(0, Math.ceil((cooldownEndTime - Date.now()) / 1000));
+      if (countdownSpan) countdownSpan.textContent = remainingSec;
+
+      if (remainingSec <= 0) {
+        clearInterval(fpSession.cooldownInterval);
+        resendBtn.disabled = false;
+        resendBtn.style.cursor = 'pointer';
+        resendBtn.style.color = '#1e8a5a';
+        resendBtn.textContent = 'Resend Code';
+      } else {
+        resendBtn.innerHTML = `Resend Code (<span id="fp-resend-countdown">${remainingSec}</span>s)`;
+      }
+    };
+
+    updateCooldown();
+    fpSession.cooldownInterval = setInterval(updateCooldown, 1000);
+  }
+
+  function updateFpPasswordRules(pw) {
+    const v = validatePassword(pw);
+    const ruleMap = {
+      'fp-rule-len':   { passed: v.len,   label: '6+ characters' },
+      'fp-rule-upper': { passed: v.upper, label: 'Uppercase letter' },
+      'fp-rule-num':   { passed: v.num,   label: 'Number (0-9)' },
+      'fp-rule-sym':   { passed: v.sym,   label: 'Special symbol' }
+    };
+
+    Object.entries(ruleMap).forEach(([id, cfg]) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.color = cfg.passed ? '#15803d' : '#64748b';
+      el.style.fontWeight = cfg.passed ? '700' : '400';
+      el.innerHTML = (cfg.passed ? '&check; ' : '&bull; ') + cfg.label;
+    });
+  }
+
+  function openForgotPasswordModal(prefillIdentifier = '') {
+    // Clear state
+    if (fpSession.timerInterval) clearInterval(fpSession.timerInterval);
+    if (fpSession.cooldownInterval) clearInterval(fpSession.cooldownInterval);
+    fpSession.userId = null;
+    fpSession.sessionToken = null;
+
+    // Reset error messages and fields
+    ['fp-error-1', 'fp-error-2', 'fp-error-3', 'fp-error-4'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = ''; el.classList.add('hidden'); }
+    });
+    ['err-fp-identifier', 'err-fp-otp', 'err-fp-new-pw', 'err-fp-confirm-pw'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = '';
+    });
+
+    const otpInput = document.getElementById('fp-otp-input');
+    if (otpInput) otpInput.value = '';
+    const newPwInput = document.getElementById('fp-new-pw');
+    if (newPwInput) newPwInput.value = '';
+    const confirmPwInput = document.getElementById('fp-confirm-pw');
+    if (confirmPwInput) confirmPwInput.value = '';
+    updateFpPasswordRules('');
+
+    const noticeEl = document.getElementById('fp-otp-notice');
+    if (noticeEl) { noticeEl.textContent = ''; noticeEl.classList.add('hidden'); }
+
+    const idInput = document.getElementById('fp-identifier');
+    if (idInput) {
+      idInput.value = prefillIdentifier || '';
+    }
+
+    setFpStep(1);
+
+    const modal = document.getElementById('modal-forgot-password');
+    if (modal) modal.classList.remove('hidden');
+
+    // If prefilled, focus or auto-lookup
+    if (idInput) {
+      setTimeout(() => idInput.focus(), 100);
+      if (prefillIdentifier) {
+        submitFpStep1();
+      }
+    }
+  }
+
+  function closeForgotPasswordModal() {
+    if (fpSession.timerInterval) clearInterval(fpSession.timerInterval);
+    if (fpSession.cooldownInterval) clearInterval(fpSession.cooldownInterval);
+    const modal = document.getElementById('modal-forgot-password');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  async function submitFpStep1() {
+    const input = document.getElementById('fp-identifier');
+    const errSpan = document.getElementById('err-fp-identifier');
+    const errBox = document.getElementById('fp-error-1');
+    const btn = document.getElementById('btn-fp-submit-step1');
+
+    if (errSpan) errSpan.textContent = '';
+    if (errBox) { errBox.textContent = ''; errBox.classList.add('hidden'); }
+
+    const identifier = input ? input.value.trim() : '';
+    if (!identifier) {
+      if (errSpan) errSpan.textContent = 'Please enter your email, phone number, or Client ID.';
+      return;
+    }
+
+    const origBtnText = btn ? btn.textContent : 'Continue';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Finding Account...';
+    }
+
+    try {
+      const res = await fetch('/api/auth/forgot-password/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier })
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data || !data.success) {
+        const errorMsg = data?.error || 'Unable to locate account. Please verify your details.';
+        if (errBox) {
+          errBox.textContent = errorMsg;
+          errBox.classList.remove('hidden');
+        }
+        return;
+      }
+
+      fpSession.identifier = identifier;
+      fpSession.userId = data.userId;
+      fpSession.hasPhone = Boolean(data.hasPhone);
+      fpSession.hasEmail = Boolean(data.hasEmail);
+      fpSession.maskedPhone = data.maskedPhone || '';
+      fpSession.maskedEmail = data.maskedEmail || '';
+
+      // Scenario A: User has BOTH phone and email -> Step 2 (Choose Channel)
+      if (data.action === 'choose_channel') {
+        const phoneLabel = document.getElementById('fp-masked-phone-label');
+        if (phoneLabel) phoneLabel.textContent = data.maskedPhone;
+        const emailLabel = document.getElementById('fp-masked-email-label');
+        if (emailLabel) emailLabel.textContent = data.maskedEmail;
+
+        // Reset radio selection styling
+        const radioSms = document.querySelector('input[name="fp_channel"][value="sms"]');
+        if (radioSms) radioSms.checked = true;
+        updateChannelCardStyles('sms');
+
+        setFpStep(2);
+        return;
+      }
+
+      // Scenario B: User has ONLY phone or ONLY email -> Step 3 (OTP Sent)
+      if (data.action === 'otp_sent') {
+        fpSession.sessionToken = data.sessionToken;
+        fpSession.channel = data.channel;
+        fpSession.maskedDestination = data.maskedDestination;
+
+        const destLabel = document.getElementById('fp-otp-destination-label');
+        if (destLabel) destLabel.textContent = data.maskedDestination;
+
+        const noticeEl = document.getElementById('fp-otp-notice');
+        if (noticeEl) {
+          if (data.notice) {
+            noticeEl.textContent = data.notice;
+            noticeEl.classList.remove('hidden');
+          } else {
+            noticeEl.classList.add('hidden');
+          }
+        }
+
+        const switchBtn = document.getElementById('btn-fp-switch-channel');
+        if (switchBtn) switchBtn.classList.add('hidden'); // Only one channel available
+
+        setFpStep(3);
+        startFpExpiryTimer(data.expiresIn || 600);
+        startFpResendCooldown(data.resendCooldown || 60);
+
+        const otpInp = document.getElementById('fp-otp-input');
+        if (otpInp) {
+          otpInp.value = '';
+          setTimeout(() => otpInp.focus(), 150);
+        }
+      }
+
+    } catch (err) {
+      if (errBox) {
+        errBox.textContent = 'Network error contacting server. Please check your connection and try again.';
+        errBox.classList.remove('hidden');
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = origBtnText;
+      }
+    }
+  }
+
+  function updateChannelCardStyles(selectedChannel) {
+    const cardSms = document.getElementById('fp-channel-card-sms');
+    const cardEmail = document.getElementById('fp-channel-card-email');
+    if (cardSms && cardEmail) {
+      if (selectedChannel === 'sms') {
+        cardSms.style.borderColor = '#1e8a5a';
+        cardSms.style.background = '#f0fdf4';
+        cardEmail.style.borderColor = '#cbd5e1';
+        cardEmail.style.background = '#ffffff';
+      } else {
+        cardEmail.style.borderColor = '#1e8a5a';
+        cardEmail.style.background = '#f0fdf4';
+        cardSms.style.borderColor = '#cbd5e1';
+        cardSms.style.background = '#ffffff';
+      }
+    }
+  }
+
+  async function submitFpStep2() {
+    const btn = document.getElementById('btn-fp-submit-step2');
+    const errBox = document.getElementById('fp-error-2');
+    if (errBox) { errBox.textContent = ''; errBox.classList.add('hidden'); }
+
+    const selectedRadio = document.querySelector('input[name="fp_channel"]:checked');
+    const channel = selectedRadio ? selectedRadio.value : 'sms';
+    fpSession.channel = channel;
+
+    const origText = btn ? btn.textContent : 'Send 6-Digit OTP';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Sending Code...';
+    }
+
+    try {
+      const res = await fetch('/api/auth/forgot-password/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: fpSession.userId,
+          channel: channel,
+          sessionToken: fpSession.sessionToken
+        })
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data || !data.success) {
+        const errorMsg = data?.error || 'Unable to send OTP code. Please try again.';
+        if (errBox) {
+          errBox.textContent = errorMsg;
+          errBox.classList.remove('hidden');
+        }
+        return;
+      }
+
+      fpSession.sessionToken = data.sessionToken;
+      fpSession.maskedDestination = data.maskedDestination;
+
+      const destLabel = document.getElementById('fp-otp-destination-label');
+      if (destLabel) destLabel.textContent = data.maskedDestination;
+
+      const noticeEl = document.getElementById('fp-otp-notice');
+      if (noticeEl) {
+        if (data.notice) {
+          noticeEl.textContent = data.notice;
+          noticeEl.classList.remove('hidden');
+        } else {
+          noticeEl.classList.add('hidden');
+        }
+      }
+
+      // Show switch channel button because user has both
+      const switchBtn = document.getElementById('btn-fp-switch-channel');
+      if (switchBtn) {
+        switchBtn.classList.remove('hidden');
+        switchBtn.textContent = channel === 'sms' ? 'Send code to email instead' : 'Send code via SMS instead';
+      }
+
+      setFpStep(3);
+      startFpExpiryTimer(data.expiresIn || 600);
+      startFpResendCooldown(data.resendCooldown || 60);
+
+      const otpInp = document.getElementById('fp-otp-input');
+      if (otpInp) {
+        otpInp.value = '';
+        setTimeout(() => otpInp.focus(), 150);
+      }
+
+    } catch (err) {
+      if (errBox) {
+        errBox.textContent = 'Network error delivering code. Please try again.';
+        errBox.classList.remove('hidden');
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = origText;
+      }
+    }
+  }
+
+  async function submitFpStep3() {
+    const input = document.getElementById('fp-otp-input');
+    const errSpan = document.getElementById('err-fp-otp');
+    const errBox = document.getElementById('fp-error-3');
+    const btn = document.getElementById('btn-fp-submit-step3');
+
+    if (errSpan) errSpan.textContent = '';
+    if (errBox) { errBox.textContent = ''; errBox.classList.add('hidden'); }
+
+    const rawOtp = input ? input.value.trim().replace(/\D/g, '') : '';
+    if (rawOtp.length !== 6) {
+      if (errSpan) errSpan.textContent = 'Please enter the complete 6-digit code.';
+      return;
+    }
+
+    const origText = btn ? btn.textContent : 'Verify Code';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Verifying...';
+    }
+
+    try {
+      const res = await fetch('/api/auth/forgot-password/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionToken: fpSession.sessionToken,
+          otp: rawOtp
+        })
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data || !data.success) {
+        const errorMsg = data?.error || 'Invalid 6-digit code. Please check and try again.';
+        if (errBox) {
+          errBox.textContent = errorMsg;
+          errBox.classList.remove('hidden');
+        }
+        return;
+      }
+
+      // Code Verified successfully! Proceed to Step 4
+      if (fpSession.timerInterval) clearInterval(fpSession.timerInterval);
+      setFpStep(4);
+
+      const newPwInp = document.getElementById('fp-new-pw');
+      if (newPwInp) {
+        newPwInp.value = '';
+        setTimeout(() => newPwInp.focus(), 150);
+      }
+
+    } catch (err) {
+      if (errBox) {
+        errBox.textContent = 'Network error verifying code. Please try again.';
+        errBox.classList.remove('hidden');
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = origText;
+      }
+    }
+  }
+
+  async function submitFpStep4() {
+    const newPwInput = document.getElementById('fp-new-pw');
+    const confirmPwInput = document.getElementById('fp-confirm-pw');
+    const errNew = document.getElementById('err-fp-new-pw');
+    const errConfirm = document.getElementById('err-fp-confirm-pw');
+    const errBox = document.getElementById('fp-error-4');
+    const btn = document.getElementById('btn-fp-submit-step4');
+
+    if (errNew) errNew.textContent = '';
+    if (errConfirm) errConfirm.textContent = '';
+    if (errBox) { errBox.textContent = ''; errBox.classList.add('hidden'); }
+
+    const newPw = newPwInput ? newPwInput.value : '';
+    const confirmPw = confirmPwInput ? confirmPwInput.value : '';
+
+    const v = validatePassword(newPw);
+    if (!v.len || !v.upper || !v.num || !v.sym) {
+      if (errNew) errNew.textContent = 'Password must meet all 4 requirements above.';
+      return;
+    }
+
+    if (newPw !== confirmPw) {
+      if (errConfirm) errConfirm.textContent = 'Passwords do not match.';
+      return;
+    }
+
+    const origText = btn ? btn.textContent : 'Reset Password';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Updating Password...';
+    }
+
+    try {
+      const res = await fetch('/api/auth/forgot-password/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionToken: fpSession.sessionToken,
+          newPassword: newPw,
+          confirmPassword: confirmPw
+        })
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data || !data.success) {
+        const errorMsg = data?.error || 'Could not update password. Please try again.';
+        if (errBox) {
+          errBox.textContent = errorMsg;
+          errBox.classList.remove('hidden');
+        }
+        return;
+      }
+
+      // Update local storage user record if present so local state is instantly synchronized
+      if (typeof DB !== 'undefined' && typeof DB.getUsers === 'function') {
+        const localUsers = DB.getUsers();
+        const localUser = localUsers.find(u => u.id === fpSession.userId);
+        if (localUser) {
+          localUser.password = newPw;
+          localUser.updatedAt = new Date().toISOString();
+          localStorage.setItem('sun_users', JSON.stringify(localUsers));
+        }
+      }
+
+      // Password Reset Complete! Go to Step 5
+      setFpStep(5);
+
+    } catch (err) {
+      if (errBox) {
+        errBox.textContent = 'Network error saving password. Please check your connection and try again.';
+        errBox.classList.remove('hidden');
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = origText;
+      }
+    }
+  }
+
+  function initForgotPassword() {
+    // 1. Link on Login Page
+    const linkForgot = document.getElementById('link-forgot-password');
+    if (linkForgot) {
+      linkForgot.addEventListener('click', (e) => {
+        e.preventDefault();
+        const loginIdInput = document.getElementById('login-identifier');
+        const prefill = loginIdInput ? loginIdInput.value.trim() : '';
+        openForgotPasswordModal(prefill);
+      });
+    }
+
+    // 2. Modal Close Buttons
+    const closeBtn = document.getElementById('btn-close-fp-modal');
+    if (closeBtn) closeBtn.addEventListener('click', closeForgotPasswordModal);
+
+    const fpModal = document.getElementById('modal-forgot-password');
+    if (fpModal) {
+      fpModal.addEventListener('click', (e) => {
+        if (e.target === fpModal) closeForgotPasswordModal();
+      });
+    }
+
+    // 3. Step 1 Submit
+    const formStep1 = document.getElementById('fp-form-step-1');
+    if (formStep1) {
+      formStep1.addEventListener('submit', (e) => {
+        e.preventDefault();
+        submitFpStep1();
+      });
+    }
+
+    // 4. Step 2 Channel selection & Submit
+    const cardSms = document.getElementById('fp-channel-card-sms');
+    const cardEmail = document.getElementById('fp-channel-card-email');
+    if (cardSms) {
+      cardSms.addEventListener('click', () => {
+        const radio = cardSms.querySelector('input[type="radio"]');
+        if (radio) radio.checked = true;
+        updateChannelCardStyles('sms');
+      });
+    }
+    if (cardEmail) {
+      cardEmail.addEventListener('click', () => {
+        const radio = cardEmail.querySelector('input[type="radio"]');
+        if (radio) radio.checked = true;
+        updateChannelCardStyles('email');
+      });
+    }
+
+    const btnSubmitStep2 = document.getElementById('btn-fp-submit-step2');
+    if (btnSubmitStep2) {
+      btnSubmitStep2.addEventListener('click', submitFpStep2);
+    }
+
+    const btnBackStep1 = document.getElementById('btn-fp-back-to-step1');
+    if (btnBackStep1) {
+      btnBackStep1.addEventListener('click', () => setFpStep(1));
+    }
+
+    // 5. Step 3 OTP Input formatting & Submit
+    const otpInput = document.getElementById('fp-otp-input');
+    if (otpInput) {
+      otpInput.addEventListener('input', () => {
+        const clean = otpInput.value.replace(/\D/g, '').slice(0, 6);
+        otpInput.value = clean;
+        const errSpan = document.getElementById('err-fp-otp');
+        if (errSpan) errSpan.textContent = '';
+        if (clean.length === 6) {
+          submitFpStep3();
+        }
+      });
+    }
+
+    const formStep3 = document.getElementById('fp-form-step-3');
+    if (formStep3) {
+      formStep3.addEventListener('submit', (e) => {
+        e.preventDefault();
+        submitFpStep3();
+      });
+    }
+
+    const resendBtn = document.getElementById('btn-fp-resend-otp');
+    if (resendBtn) {
+      resendBtn.addEventListener('click', () => {
+        if (!resendBtn.disabled) submitFpStep2();
+      });
+    }
+
+    const switchChannelBtn = document.getElementById('btn-fp-switch-channel');
+    if (switchChannelBtn) {
+      switchChannelBtn.addEventListener('click', () => {
+        const newChannel = fpSession.channel === 'sms' ? 'email' : 'sms';
+        fpSession.channel = newChannel;
+        const radio = document.querySelector(`input[name="fp_channel"][value="${newChannel}"]`);
+        if (radio) radio.checked = true;
+        updateChannelCardStyles(newChannel);
+        submitFpStep2();
+      });
+    }
+
+    // 6. Step 4 Password input real-time rules & Submit
+    const newPwInput = document.getElementById('fp-new-pw');
+    if (newPwInput) {
+      newPwInput.addEventListener('input', () => updateFpPasswordRules(newPwInput.value));
+    }
+
+    const formStep4 = document.getElementById('fp-form-step-4');
+    if (formStep4) {
+      formStep4.addEventListener('submit', (e) => {
+        e.preventDefault();
+        submitFpStep4();
+      });
+    }
+
+    // 7. Step 5 Finish / Sign In button
+    const btnFinish = document.getElementById('btn-fp-finish-login');
+    if (btnFinish) {
+      btnFinish.addEventListener('click', () => {
+        closeForgotPasswordModal();
+        if (typeof App !== 'undefined' && App.navigate) {
+          App.navigate('login');
+        }
+        const loginIdInput = document.getElementById('login-identifier');
+        if (loginIdInput && fpSession.identifier) {
+          loginIdInput.value = fpSession.identifier;
+        }
+        const pwInput = document.getElementById('login-password');
+        if (pwInput) {
+          pwInput.value = '';
+          setTimeout(() => pwInput.focus(), 150);
+        }
+      });
+    }
+  }
+
   return {
     init() {
       initToggleButtons();
       initSignup();
       initLogin();
       initLinks();
+      initForgotPassword();
     },
+    openForgotPasswordModal,
     isValidEmail,
     validateNigerianPhone,
   };

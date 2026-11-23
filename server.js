@@ -5,6 +5,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -273,6 +274,538 @@ app.post('/api/flw-webhook', (req, res) => {
 
   // Immediate 200 acknowledge to Flutterwave
   res.status(200).json({ status: 'success' });
+});
+
+// ==============================================================================
+// KUDISMS & SUPABASE CONFIGURATION (FOR 6-DIGIT FORGOTTEN PASSWORD OTP)
+// ==============================================================================
+const DEFAULT_KUDISMS_KEY = process.env.KUDISMS_API_KEY || 'fogAIJrnPUkDMLiRzj9FN5VO3dqQ7pevy4c2lhZEuKSBa1T8s0wGCbxXHYW6tm';
+const DEFAULT_KUDISMS_SENDER_ID = process.env.KUDISMS_SENDER_ID || 'IRETOMIWA';
+const DEFAULT_KUDISMS_GATEWAY = process.env.KUDISMS_GATEWAY || '2';
+
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cmzfqeifdlktavqsoyjt.supabase.co';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtemZxZWlmZGxrdGF2cXNveWp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyODM1NjksImV4cCI6MjEwODg1OTU2OX0.AnWfzXrkNc3kCEy7EfKbeP3A191OKO_B8DK8kfeFdZM';
+const SUPABASE_TABLE = 'app_sync';
+const SUPABASE_SYNC_ID = 'prod_v2';
+
+// In-Memory OTP Store: sessionToken -> { userId, otp, channel, destination, maskedDestination, expiresAt, resendAfter, attempts, verified }
+const otpSessions = new Map();
+
+// Periodically clean up expired OTP sessions (every 5 minutes)
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, sess] of otpSessions.entries()) {
+    if (sess.expiresAt < now) {
+      otpSessions.delete(token);
+    }
+  }
+}, 5 * 60 * 1000);
+
+// Helper: Fetch cloud data row from Supabase
+async function getSupabaseCloudData() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.${SUPABASE_SYNC_ID}&select=*`, {
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Accept': 'application/json'
+    }
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Supabase query failed: HTTP ${res.status} ${errText}`);
+  }
+  const rows = await res.json();
+  const row = (Array.isArray(rows) && rows[0]) ? rows[0] : (rows || {});
+  const users = Array.isArray(row.users) ? row.users : [];
+  const kudismsConfig = row.kudisms_config || row.kudismsConfig || {};
+  return { row, users, kudismsConfig };
+}
+
+// Helper: Mask phone number (e.g. 08188087715 -> 081****7715)
+function maskPhone(phone) {
+  if (!phone) return '';
+  const digits = String(phone).replace(/\D/g, '');
+  if (digits.length <= 6) return phone;
+  return digits.slice(0, 4) + '****' + digits.slice(-3);
+}
+
+// Helper: Mask email address (e.g. johnidowu@gmail.com -> jo*****u@gmail.com)
+function maskEmail(email) {
+  if (!email) return '';
+  const parts = String(email).trim().split('@');
+  if (parts.length !== 2) return email;
+  const user = parts[0];
+  const domain = parts[1];
+  if (user.length <= 2) return `${user[0]}*@${domain}`;
+  const maskedUser = user.slice(0, 2) + '*'.repeat(Math.max(2, user.length - 3)) + user.slice(-1);
+  return `${maskedUser}@${domain}`;
+}
+
+// Helper: Validate password rules (6+ chars, uppercase, number, symbol)
+function isPasswordComplex(pw) {
+  if (!pw || typeof pw !== 'string' || pw.length < 6) return false;
+  const hasUpper = /[A-Z]/.test(pw);
+  const hasNum = /[0-9]/.test(pw);
+  const hasSym = /[^A-Za-z0-9]/.test(pw);
+  return hasUpper && hasNum && hasSym;
+}
+
+// Helper: Send SMS via KudiSMS
+async function sendKudiSmsMessage(recipientPhone, message, config = {}) {
+  const token = config.token || DEFAULT_KUDISMS_KEY;
+  const senderID = config.senderID || DEFAULT_KUDISMS_SENDER_ID;
+  const gateway = config.gateway || DEFAULT_KUDISMS_GATEWAY;
+
+  const cleanDigits = String(recipientPhone || '').replace(/\D/g, '');
+  const formattedPhone = cleanDigits.startsWith('0')
+    ? ('234' + cleanDigits.slice(1))
+    : (cleanDigits.startsWith('234') ? cleanDigits : ('234' + cleanDigits));
+
+  const payload = {
+    token,
+    senderID,
+    recipients: formattedPhone,
+    message,
+    gateway
+  };
+
+  console.log(`[KudiSMS] Sending SMS to ${formattedPhone} via senderID "${senderID}" gateway ${gateway}`);
+
+  const res = await fetch('https://my.kudisms.net/api/sms', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json().catch(() => null);
+  console.log(`[KudiSMS Response]`, data);
+  return { ok: res.ok, status: res.status, data };
+}
+
+// ==============================================================================
+// FORGOTTEN PASSWORD & OTP API ENDPOINTS
+// ==============================================================================
+
+// 1. Check KudiSMS Live Balance Endpoint
+app.get('/api/kudisms/balance', async (req, res) => {
+  try {
+    const { kudismsConfig } = await getSupabaseCloudData().catch(() => ({ kudismsConfig: {} }));
+    const token = kudismsConfig.token || DEFAULT_KUDISMS_KEY;
+    const balanceRes = await fetch(`https://my.kudisms.net/api/balance?token=${encodeURIComponent(token)}`);
+    const balanceJson = await balanceRes.json().catch(() => null);
+
+    if (balanceJson && (balanceJson.status === 'success' || balanceJson.error_code === '000')) {
+      return res.json({
+        success: true,
+        balance: balanceJson.msg || '0.00',
+        senderID: kudismsConfig.senderID || DEFAULT_KUDISMS_SENDER_ID,
+        raw: balanceJson
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      error: balanceJson?.msg || 'Could not retrieve KudiSMS balance.',
+      details: balanceJson
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 2. Step 1: Initiate Password Reset (Lookup user and evaluate SMS vs Email channels)
+app.post('/api/auth/forgot-password/initiate', async (req, res) => {
+  try {
+    const { identifier } = req.body;
+    if (!identifier || !String(identifier).trim()) {
+      return res.status(400).json({ success: false, error: 'Please enter your phone number, email address, or Client ID.' });
+    }
+
+    const cleanInput = String(identifier).trim().toLowerCase();
+    const cleanDigits = String(identifier).trim().replace(/\D/g, '');
+
+    const { users, kudismsConfig } = await getSupabaseCloudData();
+
+    // Find user across Client ID (ir00001), Email, and Phone
+    const user = users.find(u => {
+      const idMatch = Boolean(u.id && u.id.toLowerCase() === cleanInput);
+      const emailMatch = Boolean(u.email && u.email.trim().toLowerCase() === cleanInput);
+      const phoneDigits = (u.phone || '').replace(/\D/g, '');
+      const phoneMatch = Boolean(
+        cleanDigits.length >= 10 &&
+        phoneDigits &&
+        (phoneDigits === cleanDigits || phoneDigits.endsWith(cleanDigits.slice(-10)) || cleanDigits.endsWith(phoneDigits.slice(-10)))
+      );
+      return idMatch || emailMatch || phoneMatch;
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'No active account found with that email, phone number, or Client ID.'
+      });
+    }
+
+    const cleanUserPhone = (user.phone || '').trim();
+    const cleanUserEmail = (user.email || '').trim();
+
+    const hasPhone = Boolean(cleanUserPhone && cleanUserPhone.replace(/\D/g, '').length >= 10);
+    const hasEmail = Boolean(cleanUserEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanUserEmail));
+
+    if (!hasPhone && !hasEmail) {
+      return res.status(400).json({
+        success: false,
+        error: 'This account has no reachable phone number or email on file. Please contact support.'
+      });
+    }
+
+    const maskedPhone = hasPhone ? maskPhone(cleanUserPhone) : null;
+    const maskedEmail = hasEmail ? maskEmail(cleanUserEmail) : null;
+
+    // Rule: If account has BOTH email and phone number, prompt user to choose channel
+    if (hasPhone && hasEmail) {
+      return res.json({
+        success: true,
+        action: 'choose_channel',
+        userId: user.id,
+        maskedPhone,
+        maskedEmail,
+        hasPhone: true,
+        hasEmail: true
+      });
+    }
+
+    // Rule: If account has ONLY phone number, send OTP to phone number directly
+    if (hasPhone && !hasEmail) {
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const sessionToken = crypto.randomBytes(24).toString('hex');
+      const now = Date.now();
+
+      const smsMsg = `Iretomiwa Sun Investment: ${otp} is your reset key. Valid for 10 minutes.`;
+      const smsRes = await sendKudiSmsMessage(cleanUserPhone, smsMsg, kudismsConfig);
+
+      // Save session
+      otpSessions.set(sessionToken, {
+        sessionToken,
+        userId: user.id,
+        otp,
+        channel: 'sms',
+        destination: cleanUserPhone,
+        maskedDestination: maskedPhone,
+        createdAt: now,
+        expiresAt: now + (10 * 60 * 1000), // 10 minutes
+        resendAfter: now + (60 * 1000),     // 60 seconds
+        attempts: 0,
+        verified: false
+      });
+
+      let notice = null;
+      if (!smsRes.ok || (smsRes.data && smsRes.data.status === 'error')) {
+        const errCode = smsRes.data?.error_code;
+        const errMsg = smsRes.data?.msg || 'SMS gateway error';
+        if (errCode === '106') {
+          notice = `Sender ID "${kudismsConfig.senderID || DEFAULT_KUDISMS_SENDER_ID}" is currently pending approval on KudiSMS.`;
+        } else {
+          notice = `KudiSMS note: ${errMsg}`;
+        }
+      }
+
+      return res.json({
+        success: true,
+        action: 'otp_sent',
+        sessionToken,
+        channel: 'sms',
+        maskedDestination: maskedPhone,
+        expiresIn: 600,
+        resendCooldown: 60,
+        notice
+      });
+    }
+
+    // Rule: If account has ONLY email, send OTP to email directly
+    if (!hasPhone && hasEmail) {
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const sessionToken = crypto.randomBytes(24).toString('hex');
+      const now = Date.now();
+
+      otpSessions.set(sessionToken, {
+        sessionToken,
+        userId: user.id,
+        otp,
+        channel: 'email',
+        destination: cleanUserEmail,
+        maskedDestination: maskedEmail,
+        createdAt: now,
+        expiresAt: now + (10 * 60 * 1000),
+        resendAfter: now + (60 * 1000),
+        attempts: 0,
+        verified: false
+      });
+
+      return res.json({
+        success: true,
+        action: 'otp_sent',
+        sessionToken,
+        channel: 'email',
+        maskedDestination: maskedEmail,
+        expiresIn: 600,
+        resendCooldown: 60
+      });
+    }
+
+  } catch (err) {
+    console.error('[Forgot Password Initiate ERROR]', err);
+    return res.status(500).json({ success: false, error: err.message || 'Error looking up account.' });
+  }
+});
+
+// 3. Step 2: Send OTP via chosen channel (or resend)
+app.post('/api/auth/forgot-password/send-otp', async (req, res) => {
+  try {
+    const { userId, channel, sessionToken } = req.body;
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'User ID is required.' });
+    }
+    if (channel !== 'sms' && channel !== 'email') {
+      return res.status(400).json({ success: false, error: 'Please choose SMS or Email channel.' });
+    }
+
+    // Check resend cooldown if an existing sessionToken exists
+    if (sessionToken && otpSessions.has(sessionToken)) {
+      const currentSess = otpSessions.get(sessionToken);
+      if (Date.now() < currentSess.resendAfter) {
+        const remainingSec = Math.ceil((currentSess.resendAfter - Date.now()) / 1000);
+        return res.status(429).json({
+          success: false,
+          error: `Please wait ${remainingSec} second${remainingSec === 1 ? '' : 's'} before requesting a new code.`
+        });
+      }
+    }
+
+    const { users, kudismsConfig } = await getSupabaseCloudData();
+    const user = users.find(u => u.id === userId);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User account not found.' });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const newSessionToken = sessionToken || crypto.randomBytes(24).toString('hex');
+    const now = Date.now();
+
+    let maskedDestination = '';
+    let notice = null;
+
+    if (channel === 'sms') {
+      const phone = (user.phone || '').trim();
+      if (!phone) {
+        return res.status(400).json({ success: false, error: 'No phone number attached to this account.' });
+      }
+      maskedDestination = maskPhone(phone);
+      const smsMsg = `Iretomiwa Sun Investment: ${otp} is your reset key. Valid for 10 minutes.`;
+      const smsRes = await sendKudiSmsMessage(phone, smsMsg, kudismsConfig);
+
+      if (!smsRes.ok || (smsRes.data && smsRes.data.status === 'error')) {
+        const errCode = smsRes.data?.error_code;
+        const errMsg = smsRes.data?.msg || 'SMS gateway error';
+        if (errCode === '106') {
+          notice = `Sender ID "${kudismsConfig.senderID || DEFAULT_KUDISMS_SENDER_ID}" is currently pending approval on KudiSMS.`;
+        } else {
+          notice = `KudiSMS note: ${errMsg}`;
+        }
+      }
+
+      otpSessions.set(newSessionToken, {
+        sessionToken: newSessionToken,
+        userId: user.id,
+        otp,
+        channel: 'sms',
+        destination: phone,
+        maskedDestination,
+        createdAt: now,
+        expiresAt: now + (10 * 60 * 1000),
+        resendAfter: now + (60 * 1000),
+        attempts: 0,
+        verified: false
+      });
+    } else {
+      const email = (user.email || '').trim();
+      if (!email) {
+        return res.status(400).json({ success: false, error: 'No email address attached to this account.' });
+      }
+      maskedDestination = maskEmail(email);
+
+      otpSessions.set(newSessionToken, {
+        sessionToken: newSessionToken,
+        userId: user.id,
+        otp,
+        channel: 'email',
+        destination: email,
+        maskedDestination,
+        createdAt: now,
+        expiresAt: now + (10 * 60 * 1000),
+        resendAfter: now + (60 * 1000),
+        attempts: 0,
+        verified: false
+      });
+    }
+
+    return res.json({
+      success: true,
+      action: 'otp_sent',
+      sessionToken: newSessionToken,
+      channel,
+      maskedDestination,
+      expiresIn: 600,
+      resendCooldown: 60,
+      notice
+    });
+
+  } catch (err) {
+    console.error('[Send OTP ERROR]', err);
+    return res.status(500).json({ success: false, error: err.message || 'Error delivering OTP code.' });
+  }
+});
+
+// 4. Step 3: Verify 6-digit OTP code
+app.post('/api/auth/forgot-password/verify-otp', (req, res) => {
+  try {
+    const { sessionToken, otp } = req.body;
+    if (!sessionToken || !otp) {
+      return res.status(400).json({ success: false, error: 'Session token and 6-digit code are required.' });
+    }
+
+    const sess = otpSessions.get(sessionToken);
+    if (!sess) {
+      return res.status(400).json({ success: false, error: 'Verification session expired. Please request a new code.' });
+    }
+
+    if (Date.now() > sess.expiresAt) {
+      otpSessions.delete(sessionToken);
+      return res.status(400).json({ success: false, error: 'The 6-digit code has expired. Please request a new one.' });
+    }
+
+    if (sess.attempts >= 5) {
+      otpSessions.delete(sessionToken);
+      return res.status(429).json({ success: false, error: 'Too many incorrect attempts. Please request a new code.' });
+    }
+
+    const cleanInputOtp = String(otp).trim().replace(/\D/g, '');
+    if (cleanInputOtp !== sess.otp) {
+      sess.attempts += 1;
+      const remainingAttempts = 5 - sess.attempts;
+      return res.status(400).json({
+        success: false,
+        error: `Incorrect 6-digit code. ${remainingAttempts} attempt${remainingAttempts === 1 ? '' : 's'} remaining.`
+      });
+    }
+
+    // OTP Verified! Mark session
+    sess.verified = true;
+    return res.json({
+      success: true,
+      message: 'Code verified successfully.',
+      sessionToken
+    });
+
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 5. Step 4: Reset Password
+app.post('/api/auth/forgot-password/reset-password', async (req, res) => {
+  try {
+    const { sessionToken, newPassword, confirmPassword } = req.body;
+    if (!sessionToken) {
+      return res.status(400).json({ success: false, error: 'Session expired. Please start again.' });
+    }
+
+    const sess = otpSessions.get(sessionToken);
+    if (!sess || !sess.verified) {
+      return res.status(401).json({ success: false, error: 'Please verify your 6-digit code first.' });
+    }
+
+    if (Date.now() > sess.expiresAt) {
+      otpSessions.delete(sessionToken);
+      return res.status(400).json({ success: false, error: 'Session expired. Please request a new code.' });
+    }
+
+    if (!newPassword || newPassword !== confirmPassword) {
+      return res.status(400).json({ success: false, error: 'Passwords do not match.' });
+    }
+
+    if (!isPasswordComplex(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password must be at least 6 characters, include an uppercase letter, a number, and a symbol.'
+      });
+    }
+
+    // Update password in Supabase cloud database
+    const { users } = await getSupabaseCloudData();
+    const userIdx = users.findIndex(u => u.id === sess.userId);
+    if (userIdx === -1) {
+      return res.status(404).json({ success: false, error: 'Account not found in cloud database.' });
+    }
+
+    users[userIdx].password = newPassword;
+    users[userIdx].updatedAt = new Date().toISOString();
+
+    const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.${SUPABASE_SYNC_ID}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        users,
+        updated_at: new Date().toISOString()
+      })
+    });
+
+    if (!patchRes.ok) {
+      const errText = await patchRes.text().catch(() => '');
+      return res.status(500).json({
+        success: false,
+        error: `Could not save new password to database: ${errText || 'Network error'}`
+      });
+    }
+
+    // Clean up OTP session
+    otpSessions.delete(sessionToken);
+
+    return res.json({
+      success: true,
+      message: 'Password reset successfully! You can now log in with your new password.',
+      userId: users[userIdx].id
+    });
+
+  } catch (err) {
+    console.error('[Reset Password ERROR]', err);
+    return res.status(500).json({ success: false, error: err.message || 'Error updating password.' });
+  }
+});
+
+// 6. Admin: Test KudiSMS SMS dispatch
+app.post('/api/kudisms/test-sms', async (req, res) => {
+  try {
+    const { phone, message, token, senderID, gateway } = req.body;
+    if (!phone) {
+      return res.status(400).json({ success: false, error: 'Recipient phone number is required.' });
+    }
+
+    const testMsg = message || 'Iretomiwa Sun Investment: 123456 is your reset key. Valid for 10 minutes.';
+    const result = await sendKudiSmsMessage(phone, testMsg, { token, senderID, gateway });
+
+    return res.json({
+      success: result.ok,
+      data: result.data
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Serve frontend static assets from current directory

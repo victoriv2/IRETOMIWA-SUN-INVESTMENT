@@ -646,6 +646,7 @@ const DB = {
         admin: this.getAdmin(),
         custom_categories: mergedCats,
         flutterwave_config: mergedFlw,
+        kudisms_config: this.getKudiSmsConfig(),
         reset_id: SYSTEM_RESET_ID,
         updated_at: new Date().toISOString(),
       };
@@ -846,6 +847,15 @@ const DB = {
             mergedCfg.min_withdrawal_updated_at = locMinUp;
           }
           localStorage.setItem('sun_flutterwave_config', JSON.stringify(mergedCfg));
+        }
+      }
+
+      // KudiSMS config sync
+      const cloudKudi = record.kudisms_config || record.kudismsConfig || null;
+      if (cloudKudi && typeof cloudKudi === 'object') {
+        const localKudi = this.getKudiSmsConfig();
+        if (cloudKudi.updatedAt && (!localKudi.updatedAt || cloudKudi.updatedAt >= localKudi.updatedAt)) {
+          localStorage.setItem('sun_kudisms_config', JSON.stringify({ ...localKudi, ...cloudKudi }));
         }
       }
 
@@ -2099,6 +2109,50 @@ const DB = {
     localStorage.setItem('sun_flutterwave_config', JSON.stringify(updated));
     this.scheduleCloudPush();
     return updated;
+  },
+
+  // ---- KUDISMS GATEWAY CONFIG ----
+  getKudiSmsConfig() {
+    const defaultToken = 'fogAIJrnPUkDMLiRzj9FN5VO3dqQ7pevy4c2lhZEuKSBa1T8s0wGCbxXHYW6tm';
+    const defaultSender = 'IRETOMIWA';
+    const defaultGateway = '2';
+    try {
+      const raw = localStorage.getItem('sun_kudisms_config');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          token: (parsed.token || defaultToken).trim(),
+          senderID: (parsed.senderID || parsed.senderId || defaultSender).trim().toUpperCase(),
+          gateway: String(parsed.gateway || defaultGateway),
+          updatedAt: parsed.updatedAt || '1970-01-01T00:00:00.000Z'
+        };
+      }
+    } catch(e) {}
+    return {
+      token: defaultToken,
+      senderID: defaultSender,
+      gateway: defaultGateway,
+      updatedAt: '1970-01-01T00:00:00.000Z'
+    };
+  },
+  setKudiSmsConfig(cfg = {}) {
+    const defaultToken = 'fogAIJrnPUkDMLiRzj9FN5VO3dqQ7pevy4c2lhZEuKSBa1T8s0wGCbxXHYW6tm';
+    const defaultSender = 'IRETOMIWA';
+    const current = this.getKudiSmsConfig();
+    const token = (cfg.token || current.token || defaultToken).trim();
+    const senderID = (cfg.senderID || current.senderID || defaultSender).trim().toUpperCase();
+    const gateway = String(cfg.gateway || current.gateway || '2');
+    const nowIso = new Date().toISOString();
+
+    const newCfg = {
+      token,
+      senderID,
+      gateway,
+      updatedAt: nowIso
+    };
+    localStorage.setItem('sun_kudisms_config', JSON.stringify(newCfg));
+    this.scheduleCloudPush();
+    return newCfg;
   },
 
   // ---- NIGERIAN BANKS LIST (73 BANKS) ----
