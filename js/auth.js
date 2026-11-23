@@ -422,6 +422,52 @@ const Auth = (() => {
   // ============================================
   // FORGOTTEN PASSWORD OTP RESET FLOW
   // ============================================
+  const RAILWAY_CLOUD_BACKEND = 'https://iretomiwa-sun-investment-production.up.railway.app';
+
+  async function callAuthApi(endpoint, body) {
+    const clean = endpoint.replace(/^\/+/, '');
+    const isRailwayOrigin = window.location.hostname.includes('railway.app');
+
+    // Build candidate endpoints in priority order
+    const candidateUrls = isRailwayOrigin
+      ? [`/${clean}`, `${RAILWAY_CLOUD_BACKEND}/${clean}`]
+      : [`${RAILWAY_CLOUD_BACKEND}/${clean}`, `/${clean}`];
+
+    let lastError = null;
+    for (const url of candidateUrls) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(body)
+        });
+
+        // Ensure response is JSON and not an HTML fallback page
+        const ctype = res.headers.get('content-type') || '';
+        if (!ctype.includes('application/json')) {
+          continue;
+        }
+
+        const data = await res.json().catch(() => null);
+        if (data) {
+          return { ok: res.ok, status: res.status, data, error: null };
+        }
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    return {
+      ok: false,
+      status: 0,
+      data: null,
+      error: lastError ? (lastError.message || 'Network connection failed') : 'Could not contact server.'
+    };
+  }
+
   let fpSession = {
     userId: null,
     identifier: '',
@@ -618,16 +664,45 @@ const Auth = (() => {
     }
 
     try {
-      const res = await fetch('/api/auth/forgot-password/initiate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier })
+      // Local fallback lookup to support offline or instant local users
+      let localUser = null;
+      if (typeof DB !== 'undefined' && typeof DB.getUserByIdentifier === 'function') {
+        localUser = DB.getUserByIdentifier(identifier);
+      }
+
+      const { ok, data, error } = await callAuthApi('api/auth/forgot-password/initiate', {
+        identifier,
+        localUser: localUser ? { id: localUser.id, phone: localUser.phone, email: localUser.email } : null
       });
 
-      const data = await res.json().catch(() => null);
+      if (!ok || !data || !data.success) {
+        // Fallback: If cloud API failed or returned not found, but user exists in local DB
+        if (localUser && localUser.phone) {
+          const hasPhone = Boolean(localUser.phone && localUser.phone.replace(/\D/g, '').length >= 10);
+          const hasEmail = Boolean(localUser.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(localUser.email));
+          const maskedPhone = hasPhone ? (localUser.phone.slice(0, 4) + '****' + localUser.phone.slice(-3)) : null;
+          const maskedEmail = hasEmail ? localUser.email.replace(/^(.)(.*)(.@.*)$/, (_, a, b, c) => a + '*'.repeat(Math.max(2, b.length)) + c) : null;
 
-      if (!res.ok || !data || !data.success) {
-        const errorMsg = data?.error || 'Unable to locate account. Please verify your details.';
+          if (hasPhone && hasEmail) {
+            fpSession.identifier = identifier;
+            fpSession.userId = localUser.id;
+            fpSession.hasPhone = true;
+            fpSession.hasEmail = true;
+            fpSession.maskedPhone = maskedPhone;
+            fpSession.maskedEmail = maskedEmail;
+
+            const phoneLabel = document.getElementById('fp-masked-phone-label');
+            if (phoneLabel) phoneLabel.textContent = maskedPhone;
+            const emailLabel = document.getElementById('fp-masked-email-label');
+            if (emailLabel) emailLabel.textContent = maskedEmail;
+
+            updateChannelCardStyles('sms');
+            setFpStep(2);
+            return;
+          }
+        }
+
+        const errorMsg = data?.error || error || 'Unable to locate account. Please verify your details.';
         if (errBox) {
           errBox.textContent = errorMsg;
           errBox.classList.remove('hidden');
@@ -738,20 +813,14 @@ const Auth = (() => {
     }
 
     try {
-      const res = await fetch('/api/auth/forgot-password/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: fpSession.userId,
-          channel: channel,
-          sessionToken: fpSession.sessionToken
-        })
+      const { ok, data, error } = await callAuthApi('api/auth/forgot-password/send-otp', {
+        userId: fpSession.userId,
+        channel: channel,
+        sessionToken: fpSession.sessionToken
       });
 
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok || !data || !data.success) {
-        const errorMsg = data?.error || 'Unable to send OTP code. Please try again.';
+      if (!ok || !data || !data.success) {
+        const errorMsg = data?.error || error || 'Unable to send OTP code. Please try again.';
         if (errBox) {
           errBox.textContent = errorMsg;
           errBox.classList.remove('hidden');
@@ -827,19 +896,13 @@ const Auth = (() => {
     }
 
     try {
-      const res = await fetch('/api/auth/forgot-password/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionToken: fpSession.sessionToken,
-          otp: rawOtp
-        })
+      const { ok, data, error } = await callAuthApi('api/auth/forgot-password/verify-otp', {
+        sessionToken: fpSession.sessionToken,
+        otp: rawOtp
       });
 
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok || !data || !data.success) {
-        const errorMsg = data?.error || 'Invalid 6-digit code. Please check and try again.';
+      if (!ok || !data || !data.success) {
+        const errorMsg = data?.error || error || 'Invalid 6-digit code. Please check and try again.';
         if (errBox) {
           errBox.textContent = errorMsg;
           errBox.classList.remove('hidden');
@@ -903,20 +966,14 @@ const Auth = (() => {
     }
 
     try {
-      const res = await fetch('/api/auth/forgot-password/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionToken: fpSession.sessionToken,
-          newPassword: newPw,
-          confirmPassword: confirmPw
-        })
+      const { ok, data, error } = await callAuthApi('api/auth/forgot-password/reset-password', {
+        sessionToken: fpSession.sessionToken,
+        newPassword: newPw,
+        confirmPassword: confirmPw
       });
 
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok || !data || !data.success) {
-        const errorMsg = data?.error || 'Could not update password. Please try again.';
+      if (!ok || !data || !data.success) {
+        const errorMsg = data?.error || error || 'Could not update password. Please try again.';
         if (errBox) {
           errBox.textContent = errorMsg;
           errBox.classList.remove('hidden');

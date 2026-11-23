@@ -2589,7 +2589,11 @@ const AdminApp = (() => {
     if (refBtn) refBtn.disabled = true;
 
     try {
-      const res = await fetch('/api/kudisms/balance');
+      const isRailwayOrigin = window.location.hostname.includes('railway.app');
+      const balanceUrl = isRailwayOrigin
+        ? '/api/kudisms/balance'
+        : 'https://iretomiwa-sun-investment-production.up.railway.app/api/kudisms/balance';
+      const res = await fetch(balanceUrl);
       const data = await res.json().catch(() => null);
 
       if (res.ok && data && data.success) {
