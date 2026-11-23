@@ -288,7 +288,7 @@ app.post('/api/flw-webhook', (req, res) => {
 // ==============================================================================
 const DEFAULT_KUDISMS_KEY = process.env.KUDISMS_API_KEY || 'fogAIJrnPUkDMLiRzj9FN5VO3dqQ7pevy4c2lhZEuKSBa1T8s0wGCbxXHYW6tm';
 const DEFAULT_KUDISMS_SENDER_ID = process.env.KUDISMS_SENDER_ID || 'IRETOMIWA';
-const DEFAULT_KUDISMS_GATEWAY = process.env.KUDISMS_GATEWAY || '2';
+const DEFAULT_KUDISMS_GATEWAY = process.env.KUDISMS_GATEWAY || '1';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cmzfqeifdlktavqsoyjt.supabase.co';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtemZxZWlmZGxrdGF2cXNveWp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyODM1NjksImV4cCI6MjEwODg1OTU2OX0.AnWfzXrkNc3kCEy7EfKbeP3A191OKO_B8DK8kfeFdZM';
@@ -538,40 +538,6 @@ async function sendOtpEmail(recipientEmail, otp, config = {}) {
     } catch (e) {
       console.warn('[Email] SMTP send failed:', e.message);
       return { success: false, provider: 'smtp', error: e.message };
-    }
-  }
-
-  // 4. Try KudiSMS Transactional Email API
-  if (provider === 'kudisms') {
-    try {
-      const kudismsToken = (config.token || config.kudismsToken || DEFAULT_KUDISMS_KEY).trim();
-      const kudismsSenderEmail = (config.senderEmail || 'support@iretomiwasun.com').trim();
-      const payload = {
-        token: kudismsToken,
-        senderEmail: kudismsSenderEmail,
-        senderName: 'Iretomiwa Sun Investment',
-        senderFrom: 'Iretomiwa Sun',
-        transactionName: 'Password Reset OTP',
-        recipient: recipientEmail,
-        subject: 'Your Password Reset OTP - Iretomiwa Sun Investment',
-        message: `Your Iretomiwa Sun Investment password reset code is ${otp}. Valid for 10 minutes.`
-      };
-
-      const res = await fetch('https://my.kudisms.net/api/transactional', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json().catch(() => null);
-      if (data && (data.status === 'success' || data.error_code === '000')) {
-        console.log(`[Email SUCCESS] Sent via KudiSMS to ${recipientEmail}`);
-        return { success: true, provider: 'kudisms', data };
-      }
-      console.warn('[Email] KudiSMS API error:', data);
-      return { success: false, provider: 'kudisms', error: data?.msg || 'KudiSMS email dispatch failed.' };
-    } catch (e) {
-      console.warn('[Email] KudiSMS email error:', e.message);
-      return { success: false, provider: 'kudisms', error: e.message };
     }
   }
 

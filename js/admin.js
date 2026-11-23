@@ -2615,8 +2615,15 @@ const AdminApp = (() => {
   function initAdminKudiSmsSettings() {
     const form = document.getElementById('admin-kudisms-config-form');
     const senderInp = document.getElementById('admin-kudisms-sender-id');
+    const gatewaySel = document.getElementById('admin-kudisms-gateway');
     const tokenInp = document.getElementById('admin-kudisms-token');
     const refreshBtn = document.getElementById('btn-refresh-kudisms-balance');
+
+    // Populate initial saved settings
+    const kudiCfg = DB.getKudiSmsConfig ? DB.getKudiSmsConfig() : {};
+    if (senderInp && kudiCfg.senderID) senderInp.value = kudiCfg.senderID;
+    if (gatewaySel && kudiCfg.gateway) gatewaySel.value = kudiCfg.gateway;
+    if (tokenInp && kudiCfg.token) tokenInp.value = kudiCfg.token;
 
     if (refreshBtn) {
       refreshBtn.addEventListener('click', (e) => {
@@ -2632,10 +2639,12 @@ const AdminApp = (() => {
       const msgBox = document.getElementById('admin-kudisms-msg');
 
       const senderID = (senderInp ? senderInp.value.trim().toUpperCase() : '') || 'IRETOMIWA';
+      const gateway = (gatewaySel ? gatewaySel.value : '1') || '1';
       const token = (tokenInp ? tokenInp.value.trim() : '') || 'fogAIJrnPUkDMLiRzj9FN5VO3dqQ7pevy4c2lhZEuKSBa1T8s0wGCbxXHYW6tm';
 
       DB.setKudiSmsConfig({
         senderID,
+        gateway,
         token
       });
 
@@ -2699,8 +2708,6 @@ const AdminApp = (() => {
       if (p === 'gmail') {
         if (grpPass) grpPass.classList.remove('hidden');
         if (authHint) authHint.innerHTML = 'Generate in your Google Account: <strong>myaccount.google.com/apppasswords</strong> (requires 2-Step Verification turned ON).';
-      } else if (p === 'kudisms') {
-        if (authHint) authHint.innerHTML = 'Uses your KudiSMS API key. <strong>Important:</strong> Your sender email must belong to an approved domain verified on your KudiSMS dashboard.';
       } else if (p === 'resend') {
         if (grpResend) grpResend.classList.remove('hidden');
       } else if (p === 'brevo') {
@@ -2720,10 +2727,8 @@ const AdminApp = (() => {
       const hasPass = passInp && passInp.value.trim().length > 0;
       const hasResend = resendInp && resendInp.value.trim().length > 0;
       const hasBrevo = brevoInp && brevoInp.value.trim().length > 0;
-      const hasSender = senderInp && senderInp.value.trim().includes('@');
 
       const isConfigured = (p === 'gmail' && hasPass) ||
-        (p === 'kudisms' && hasSender) ||
         (p === 'resend' && hasResend) ||
         (p === 'brevo' && hasBrevo) ||
         (p === 'smtp' && hasPass);

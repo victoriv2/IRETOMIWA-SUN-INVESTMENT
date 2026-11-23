@@ -58,7 +58,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261123_EMAIL_OTP_V107';
+      var APP_BUILD_VER = '20261123_KUDISMS_CORP_V108';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -1715,10 +1715,21 @@
 
             <form id="admin-kudisms-config-form" novalidate autocomplete="off">
               <div class="form-group" style="margin-bottom:12px; width: 100%; box-sizing: border-box;">
-                <label for="admin-kudisms-sender-id" style="font-size:12px; font-weight:700;">Promotional Sender ID</label>
+                <label for="admin-kudisms-sender-id" style="font-size:12px; font-weight:700;">Corporate Sender ID</label>
                 <input type="text" id="admin-kudisms-sender-id" autocomplete="off" maxlength="11" placeholder="IRETOMIWA" value="IRETOMIWA" style="width:100%; max-width:100%; box-sizing:border-box; height:42px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-size:13px; font-weight:700; text-transform:uppercase;" />
                 <small style="display:block; margin-top:4px; font-size:11px; color:var(--text-muted);">
-                  The Sender ID approved or submitted on your KudiSMS account (e.g. IRETOMIWA).
+                  The Corporate Sender ID approved on your KudiSMS account (e.g. IRETOMIWA).
+                </small>
+              </div>
+
+              <div class="form-group" style="margin-bottom:12px; width: 100%; box-sizing: border-box;">
+                <label for="admin-kudisms-gateway" style="font-size:12px; font-weight:700;">SMS Gateway / Route</label>
+                <select id="admin-kudisms-gateway" style="width:100%; max-width:100%; box-sizing:border-box; height:42px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-size:13px; font-weight:600; background:var(--bg-input);">
+                  <option value="1" selected>Gateway 1 - Corporate / Transactional OTP (Bypasses DND)</option>
+                  <option value="2">Gateway 2 - Promotional</option>
+                </select>
+                <small style="display:block; margin-top:4px; font-size:11px; color:var(--text-muted);">
+                  Corporate Gateway 1 is required for password reset codes to deliver to all networks without DND blocks.
                 </small>
               </div>
 
@@ -1756,8 +1767,7 @@
               <div class="form-group" style="margin-bottom:12px; width: 100%; box-sizing: border-box;">
                 <label for="admin-email-provider" style="font-size:12px; font-weight:700;">Email Service Provider</label>
                 <select id="admin-email-provider" style="width:100%; max-width:100%; box-sizing:border-box; height:42px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-size:13px; font-weight:600; background:var(--bg-input);">
-                  <option value="gmail">Gmail / Google Workspace (Recommended - Free, No Domain Needed)</option>
-                  <option value="kudisms">KudiSMS Transactional Email (Uses KudiSMS Balance & Verified Domain)</option>
+                  <option value="gmail">Gmail / Google Workspace (Recommended)</option>
                   <option value="resend">Resend API (3,000 free emails/mo)</option>
                   <option value="brevo">Brevo API (300 free emails/day)</option>
                   <option value="smtp">Custom SMTP Server</option>
@@ -3836,13 +3846,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261123_v107"></script>
-  <script src="js/picker.js?v=20261123_v107"></script>
+  <script src="js/storage.js?v=20261123_v108"></script>
+  <script src="js/picker.js?v=20261123_v108"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261123_v107"></script>
-  <script src="js/auth.js?v=20261123_v107"></script>
-  <script src="js/user.js?v=20261123_v107"></script>
-  <script src="js/admin.js?v=20261123_v107"></script>
-  <script src="js/app.js?v=20261123_v107"></script>
+  <script src="js/export.js?v=20261123_v108"></script>
+  <script src="js/auth.js?v=20261123_v108"></script>
+  <script src="js/user.js?v=20261123_v108"></script>
+  <script src="js/admin.js?v=20261123_v108"></script>
+  <script src="js/app.js?v=20261123_v108"></script>
 </body>
 </html>

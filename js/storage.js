@@ -2128,7 +2128,7 @@ const DB = {
   getKudiSmsConfig() {
     const defaultToken = 'fogAIJrnPUkDMLiRzj9FN5VO3dqQ7pevy4c2lhZEuKSBa1T8s0wGCbxXHYW6tm';
     const defaultSender = 'IRETOMIWA';
-    const defaultGateway = '2';
+    const defaultGateway = '1';
     try {
       const raw = localStorage.getItem('sun_kudisms_config');
       if (raw) {
@@ -2151,10 +2151,11 @@ const DB = {
   setKudiSmsConfig(cfg = {}) {
     const defaultToken = 'fogAIJrnPUkDMLiRzj9FN5VO3dqQ7pevy4c2lhZEuKSBa1T8s0wGCbxXHYW6tm';
     const defaultSender = 'IRETOMIWA';
+    const defaultGateway = '1';
     const current = this.getKudiSmsConfig();
     const token = (cfg.token || current.token || defaultToken).trim();
     const senderID = (cfg.senderID || current.senderID || defaultSender).trim().toUpperCase();
-    const gateway = String(cfg.gateway || current.gateway || '2');
+    const gateway = String(cfg.gateway || current.gateway || defaultGateway);
     const nowIso = new Date().toISOString();
 
     const newCfg = {
