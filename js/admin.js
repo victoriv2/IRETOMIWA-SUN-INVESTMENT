@@ -2699,6 +2699,8 @@ const AdminApp = (() => {
       if (p === 'gmail') {
         if (grpPass) grpPass.classList.remove('hidden');
         if (authHint) authHint.innerHTML = 'Generate in your Google Account: <strong>myaccount.google.com/apppasswords</strong> (requires 2-Step Verification turned ON).';
+      } else if (p === 'kudisms') {
+        if (authHint) authHint.innerHTML = 'Uses your KudiSMS API key. <strong>Important:</strong> Your sender email must belong to an approved domain verified on your KudiSMS dashboard.';
       } else if (p === 'resend') {
         if (grpResend) grpResend.classList.remove('hidden');
       } else if (p === 'brevo') {
@@ -2718,8 +2720,10 @@ const AdminApp = (() => {
       const hasPass = passInp && passInp.value.trim().length > 0;
       const hasResend = resendInp && resendInp.value.trim().length > 0;
       const hasBrevo = brevoInp && brevoInp.value.trim().length > 0;
+      const hasSender = senderInp && senderInp.value.trim().includes('@');
 
       const isConfigured = (p === 'gmail' && hasPass) ||
+        (p === 'kudisms' && hasSender) ||
         (p === 'resend' && hasResend) ||
         (p === 'brevo' && hasBrevo) ||
         (p === 'smtp' && hasPass);

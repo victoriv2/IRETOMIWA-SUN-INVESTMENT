@@ -541,6 +541,40 @@ async function sendOtpEmail(recipientEmail, otp, config = {}) {
     }
   }
 
+  // 4. Try KudiSMS Transactional Email API
+  if (provider === 'kudisms') {
+    try {
+      const kudismsToken = (config.token || config.kudismsToken || DEFAULT_KUDISMS_KEY).trim();
+      const kudismsSenderEmail = (config.senderEmail || 'support@iretomiwasun.com').trim();
+      const payload = {
+        token: kudismsToken,
+        senderEmail: kudismsSenderEmail,
+        senderName: 'Iretomiwa Sun Investment',
+        senderFrom: 'Iretomiwa Sun',
+        transactionName: 'Password Reset OTP',
+        recipient: recipientEmail,
+        subject: 'Your Password Reset OTP - Iretomiwa Sun Investment',
+        message: `Your Iretomiwa Sun Investment password reset code is ${otp}. Valid for 10 minutes.`
+      };
+
+      const res = await fetch('https://my.kudisms.net/api/transactional', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => null);
+      if (data && (data.status === 'success' || data.error_code === '000')) {
+        console.log(`[Email SUCCESS] Sent via KudiSMS to ${recipientEmail}`);
+        return { success: true, provider: 'kudisms', data };
+      }
+      console.warn('[Email] KudiSMS API error:', data);
+      return { success: false, provider: 'kudisms', error: data?.msg || 'KudiSMS email dispatch failed.' };
+    } catch (e) {
+      console.warn('[Email] KudiSMS email error:', e.message);
+      return { success: false, provider: 'kudisms', error: e.message };
+    }
+  }
+
   // If no credentials configured yet
   return {
     success: false,
