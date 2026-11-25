@@ -58,7 +58,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261124_WITHDRAW_PIN_V109';
+      var APP_BUILD_VER = '20261125_WITHDRAW_PIN_EYE_V110';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -2682,7 +2682,14 @@
         <form id="form-pin-verify" novalidate>
           <div class="form-group" style="margin-bottom: 12px; text-align: center;">
             <label for="pin-prompt-input" style="font-size: 12px; font-weight: 700; color: var(--text-primary, #1e293b); display: block; margin-bottom: 8px;">4-Digit PIN</label>
-            <input type="password" id="pin-prompt-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="••••" style="width: 100%; max-width: 200px; margin: 0 auto; box-sizing: border-box; height: 50px; text-align: center; font-size: 26px; font-weight: 800; letter-spacing: 12px; font-family: monospace; border-radius: 10px; border: 2px solid #1e8a5a; background: #f8fafc; color: #0f3d24;" />
+            <div class="password-wrapper" style="max-width: 220px; margin: 0 auto; position: relative;">
+              <input type="password" id="pin-prompt-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="••••" style="width: 100%; box-sizing: border-box; height: 50px; text-align: center; font-size: 24px; font-weight: 800; letter-spacing: 10px; font-family: monospace; border-radius: 10px; border: 2px solid #1e8a5a; background: #f8fafc; color: #0f3d24; padding-left: 36px; padding-right: 36px;" />
+              <button type="button" class="toggle-pw" data-target="pin-prompt-input" aria-label="Toggle PIN visibility" style="right: 8px;">
+                <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
             <span class="field-error" id="err-pin-verify" style="color: #dc2626; font-size: 11.5px; display: block; margin-top: 6px;"></span>
           </div>
 
@@ -2708,13 +2715,27 @@
         <form id="form-pin-setup" novalidate>
           <div class="form-group" style="margin-bottom: 14px;">
             <label for="pin-setup-new" style="font-size: 12px; font-weight: 700; display: block; margin-bottom: 6px;">New 4-Digit PIN</label>
-            <input type="password" id="pin-setup-new" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="4 digits (e.g. 1234)" style="width: 100%; box-sizing: border-box; height: 44px; padding: 0 14px; text-align: center; font-size: 18px; font-weight: 700; letter-spacing: 6px; font-family: monospace; border-radius: 8px; border: 1.5px solid var(--border, #cbd5e1);" />
+            <div class="password-wrapper">
+              <input type="password" id="pin-setup-new" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="4 digits (e.g. 1234)" style="width: 100%; box-sizing: border-box; height: 44px; padding: 0 44px 0 14px; text-align: center; font-size: 18px; font-weight: 700; letter-spacing: 6px; font-family: monospace; border-radius: 8px; border: 1.5px solid var(--border, #cbd5e1);" />
+              <button type="button" class="toggle-pw" data-target="pin-setup-new" aria-label="Toggle PIN visibility">
+                <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
             <span class="field-error" id="err-pin-setup-new" style="color: #dc2626; font-size: 11.5px; display: block; margin-top: 4px;"></span>
           </div>
 
           <div class="form-group" style="margin-bottom: 14px;">
             <label for="pin-setup-confirm" style="font-size: 12px; font-weight: 700; display: block; margin-bottom: 6px;">Confirm 4-Digit PIN</label>
-            <input type="password" id="pin-setup-confirm" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="Retype 4 digits" style="width: 100%; box-sizing: border-box; height: 44px; padding: 0 14px; text-align: center; font-size: 18px; font-weight: 700; letter-spacing: 6px; font-family: monospace; border-radius: 8px; border: 1.5px solid var(--border, #cbd5e1);" />
+            <div class="password-wrapper">
+              <input type="password" id="pin-setup-confirm" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="Retype 4 digits" style="width: 100%; box-sizing: border-box; height: 44px; padding: 0 44px 0 14px; text-align: center; font-size: 18px; font-weight: 700; letter-spacing: 6px; font-family: monospace; border-radius: 8px; border: 1.5px solid var(--border, #cbd5e1);" />
+              <button type="button" class="toggle-pw" data-target="pin-setup-confirm" aria-label="Toggle PIN visibility">
+                <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
             <span class="field-error" id="err-pin-setup-confirm" style="color: #dc2626; font-size: 11.5px; display: block; margin-top: 4px;"></span>
           </div>
 
@@ -2751,19 +2772,40 @@
         <!-- Current PIN (hidden if user hasn't set one yet) -->
         <div class="form-group" id="group-cpin-current" style="margin-bottom: 14px;">
           <label for="cpin-current" style="font-size: 12px; font-weight: 700; display: block; margin-bottom: 6px;">Current 4-Digit PIN</label>
-          <input type="password" id="cpin-current" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="••••" style="width: 100%; box-sizing: border-box; height: 44px; padding: 0 14px; text-align: center; font-size: 18px; font-weight: 700; letter-spacing: 6px; font-family: monospace; border-radius: 8px; border: 1.5px solid var(--border, #cbd5e1);" />
+          <div class="password-wrapper">
+            <input type="password" id="cpin-current" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="••••" style="width: 100%; box-sizing: border-box; height: 44px; padding: 0 44px 0 14px; text-align: center; font-size: 18px; font-weight: 700; letter-spacing: 6px; font-family: monospace; border-radius: 8px; border: 1.5px solid var(--border, #cbd5e1);" />
+            <button type="button" class="toggle-pw" data-target="cpin-current" aria-label="Toggle PIN visibility">
+              <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
           <span class="field-error" id="err-cpin-current" style="color: #dc2626; font-size: 11.5px; display: block; margin-top: 4px;"></span>
         </div>
 
         <div class="form-group" style="margin-bottom: 14px;">
           <label for="cpin-new" style="font-size: 12px; font-weight: 700; display: block; margin-bottom: 6px;">New 4-Digit PIN</label>
-          <input type="password" id="cpin-new" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="••••" style="width: 100%; box-sizing: border-box; height: 44px; padding: 0 14px; text-align: center; font-size: 18px; font-weight: 700; letter-spacing: 6px; font-family: monospace; border-radius: 8px; border: 1.5px solid var(--border, #cbd5e1);" />
+          <div class="password-wrapper">
+            <input type="password" id="cpin-new" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="••••" style="width: 100%; box-sizing: border-box; height: 44px; padding: 0 44px 0 14px; text-align: center; font-size: 18px; font-weight: 700; letter-spacing: 6px; font-family: monospace; border-radius: 8px; border: 1.5px solid var(--border, #cbd5e1);" />
+            <button type="button" class="toggle-pw" data-target="cpin-new" aria-label="Toggle PIN visibility">
+              <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
           <span class="field-error" id="err-cpin-new" style="color: #dc2626; font-size: 11.5px; display: block; margin-top: 4px;"></span>
         </div>
 
         <div class="form-group" style="margin-bottom: 16px;">
           <label for="cpin-confirm" style="font-size: 12px; font-weight: 700; display: block; margin-bottom: 6px;">Confirm New 4-Digit PIN</label>
-          <input type="password" id="cpin-confirm" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="••••" style="width: 100%; box-sizing: border-box; height: 44px; padding: 0 14px; text-align: center; font-size: 18px; font-weight: 700; letter-spacing: 6px; font-family: monospace; border-radius: 8px; border: 1.5px solid var(--border, #cbd5e1);" />
+          <div class="password-wrapper">
+            <input type="password" id="cpin-confirm" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="••••" style="width: 100%; box-sizing: border-box; height: 44px; padding: 0 44px 0 14px; text-align: center; font-size: 18px; font-weight: 700; letter-spacing: 6px; font-family: monospace; border-radius: 8px; border: 1.5px solid var(--border, #cbd5e1);" />
+            <button type="button" class="toggle-pw" data-target="cpin-confirm" aria-label="Toggle PIN visibility">
+              <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
           <span class="field-error" id="err-cpin-confirm" style="color: #dc2626; font-size: 11.5px; display: block; margin-top: 4px;"></span>
         </div>
 
@@ -2910,7 +2952,7 @@
       </div>
 
       <!-- STEP 4: Set New 4-Digit PIN -->
-      <div id="fpin-step-4" class="fp-step-content hidden">
+      <div id="fpin-step-4" class="fpin-step-content hidden">
         <p style="font-size: 13px; color: var(--text-muted, #64748b); line-height: 1.45; margin-bottom: 14px;">
           Choose a new 4-digit withdrawal PIN for your account.
         </p>
@@ -2918,13 +2960,27 @@
         <form id="fpin-form-step-4" novalidate>
           <div class="form-group" style="margin-bottom: 14px;">
             <label for="fpin-new-pin" style="font-size: 12px; font-weight: 700; display: block; margin-bottom: 6px;">New 4-Digit PIN</label>
-            <input type="password" id="fpin-new-pin" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="••••" style="width: 100%; box-sizing: border-box; height: 44px; padding: 0 14px; text-align: center; font-size: 18px; font-weight: 700; letter-spacing: 6px; font-family: monospace; border-radius: 8px; border: 1.5px solid var(--border, #cbd5e1);" />
+            <div class="password-wrapper">
+              <input type="password" id="fpin-new-pin" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="••••" style="width: 100%; box-sizing: border-box; height: 44px; padding: 0 44px 0 14px; text-align: center; font-size: 18px; font-weight: 700; letter-spacing: 6px; font-family: monospace; border-radius: 8px; border: 1.5px solid var(--border, #cbd5e1);" />
+              <button type="button" class="toggle-pw" data-target="fpin-new-pin" aria-label="Toggle PIN visibility">
+                <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
             <span class="field-error" id="err-fpin-new-pin" style="color: #dc2626; font-size: 11.5px; display: block; margin-top: 4px;"></span>
           </div>
 
           <div class="form-group" style="margin-bottom: 16px;">
             <label for="fpin-confirm-pin" style="font-size: 12px; font-weight: 700; display: block; margin-bottom: 6px;">Confirm New 4-Digit PIN</label>
-            <input type="password" id="fpin-confirm-pin" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="••••" style="width: 100%; box-sizing: border-box; height: 44px; padding: 0 14px; text-align: center; font-size: 18px; font-weight: 700; letter-spacing: 6px; font-family: monospace; border-radius: 8px; border: 1.5px solid var(--border, #cbd5e1);" />
+            <div class="password-wrapper">
+              <input type="password" id="fpin-confirm-pin" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="••••" style="width: 100%; box-sizing: border-box; height: 44px; padding: 0 44px 0 14px; text-align: center; font-size: 18px; font-weight: 700; letter-spacing: 6px; font-family: monospace; border-radius: 8px; border: 1.5px solid var(--border, #cbd5e1);" />
+              <button type="button" class="toggle-pw" data-target="fpin-confirm-pin" aria-label="Toggle PIN visibility">
+                <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
             <span class="field-error" id="err-fpin-confirm-pin" style="color: #dc2626; font-size: 11.5px; display: block; margin-top: 4px;"></span>
           </div>
 
@@ -4167,13 +4223,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261124_v109"></script>
-  <script src="js/picker.js?v=20261124_v109"></script>
+  <script src="js/storage.js?v=20261125_v110"></script>
+  <script src="js/picker.js?v=20261125_v110"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261124_v109"></script>
-  <script src="js/auth.js?v=20261124_v109"></script>
-  <script src="js/user.js?v=20261124_v109"></script>
-  <script src="js/admin.js?v=20261124_v109"></script>
-  <script src="js/app.js?v=20261124_v109"></script>
+  <script src="js/export.js?v=20261125_v110"></script>
+  <script src="js/auth.js?v=20261125_v110"></script>
+  <script src="js/user.js?v=20261125_v110"></script>
+  <script src="js/admin.js?v=20261125_v110"></script>
+  <script src="js/app.js?v=20261125_v110"></script>
 </body>
 </html>

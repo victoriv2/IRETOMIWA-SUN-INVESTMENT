@@ -2733,11 +2733,27 @@ const UserApp = (() => {
   // ---- User Withdrawal & Transaction PIN System ----
   let pinPromptResolver = null;
 
+  function resetPasswordToggle(inputIds) {
+    const eyeOpenSVG = `<svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+    (Array.isArray(inputIds) ? inputIds : [inputIds]).forEach(id => {
+      const inp = document.getElementById(id);
+      if (inp) inp.type = 'password';
+      const toggleBtn = document.querySelector(`.toggle-pw[data-target="${id}"]`);
+      if (toggleBtn) {
+        toggleBtn.innerHTML = eyeOpenSVG;
+        toggleBtn.setAttribute('aria-label', 'Show PIN');
+        toggleBtn.classList.remove('active');
+      }
+    });
+  }
+
   function promptUserPin({ actionTitle, badgeText, amountLine, detailsLine }) {
     return new Promise((resolve) => {
       pinPromptResolver = resolve;
       const user = DB.getUserById(currentUserId);
       const hasPin = Boolean(user && user.transactionPin && String(user.transactionPin).trim().length === 4);
+
+      resetPasswordToggle(['pin-prompt-input', 'pin-setup-new', 'pin-setup-confirm']);
 
       const modal = document.getElementById('modal-pin-prompt');
       const titleEl = document.getElementById('pin-prompt-title');
@@ -2834,6 +2850,7 @@ const UserApp = (() => {
     if (newPinInput) newPinInput.value = '';
     const confirmPinInput = document.getElementById('fpin-confirm-pin');
     if (confirmPinInput) confirmPinInput.value = '';
+    resetPasswordToggle(['fpin-new-pin', 'fpin-confirm-pin']);
 
     const otpInput = document.getElementById('fpin-otp-input');
     if (otpInput) otpInput.value = '';
@@ -3119,6 +3136,7 @@ const UserApp = (() => {
       if (fpinSession.cooldownInterval) clearInterval(fpinSession.cooldownInterval);
 
       setFpinStep(4);
+      resetPasswordToggle(['fpin-new-pin', 'fpin-confirm-pin']);
       const newPinInp = document.getElementById('fpin-new-pin');
       if (newPinInp) {
         newPinInp.value = '';
@@ -3234,6 +3252,7 @@ const UserApp = (() => {
           const err = document.getElementById(`err-${id}`);
           if (err) err.textContent = '';
         });
+        resetPasswordToggle(['cpin-current', 'cpin-new', 'cpin-confirm']);
 
         const errBox = document.getElementById('cpin-error');
         if (errBox) { errBox.textContent = ''; errBox.classList.add('hidden'); }
