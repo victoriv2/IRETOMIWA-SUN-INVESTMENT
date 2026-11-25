@@ -1155,6 +1155,7 @@ const Auth = (() => {
     openForgotPasswordModal,
     isValidEmail,
     validateNigerianPhone,
+    callAuthApi,
   };
 })();
 

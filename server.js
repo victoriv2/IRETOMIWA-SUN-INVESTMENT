@@ -967,6 +967,83 @@ app.post('/api/auth/forgot-password/reset-password', async (req, res) => {
   }
 });
 
+// 5b. Step 4 (PIN Reset): Reset 4-Digit Withdrawal PIN via Verified OTP Session
+app.post('/api/auth/forgot-pin/reset-pin', async (req, res) => {
+  try {
+    const { sessionToken, newPin, confirmPin } = req.body;
+    if (!sessionToken) {
+      return res.status(400).json({ success: false, error: 'Session expired. Please request a new code.' });
+    }
+
+    const sess = otpSessions.get(sessionToken);
+    if (!sess || !sess.verified) {
+      return res.status(401).json({ success: false, error: 'Please verify your 6-digit code first.' });
+    }
+
+    if (Date.now() > sess.expiresAt) {
+      otpSessions.delete(sessionToken);
+      return res.status(400).json({ success: false, error: 'Session expired. Please request a new code.' });
+    }
+
+    const cleanPin = String(newPin || '').trim();
+    const cleanConfirm = String(confirmPin || '').trim();
+
+    if (!cleanPin || cleanPin !== cleanConfirm) {
+      return res.status(400).json({ success: false, error: 'PINs do not match.' });
+    }
+
+    if (!/^\d{4}$/.test(cleanPin)) {
+      return res.status(400).json({ success: false, error: 'PIN must be exactly 4 numeric digits (0-9).' });
+    }
+
+    // Update user's transactionPin in Supabase cloud database
+    const { users } = await getSupabaseCloudData();
+    const userIdx = users.findIndex(u => u.id === sess.userId);
+    if (userIdx === -1) {
+      return res.status(404).json({ success: false, error: 'Account not found in cloud database.' });
+    }
+
+    users[userIdx].transactionPin = cleanPin;
+    users[userIdx].pinUpdatedAt = new Date().toISOString();
+    users[userIdx].updatedAt = new Date().toISOString();
+
+    const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.${SUPABASE_SYNC_ID}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        users,
+        updated_at: new Date().toISOString()
+      })
+    });
+
+    if (!patchRes.ok) {
+      const errText = await patchRes.text().catch(() => '');
+      return res.status(500).json({
+        success: false,
+        error: `Could not save new PIN to database: ${errText || 'Network error'}`
+      });
+    }
+
+    // Clean up OTP session
+    otpSessions.delete(sessionToken);
+
+    return res.json({
+      success: true,
+      message: 'Withdrawal PIN reset successfully!',
+      userId: users[userIdx].id
+    });
+
+  } catch (err) {
+    console.error('[Reset PIN ERROR]', err);
+    return res.status(500).json({ success: false, error: err.message || 'Error updating PIN.' });
+  }
+});
+
 // 6. Admin: Test KudiSMS SMS dispatch
 app.post('/api/kudisms/test-sms', async (req, res) => {
   try {

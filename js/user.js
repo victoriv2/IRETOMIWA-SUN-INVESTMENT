@@ -1079,6 +1079,11 @@ const UserApp = (() => {
     }
     updateMoreTabBankSummary();
     updateMoreTabDedicatedSummary();
+    const pinMenuLabel = document.getElementById('user-more-pin-label');
+    if (pinMenuLabel) {
+      const hasPin = Boolean(user && user.transactionPin && String(user.transactionPin).trim().length === 4);
+      pinMenuLabel.textContent = hasPin ? 'Change Withdrawal PIN' : 'Set Withdrawal PIN';
+    }
   }
 
   // ---- Save / Payout Form & Flutterwave Bank Transfer ----
@@ -1782,11 +1787,32 @@ const UserApp = (() => {
 
       proceedWithPayoutSubmission();
 
-      function proceedWithPayoutSubmission() {
+      async function proceedWithPayoutSubmission() {
         if (isWithdrawalSubmitting) {
           console.warn('[Withdrawal GUARD] Duplicate submission blocked. Request is already in progress.');
           return;
         }
+
+        const commRate = (typeof DB !== 'undefined' && DB.getCommissionRate) ? DB.getCommissionRate() : 4;
+        const feeRate = commRate / 100;
+        const fee = Math.round(amount * feeRate * 100) / 100;
+        const netAmount = Math.max(0, Math.round((amount - fee) * 100) / 100);
+
+        const isAuthorized = await promptUserPin({
+          actionTitle: 'Authorize Withdrawal',
+          badgeText: 'Security Verification',
+          amountLine: `Withdraw ₦${formatAmount(amount)}`,
+          detailsLine: `Net Payout: ₦${formatAmount(netAmount)} to ${bName} (${bNum})`
+        });
+
+        if (!isAuthorized) {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.style.pointerEvents = '';
+          }
+          return;
+        }
+
         isWithdrawalSubmitting = true;
 
         const originalText = submitText ? submitText.textContent : 'Request Withdrawal';
@@ -1795,11 +1821,6 @@ const UserApp = (() => {
           submitBtn.style.pointerEvents = 'none';
         }
         if (submitText) submitText.textContent = 'Processing Instant Disbursement...';
-
-        const commRate = (typeof DB !== 'undefined' && DB.getCommissionRate) ? DB.getCommissionRate() : 4;
-        const feeRate = commRate / 100;
-        const fee = Math.round(amount * feeRate * 100) / 100;
-        const netAmount = Math.max(0, Math.round((amount - fee) * 100) / 100);
 
         const destinationBank = {
           bankCode: bankCode,
@@ -2709,6 +2730,756 @@ const UserApp = (() => {
     });
   }
 
+  // ---- User Withdrawal & Transaction PIN System ----
+  let pinPromptResolver = null;
+
+  function promptUserPin({ actionTitle, badgeText, amountLine, detailsLine }) {
+    return new Promise((resolve) => {
+      pinPromptResolver = resolve;
+      const user = DB.getUserById(currentUserId);
+      const hasPin = Boolean(user && user.transactionPin && String(user.transactionPin).trim().length === 4);
+
+      const modal = document.getElementById('modal-pin-prompt');
+      const titleEl = document.getElementById('pin-prompt-title');
+      const badgeEl = document.getElementById('pin-prompt-type-badge');
+      const amtEl = document.getElementById('pin-prompt-amount-line');
+      const detEl = document.getElementById('pin-prompt-details-line');
+
+      if (titleEl) titleEl.textContent = actionTitle || 'Authorize Transaction';
+      if (badgeEl) badgeEl.textContent = badgeText || (hasPin ? 'Security Verification' : 'First-Time PIN Setup');
+      if (amtEl) amtEl.textContent = amountLine || 'Authorize Action';
+      if (detEl) detEl.textContent = detailsLine || '';
+
+      const modeVerify = document.getElementById('pin-prompt-mode-verify');
+      const modeSetup  = document.getElementById('pin-prompt-mode-setup');
+
+      if (hasPin) {
+        if (modeVerify) modeVerify.classList.remove('hidden');
+        if (modeSetup) modeSetup.classList.add('hidden');
+        const pinInp = document.getElementById('pin-prompt-input');
+        if (pinInp) {
+          pinInp.value = '';
+          setTimeout(() => pinInp.focus(), 150);
+        }
+        const errSpan = document.getElementById('err-pin-verify');
+        if (errSpan) errSpan.textContent = '';
+        const errBox = document.getElementById('pin-verify-error');
+        if (errBox) { errBox.textContent = ''; errBox.classList.add('hidden'); }
+      } else {
+        if (modeVerify) modeVerify.classList.add('hidden');
+        if (modeSetup) modeSetup.classList.remove('hidden');
+        const newInp = document.getElementById('pin-setup-new');
+        const confInp = document.getElementById('pin-setup-confirm');
+        if (newInp) {
+          newInp.value = '';
+          setTimeout(() => newInp.focus(), 150);
+        }
+        if (confInp) confInp.value = '';
+        const errNew = document.getElementById('err-pin-setup-new');
+        if (errNew) errNew.textContent = '';
+        const errConf = document.getElementById('err-pin-setup-confirm');
+        if (errConf) errConf.textContent = '';
+        const errBox = document.getElementById('pin-setup-error');
+        if (errBox) { errBox.textContent = ''; errBox.classList.add('hidden'); }
+      }
+
+      if (modal) modal.classList.remove('hidden');
+    });
+  }
+
+  function resolvePinPrompt(success) {
+    if (typeof pinPromptResolver === 'function') {
+      const cb = pinPromptResolver;
+      pinPromptResolver = null;
+      cb(Boolean(success));
+    }
+    const modal = document.getElementById('modal-pin-prompt');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  // Forgot PIN State
+  const fpinSession = {
+    identifier: '',
+    userId: '',
+    maskedPhone: '',
+    maskedEmail: '',
+    hasPhone: false,
+    hasEmail: false,
+    chosenChannel: 'sms',
+    sessionToken: '',
+    timerSeconds: 600,
+    timerInterval: null,
+    cooldownSeconds: 60,
+    cooldownInterval: null,
+  };
+
+  function setFpinStep(step) {
+    for (let i = 1; i <= 5; i++) {
+      const pane = document.getElementById(`fpin-step-${i}`);
+      if (pane) pane.classList.toggle('hidden', i !== step);
+      const bar = document.getElementById(`fpin-bar-${i}`);
+      if (bar) bar.style.background = (i <= step) ? '#1e8a5a' : '#e5e7eb';
+    }
+  }
+
+  function openForgotPinModal(prefillIdentifier) {
+    if (fpinSession.timerInterval) clearInterval(fpinSession.timerInterval);
+    if (fpinSession.cooldownInterval) clearInterval(fpinSession.cooldownInterval);
+
+    fpinSession.identifier = '';
+    fpinSession.userId = '';
+    fpinSession.sessionToken = '';
+
+    const newPinInput = document.getElementById('fpin-new-pin');
+    if (newPinInput) newPinInput.value = '';
+    const confirmPinInput = document.getElementById('fpin-confirm-pin');
+    if (confirmPinInput) confirmPinInput.value = '';
+
+    const otpInput = document.getElementById('fpin-otp-input');
+    if (otpInput) otpInput.value = '';
+
+    const noticeEl = document.getElementById('fpin-otp-notice');
+    if (noticeEl) { noticeEl.textContent = ''; noticeEl.classList.add('hidden'); }
+
+    const idInput = document.getElementById('fpin-identifier');
+    if (idInput) {
+      idInput.value = prefillIdentifier || '';
+    }
+
+    setFpinStep(1);
+
+    const modal = document.getElementById('modal-forgot-pin');
+    if (modal) modal.classList.remove('hidden');
+
+    if (idInput) {
+      setTimeout(() => idInput.focus(), 100);
+      if (prefillIdentifier) {
+        submitFpinStep1();
+      }
+    }
+  }
+
+  function closeForgotPinModal() {
+    if (fpinSession.timerInterval) clearInterval(fpinSession.timerInterval);
+    if (fpinSession.cooldownInterval) clearInterval(fpinSession.cooldownInterval);
+    const modal = document.getElementById('modal-forgot-pin');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  async function submitFpinStep1() {
+    const input = document.getElementById('fpin-identifier');
+    const errSpan = document.getElementById('err-fpin-identifier');
+    const errBox = document.getElementById('fpin-error-1');
+    const btn = document.getElementById('btn-fpin-submit-step1');
+
+    if (errSpan) errSpan.textContent = '';
+    if (errBox) { errBox.textContent = ''; errBox.classList.add('hidden'); }
+
+    const identifier = input ? input.value.trim() : '';
+    if (!identifier) {
+      if (errSpan) errSpan.textContent = 'Please enter your email, phone number, or Client ID.';
+      return;
+    }
+
+    const origBtnText = btn ? btn.textContent : 'Continue';
+    if (btn) { btn.disabled = true; btn.textContent = 'Checking account...'; }
+
+    try {
+      const callApi = (window.Auth && window.Auth.callAuthApi) ? window.Auth.callAuthApi : null;
+      let ok = false, data = null, error = null;
+      if (callApi) {
+        const res = await callApi('api/auth/forgot-password/initiate', { identifier });
+        ok = res.ok; data = res.data; error = res.error;
+      } else {
+        const fetchRes = await fetch('/api/auth/forgot-password/initiate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifier })
+        });
+        data = await fetchRes.json().catch(() => null);
+        ok = fetchRes.ok && data && data.success;
+        if (!ok) error = (data && data.error) || 'Failed to locate account.';
+      }
+
+      if (!ok || !data || !data.success) {
+        const errMsg = error || (data && data.error) || 'Unable to locate account. Please verify your details.';
+        if (errBox) { errBox.textContent = errMsg; errBox.classList.remove('hidden'); }
+        return;
+      }
+
+      fpinSession.identifier = identifier;
+      fpinSession.userId = data.userId;
+      fpinSession.maskedPhone = data.maskedPhone || '';
+      fpinSession.maskedEmail = data.maskedEmail || '';
+      fpinSession.hasPhone = Boolean(data.hasPhone);
+      fpinSession.hasEmail = Boolean(data.hasEmail);
+
+      const phoneLbl = document.getElementById('fpin-masked-phone-label');
+      if (phoneLbl) phoneLbl.textContent = fpinSession.maskedPhone || 'Not available';
+
+      const emailLbl = document.getElementById('fpin-masked-email-label');
+      if (emailLbl) emailLbl.textContent = fpinSession.maskedEmail || 'Not available';
+
+      const smsCard = document.getElementById('fpin-channel-card-sms');
+      const emailCard = document.getElementById('fpin-channel-card-email');
+      if (smsCard) smsCard.style.display = fpinSession.hasPhone ? 'flex' : 'none';
+      if (emailCard) emailCard.style.display = fpinSession.hasEmail ? 'flex' : 'none';
+
+      if (fpinSession.hasPhone && fpinSession.hasEmail) {
+        setFpinStep(2);
+      } else if (fpinSession.hasPhone) {
+        fpinSession.chosenChannel = 'sms';
+        await sendFpinOtp('sms');
+      } else if (fpinSession.hasEmail) {
+        fpinSession.chosenChannel = 'email';
+        await sendFpinOtp('email');
+      } else {
+        if (errBox) {
+          errBox.textContent = 'No verified phone or email on file for OTP delivery. Please contact support.';
+          errBox.classList.remove('hidden');
+        }
+      }
+    } catch(err) {
+      if (errBox) {
+        errBox.textContent = err.message || 'Network error verifying account.';
+        errBox.classList.remove('hidden');
+      }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = origBtnText; }
+    }
+  }
+
+  async function sendFpinOtp(channel) {
+    const errBox = document.getElementById('fpin-error-2') || document.getElementById('fpin-error-3');
+    const btn = document.getElementById('btn-fpin-submit-step2');
+    const origBtnText = btn ? btn.textContent : 'Send 6-Digit OTP';
+    if (btn) { btn.disabled = true; btn.textContent = 'Sending OTP...'; }
+
+    try {
+      const callApi = (window.Auth && window.Auth.callAuthApi) ? window.Auth.callAuthApi : null;
+      let ok = false, data = null, error = null;
+      if (callApi) {
+        const res = await callApi('api/auth/forgot-password/send-otp', {
+          userId: fpinSession.userId,
+          channel: channel || fpinSession.chosenChannel
+        });
+        ok = res.ok; data = res.data; error = res.error;
+      } else {
+        const fetchRes = await fetch('/api/auth/forgot-password/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: fpinSession.userId, channel: channel || fpinSession.chosenChannel })
+        });
+        data = await fetchRes.json().catch(() => null);
+        ok = fetchRes.ok && data && data.success;
+        if (!ok) error = (data && data.error) || 'Failed to dispatch OTP.';
+      }
+
+      if (!ok || !data || !data.success) {
+        const errMsg = error || (data && data.error) || 'Unable to send OTP. Please try again.';
+        if (errBox) { errBox.textContent = errMsg; errBox.classList.remove('hidden'); }
+        return;
+      }
+
+      fpinSession.sessionToken = data.sessionToken;
+      fpinSession.chosenChannel = data.channel;
+
+      const destLbl = document.getElementById('fpin-otp-destination-label');
+      if (destLbl) {
+        destLbl.textContent = data.destination || (fpinSession.chosenChannel === 'sms' ? fpinSession.maskedPhone : fpinSession.maskedEmail);
+      }
+
+      const noticeEl = document.getElementById('fpin-otp-notice');
+      if (noticeEl) {
+        if (data.notice) {
+          noticeEl.textContent = data.notice;
+          noticeEl.classList.remove('hidden');
+        } else {
+          noticeEl.classList.add('hidden');
+        }
+      }
+
+      const switchBtn = document.getElementById('fpin-switch-channel');
+      if (switchBtn) {
+        switchBtn.classList.toggle('hidden', !(fpinSession.hasPhone && fpinSession.hasEmail));
+      }
+
+      setFpinStep(3);
+      startFpinExpiryTimer(600);
+      startFpinResendCooldown(60);
+
+      const otpInp = document.getElementById('fpin-otp-input');
+      if (otpInp) {
+        otpInp.value = '';
+        setTimeout(() => otpInp.focus(), 150);
+      }
+    } catch(err) {
+      if (errBox) {
+        errBox.textContent = err.message || 'Error requesting OTP code.';
+        errBox.classList.remove('hidden');
+      }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = origBtnText; }
+    }
+  }
+
+  function startFpinExpiryTimer(seconds) {
+    if (fpinSession.timerInterval) clearInterval(fpinSession.timerInterval);
+    fpinSession.timerSeconds = seconds;
+    const updateEl = () => {
+      const timerEl = document.getElementById('fpin-timer-seconds');
+      if (!timerEl) return;
+      const m = Math.floor(fpinSession.timerSeconds / 60);
+      const s = fpinSession.timerSeconds % 60;
+      timerEl.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+      if (fpinSession.timerSeconds <= 0) {
+        clearInterval(fpinSession.timerInterval);
+        const errBox = document.getElementById('fpin-error-3');
+        if (errBox) {
+          errBox.textContent = 'Code expired. Please request a new code.';
+          errBox.classList.remove('hidden');
+        }
+      }
+      fpinSession.timerSeconds--;
+    };
+    updateEl();
+    fpinSession.timerInterval = setInterval(updateEl, 1000);
+  }
+
+  function startFpinResendCooldown(seconds) {
+    if (fpinSession.cooldownInterval) clearInterval(fpinSession.cooldownInterval);
+    fpinSession.cooldownSeconds = seconds;
+    const btnResend = document.getElementById('btn-fpin-resend-otp');
+    const cdSpan = document.getElementById('fpin-resend-countdown');
+    if (btnResend) {
+      btnResend.disabled = true;
+      btnResend.style.cursor = 'not-allowed';
+    }
+    const tick = () => {
+      if (cdSpan) cdSpan.textContent = String(fpinSession.cooldownSeconds);
+      if (fpinSession.cooldownSeconds <= 0) {
+        clearInterval(fpinSession.cooldownInterval);
+        if (btnResend) {
+          btnResend.disabled = false;
+          btnResend.style.cursor = 'pointer';
+          btnResend.textContent = 'Resend Code';
+        }
+      }
+      fpinSession.cooldownSeconds--;
+    };
+    tick();
+    fpinSession.cooldownInterval = setInterval(tick, 1000);
+  }
+
+  async function submitFpinStep3() {
+    const input = document.getElementById('fpin-otp-input');
+    const errSpan = document.getElementById('err-fpin-otp');
+    const errBox = document.getElementById('fpin-error-3');
+    const btn = document.getElementById('btn-fpin-submit-step3');
+
+    if (errSpan) errSpan.textContent = '';
+    if (errBox) { errBox.textContent = ''; errBox.classList.add('hidden'); }
+
+    const code = input ? input.value.trim().replace(/\D/g, '') : '';
+    if (code.length !== 6) {
+      if (errSpan) errSpan.textContent = 'Please enter the complete 6-digit code.';
+      return;
+    }
+
+    const origBtnText = btn ? btn.textContent : 'Verify Code';
+    if (btn) { btn.disabled = true; btn.textContent = 'Verifying...'; }
+
+    try {
+      const callApi = (window.Auth && window.Auth.callAuthApi) ? window.Auth.callAuthApi : null;
+      let ok = false, data = null, error = null;
+      if (callApi) {
+        const res = await callApi('api/auth/forgot-password/verify-otp', {
+          sessionToken: fpinSession.sessionToken,
+          code
+        });
+        ok = res.ok; data = res.data; error = res.error;
+      } else {
+        const fetchRes = await fetch('/api/auth/forgot-password/verify-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionToken: fpinSession.sessionToken, code })
+        });
+        data = await fetchRes.json().catch(() => null);
+        ok = fetchRes.ok && data && data.success;
+        if (!ok) error = (data && data.error) || 'Invalid code.';
+      }
+
+      if (!ok || !data || !data.success) {
+        const errMsg = error || (data && data.error) || 'Invalid or expired 6-digit code. Please try again.';
+        if (errBox) { errBox.textContent = errMsg; errBox.classList.remove('hidden'); }
+        return;
+      }
+
+      if (fpinSession.timerInterval) clearInterval(fpinSession.timerInterval);
+      if (fpinSession.cooldownInterval) clearInterval(fpinSession.cooldownInterval);
+
+      setFpinStep(4);
+      const newPinInp = document.getElementById('fpin-new-pin');
+      if (newPinInp) {
+        newPinInp.value = '';
+        setTimeout(() => newPinInp.focus(), 150);
+      }
+    } catch(err) {
+      if (errBox) {
+        errBox.textContent = err.message || 'Error verifying code.';
+        errBox.classList.remove('hidden');
+      }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = origBtnText; }
+    }
+  }
+
+  async function submitFpinStep4() {
+    const newPinInp = document.getElementById('fpin-new-pin');
+    const confPinInp = document.getElementById('fpin-confirm-pin');
+    const errNew = document.getElementById('err-fpin-new-pin');
+    const errConf = document.getElementById('err-fpin-confirm-pin');
+    const errBox = document.getElementById('fpin-error-4');
+    const btn = document.getElementById('btn-fpin-submit-step4');
+
+    if (errNew) errNew.textContent = '';
+    if (errConf) errConf.textContent = '';
+    if (errBox) { errBox.textContent = ''; errBox.classList.add('hidden'); }
+
+    const newPin = newPinInp ? newPinInp.value.trim() : '';
+    const confPin = confPinInp ? confPinInp.value.trim() : '';
+
+    if (!/^\d{4}$/.test(newPin)) {
+      if (errNew) errNew.textContent = 'PIN must be exactly 4 digits (0-9).';
+      return;
+    }
+
+    if (newPin !== confPin) {
+      if (errConf) errConf.textContent = 'PINs do not match.';
+      return;
+    }
+
+    const origBtnText = btn ? btn.textContent : 'Reset 4-Digit PIN';
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving PIN...'; }
+
+    try {
+      const callApi = (window.Auth && window.Auth.callAuthApi) ? window.Auth.callAuthApi : null;
+      let ok = false, data = null, error = null;
+      if (callApi) {
+        const res = await callApi('api/auth/forgot-pin/reset-pin', {
+          sessionToken: fpinSession.sessionToken,
+          newPin,
+          confirmPin: confPin
+        });
+        ok = res.ok; data = res.data; error = res.error;
+      } else {
+        const fetchRes = await fetch('/api/auth/forgot-pin/reset-pin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionToken: fpinSession.sessionToken,
+            newPin,
+            confirmPin: confPin
+          })
+        });
+        data = await fetchRes.json().catch(() => null);
+        ok = fetchRes.ok && data && data.success;
+        if (!ok) error = (data && data.error) || 'Failed to update PIN.';
+      }
+
+      if (!ok || !data || !data.success) {
+        const errMsg = error || (data && data.error) || 'Failed to update PIN. Please try again.';
+        if (errBox) { errBox.textContent = errMsg; errBox.classList.remove('hidden'); }
+        return;
+      }
+
+      // Update local storage DB record
+      DB.setUserPin(fpinSession.userId, newPin);
+      renderMoreUserInfo();
+
+      setFpinStep(5);
+    } catch(err) {
+      if (errBox) {
+        errBox.textContent = err.message || 'Error updating PIN.';
+        errBox.classList.remove('hidden');
+      }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = origBtnText; }
+    }
+  }
+
+  function initPinModals() {
+    // 1. More Menu Item: Change PIN button
+    const btnMorePin = document.getElementById('btn-change-pin');
+    if (btnMorePin) {
+      btnMorePin.addEventListener('click', () => {
+        const hasPin = DB.hasUserPin(currentUserId);
+        const grpCurrent = document.getElementById('group-cpin-current');
+        const titleEl = document.getElementById('cpin-modal-title');
+        const descEl = document.getElementById('cpin-modal-desc');
+        const submitBtn = document.getElementById('btn-cpin-submit');
+        const forgotBox = document.getElementById('cpin-forgot-box');
+
+        if (grpCurrent) grpCurrent.style.display = hasPin ? 'block' : 'none';
+        if (titleEl) titleEl.textContent = hasPin ? 'Change Withdrawal PIN' : 'Set Withdrawal PIN';
+        if (descEl) descEl.textContent = hasPin
+          ? 'Enter your current PIN to set a new 4-digit withdrawal PIN.'
+          : 'Create a 4-digit numeric PIN to protect your withdrawals and early savings unlocks.';
+        if (submitBtn) submitBtn.textContent = hasPin ? 'Update PIN' : 'Set 4-Digit PIN';
+        if (forgotBox) forgotBox.style.display = hasPin ? 'block' : 'none';
+
+        ['cpin-current', 'cpin-new', 'cpin-confirm'].forEach(id => {
+          const inp = document.getElementById(id);
+          if (inp) inp.value = '';
+          const err = document.getElementById(`err-${id}`);
+          if (err) err.textContent = '';
+        });
+
+        const errBox = document.getElementById('cpin-error');
+        if (errBox) { errBox.textContent = ''; errBox.classList.add('hidden'); }
+        const succBox = document.getElementById('cpin-success');
+        if (succBox) { succBox.textContent = ''; succBox.classList.add('hidden'); }
+
+        openModal('modal-change-pin');
+      });
+    }
+
+    // 2. Change PIN Form Submit
+    const formChangePin = document.getElementById('form-change-pin');
+    if (formChangePin) {
+      formChangePin.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const hasPin = DB.hasUserPin(currentUserId);
+        const curInp = document.getElementById('cpin-current');
+        const newInp = document.getElementById('cpin-new');
+        const confInp = document.getElementById('cpin-confirm');
+        const errCur = document.getElementById('err-cpin-current');
+        const errNew = document.getElementById('err-cpin-new');
+        const errConf = document.getElementById('err-cpin-confirm');
+        const errBox = document.getElementById('cpin-error');
+        const succBox = document.getElementById('cpin-success');
+
+        if (errCur) errCur.textContent = '';
+        if (errNew) errNew.textContent = '';
+        if (errConf) errConf.textContent = '';
+        if (errBox) { errBox.textContent = ''; errBox.classList.add('hidden'); }
+        if (succBox) { succBox.textContent = ''; succBox.classList.add('hidden'); }
+
+        const currentPin = curInp ? curInp.value.trim() : '';
+        const newPin = newInp ? newInp.value.trim() : '';
+        const confPin = confInp ? confInp.value.trim() : '';
+
+        if (hasPin) {
+          if (!currentPin) {
+            if (errCur) errCur.textContent = 'Required.';
+            return;
+          }
+          if (!DB.verifyUserPin(currentUserId, currentPin)) {
+            if (errCur) errCur.textContent = 'Current PIN is incorrect.';
+            return;
+          }
+        }
+
+        if (!/^\d{4}$/.test(newPin)) {
+          if (errNew) errNew.textContent = 'PIN must be exactly 4 digits (0-9).';
+          return;
+        }
+
+        if (newPin !== confPin) {
+          if (errConf) errConf.textContent = 'PINs do not match.';
+          return;
+        }
+
+        const res = DB.setUserPin(currentUserId, newPin);
+        if (!res.success) {
+          if (errBox) { errBox.textContent = res.error || 'Failed to save PIN.'; errBox.classList.remove('hidden'); }
+          return;
+        }
+
+        renderMoreUserInfo();
+        if (succBox) {
+          succBox.textContent = hasPin ? 'Withdrawal PIN updated successfully!' : 'Withdrawal PIN set successfully!';
+          succBox.classList.remove('hidden');
+        }
+
+        setTimeout(() => closeModal('modal-change-pin'), 1500);
+      });
+    }
+
+    // 3. Reset PIN via OTP button in Change PIN modal
+    const btnCpinResetOtp = document.getElementById('btn-cpin-reset-otp');
+    if (btnCpinResetOtp) {
+      btnCpinResetOtp.addEventListener('click', () => {
+        closeModal('modal-change-pin');
+        const user = DB.getUserById(currentUserId);
+        const identifier = user ? (user.phone || user.email || user.id) : '';
+        openForgotPinModal(identifier);
+      });
+    }
+
+    // 4. Pin Prompt Verify Form
+    const formPinVerify = document.getElementById('form-pin-verify');
+    if (formPinVerify) {
+      formPinVerify.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const pinInp = document.getElementById('pin-prompt-input');
+        const errSpan = document.getElementById('err-pin-verify');
+        const errBox = document.getElementById('pin-verify-error');
+        if (errSpan) errSpan.textContent = '';
+        if (errBox) { errBox.textContent = ''; errBox.classList.add('hidden'); }
+
+        const pin = pinInp ? pinInp.value.trim() : '';
+        if (!/^\d{4}$/.test(pin)) {
+          if (errSpan) errSpan.textContent = 'Please enter your 4-digit PIN.';
+          return;
+        }
+
+        if (!DB.verifyUserPin(currentUserId, pin)) {
+          if (errBox) {
+            errBox.textContent = 'Incorrect 4-digit PIN. Please try again.';
+            errBox.classList.remove('hidden');
+          }
+          if (pinInp) {
+            pinInp.value = '';
+            pinInp.focus();
+          }
+          return;
+        }
+
+        resolvePinPrompt(true);
+      });
+    }
+
+    // 5. Pin Prompt Setup Form
+    const formPinSetup = document.getElementById('form-pin-setup');
+    if (formPinSetup) {
+      formPinSetup.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const newInp = document.getElementById('pin-setup-new');
+        const confInp = document.getElementById('pin-setup-confirm');
+        const errNew = document.getElementById('err-pin-setup-new');
+        const errConf = document.getElementById('err-pin-setup-confirm');
+        const errBox = document.getElementById('pin-setup-error');
+        if (errNew) errNew.textContent = '';
+        if (errConf) errConf.textContent = '';
+        if (errBox) { errBox.textContent = ''; errBox.classList.add('hidden'); }
+
+        const newPin = newInp ? newInp.value.trim() : '';
+        const confPin = confInp ? confInp.value.trim() : '';
+
+        if (!/^\d{4}$/.test(newPin)) {
+          if (errNew) errNew.textContent = 'PIN must be exactly 4 digits (0-9).';
+          return;
+        }
+
+        if (newPin !== confPin) {
+          if (errConf) errConf.textContent = 'PINs do not match.';
+          return;
+        }
+
+        const res = DB.setUserPin(currentUserId, newPin);
+        if (!res.success) {
+          if (errBox) { errBox.textContent = res.error || 'Failed to set PIN.'; errBox.classList.remove('hidden'); }
+          return;
+        }
+
+        renderMoreUserInfo();
+        resolvePinPrompt(true);
+      });
+    }
+
+    // 6. Pin Prompt Close & Cancel
+    const btnClosePinPrompt = document.getElementById('btn-close-pin-prompt');
+    if (btnClosePinPrompt) {
+      btnClosePinPrompt.addEventListener('click', () => resolvePinPrompt(false));
+    }
+    const modalPinPrompt = document.getElementById('modal-pin-prompt');
+    if (modalPinPrompt) {
+      modalPinPrompt.addEventListener('click', (e) => {
+        if (e.target === modalPinPrompt) resolvePinPrompt(false);
+      });
+    }
+
+    // 7. Forgot PIN link in Pin Prompt Modal
+    const btnPromptForgot = document.getElementById('btn-pin-prompt-forgot');
+    if (btnPromptForgot) {
+      btnPromptForgot.addEventListener('click', () => {
+        resolvePinPrompt(false);
+        const user = DB.getUserById(currentUserId);
+        const identifier = user ? (user.phone || user.email || user.id) : '';
+        openForgotPinModal(identifier);
+      });
+    }
+
+    // 8. Forgot PIN Modal Wiring
+    const fpinForm1 = document.getElementById('fpin-form-step-1');
+    if (fpinForm1) {
+      fpinForm1.addEventListener('submit', (e) => {
+        e.preventDefault();
+        submitFpinStep1();
+      });
+    }
+
+    const btnFpinSubmit2 = document.getElementById('btn-fpin-submit-step2');
+    if (btnFpinSubmit2) {
+      btnFpinSubmit2.addEventListener('click', () => {
+        const selectedRadio = document.querySelector('input[name="fpin_channel"]:checked');
+        const channel = selectedRadio ? selectedRadio.value : 'sms';
+        sendFpinOtp(channel);
+      });
+    }
+
+    const btnFpinBack1 = document.getElementById('btn-fpin-back-to-step1');
+    if (btnFpinBack1) {
+      btnFpinBack1.addEventListener('click', () => setFpinStep(1));
+    }
+
+    const fpinForm3 = document.getElementById('fpin-form-step-3');
+    if (fpinForm3) {
+      fpinForm3.addEventListener('submit', (e) => {
+        e.preventDefault();
+        submitFpinStep3();
+      });
+    }
+
+    const btnFpinResend = document.getElementById('btn-fpin-resend-otp');
+    if (btnFpinResend) {
+      btnFpinResend.addEventListener('click', () => {
+        if (!btnFpinResend.disabled) {
+          sendFpinOtp(fpinSession.chosenChannel);
+        }
+      });
+    }
+
+    const btnFpinSwitch = document.getElementById('btn-fpin-switch-channel');
+    if (btnFpinSwitch) {
+      btnFpinSwitch.addEventListener('click', () => {
+        const newChan = fpinSession.chosenChannel === 'sms' ? 'email' : 'sms';
+        const radio = document.querySelector(`input[name="fpin_channel"][value="${newChan}"]`);
+        if (radio) radio.checked = true;
+        sendFpinOtp(newChan);
+      });
+    }
+
+    const fpinForm4 = document.getElementById('fpin-form-step-4');
+    if (fpinForm4) {
+      fpinForm4.addEventListener('submit', (e) => {
+        e.preventDefault();
+        submitFpinStep4();
+      });
+    }
+
+    const btnFpinFinish = document.getElementById('btn-fpin-finish');
+    if (btnFpinFinish) {
+      btnFpinFinish.addEventListener('click', () => closeForgotPinModal());
+    }
+
+    const btnCloseFpin = document.getElementById('btn-close-fpin-modal');
+    if (btnCloseFpin) {
+      btnCloseFpin.addEventListener('click', () => closeForgotPinModal());
+    }
+  }
+
   // ---- Logout ----
   function initLogout() {
     const btn = document.getElementById('btn-logout');
@@ -3291,6 +4062,32 @@ const UserApp = (() => {
       const lockId = idInput ? idInput.value : '';
       if (!lockId) return;
 
+      const lock = DB.getLockById(lockId);
+      if (!lock || lock.status !== 'active') return;
+
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const dueStr = String(lock.dueDate).slice(0, 10);
+      const isEarly = (todayStr < dueStr);
+
+      if (isEarly) {
+        const penaltyRate = DB.getLockPenaltyRate();
+        const penaltyAmount = Math.round(lock.amount * (penaltyRate / 100) * 100) / 100;
+        const netAmount = Math.max(0, Math.round((lock.amount - penaltyAmount) * 100) / 100);
+
+        const isAuthorized = await promptUserPin({
+          actionTitle: 'Authorize Early SafeLock Break',
+          badgeText: 'Early Lock Break Penalty',
+          amountLine: `Break SafeLock: ₦${formatAmount(lock.amount)}`,
+          detailsLine: `Early penalty: -₦${formatAmount(penaltyAmount)} (${penaltyRate}%). Net to Main Balance: ₦${formatAmount(netAmount)}`
+        });
+
+        if (!isAuthorized) {
+          if (btnUnlockBal) btnUnlockBal.disabled = false;
+          return;
+        }
+      }
+
       isUnlockActionSubmitting = true;
       if (btnUnlockBal) btnUnlockBal.disabled = true;
 
@@ -3384,6 +4181,7 @@ const UserApp = (() => {
       initUserBankDetailsModal();
       initDedicatedAccountModal();
       initChangePassword();
+      initPinModals();
       initLogout();
       initModalClose();
       initUserExports();

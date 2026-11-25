@@ -1139,6 +1139,48 @@ const DB = {
     return users[idx];
   },
 
+  // ---- USER WITHDRAWAL & TRANSACTION PIN ----
+  hasUserPin(userId) {
+    const user = this.getUserById(userId);
+    return Boolean(user && user.transactionPin && String(user.transactionPin).trim().length === 4);
+  },
+  verifyUserPin(userId, pin) {
+    const user = this.getUserById(userId);
+    if (!user || !user.transactionPin) return false;
+    return String(user.transactionPin).trim() === String(pin).trim();
+  },
+  setUserPin(userId, pin) {
+    const cleanPin = String(pin || '').trim();
+    if (!/^\d{4}$/.test(cleanPin)) {
+      return { success: false, error: 'PIN must be exactly 4 digits (0-9).' };
+    }
+    const updated = this.updateUser(userId, {
+      transactionPin: cleanPin,
+      pinUpdatedAt: new Date().toISOString()
+    });
+    if (!updated) {
+      return { success: false, error: 'User account not found.' };
+    }
+    return { success: true, pin: cleanPin };
+  },
+  changeUserPin(userId, currentPin, newPin) {
+    const user = this.getUserById(userId);
+    if (!user) return { success: false, error: 'User account not found.' };
+
+    if (this.hasUserPin(userId)) {
+      if (String(user.transactionPin).trim() !== String(currentPin || '').trim()) {
+        return { success: false, error: 'Current PIN is incorrect.' };
+      }
+    }
+
+    const cleanNewPin = String(newPin || '').trim();
+    if (!/^\d{4}$/.test(cleanNewPin)) {
+      return { success: false, error: 'New PIN must be exactly 4 numeric digits.' };
+    }
+
+    return this.setUserPin(userId, cleanNewPin);
+  },
+
   // ---- SESSION ----
   getSession() {
     try {
