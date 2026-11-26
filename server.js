@@ -454,9 +454,10 @@ async function sendSendarOtp(recipientPhone, message, config = {}) {
     };
   }
 
-  // Use approved Sendar sender ID (QuickMsg / EasyInfo) unless a custom Sendar sender ID is explicitly configured
-  const rawSender = String(config.sendarSenderID || config.senderID || 'QuickMsg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 11);
-  const sender = (rawSender && rawSender.toUpperCase() !== 'IRETOMIWA') ? rawSender : 'QuickMsg';
+  // Use configured Sendar sender ID (e.g. IRETOMIWA once approved as transactional)
+  const sender = String(config.sendarSenderID || config.senderID || DEFAULT_KUDISMS_SENDER_ID || 'IRETOMIWA')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .slice(0, 11) || 'IRETOMIWA';
 
   const cleanDigits = String(recipientPhone || '').replace(/\D/g, '');
   const formattedPhone = cleanDigits.startsWith('0')
