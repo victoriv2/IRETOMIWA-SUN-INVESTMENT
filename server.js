@@ -440,14 +440,109 @@ async function sendBrevoSmsMessage(recipientPhone, message, config = {}, emailCo
   }
 }
 
-// Unified SMS OTP Dispatcher (Brevo active by default, fallback to KudiSMS when selected)
+// Helper: Send OTP via Sendar (https://sendar.io)
+async function sendSendarOtp(recipientPhone, config = {}) {
+  const apiKey = (config.sendarApiKey || process.env.SENDAR_API_KEY || '').trim();
+  if (!apiKey) {
+    return {
+      ok: false,
+      status: 400,
+      provider: 'sendar',
+      data: { status: 'error', msg: 'Sendar API Key is not configured. Please add your Sendar API Key in Admin -> More -> SMS Settings.' }
+    };
+  }
+
+  const sender = String(config.senderID || DEFAULT_KUDISMS_SENDER_ID || 'IRETOMIWA')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .slice(0, 11) || 'IRETOMIWA';
+
+  const cleanDigits = String(recipientPhone || '').replace(/\D/g, '');
+  const formattedPhone = cleanDigits.startsWith('0')
+    ? ('+234' + cleanDigits.slice(1))
+    : (cleanDigits.startsWith('234') ? ('+' + cleanDigits) : ('+234' + cleanDigits));
+
+  console.log(`[Sendar OTP] Sending OTP to ${formattedPhone} via sender "${sender}"`);
+
+  try {
+    const res = await fetch('https://api.sendar.io/v1/otp/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        to: formattedPhone,
+        sender_id: sender,
+        expiry: 10
+      })
+    });
+
+    const data = await res.json().catch(() => null);
+    console.log(`[Sendar OTP Response]`, res.status, data);
+    const reference = data?.reference || data?.data?.reference || data?.otp_id || data?.data?.otp_id || data?.id || data?.data?.id || null;
+    return { ok: res.ok, status: res.status, provider: 'sendar', data, reference, formattedPhone };
+  } catch (err) {
+    console.warn('[Sendar OTP ERROR]', err.message);
+    return { ok: false, status: 500, provider: 'sendar', data: { status: 'error', msg: err.message } };
+  }
+}
+
+// Helper: Verify OTP via Sendar (https://sendar.io)
+async function verifySendarOtp(reference, code, recipientPhone, config = {}) {
+  const apiKey = (config.sendarApiKey || process.env.SENDAR_API_KEY || '').trim();
+  if (!apiKey) return { ok: false, error: 'Sendar API Key is not configured.' };
+
+  const cleanDigits = String(recipientPhone || '').replace(/\D/g, '');
+  const formattedPhone = cleanDigits.startsWith('0')
+    ? ('+234' + cleanDigits.slice(1))
+    : (cleanDigits.startsWith('234') ? ('+' + cleanDigits) : ('+234' + cleanDigits));
+
+  try {
+    const res = await fetch('https://api.sendar.io/v1/otp/verify', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        reference,
+        otp_id: reference,
+        code,
+        otp: code,
+        to: formattedPhone
+      })
+    });
+
+    const data = await res.json().catch(() => null);
+    console.log(`[Sendar Verify Response]`, res.status, data);
+    const isVerified = Boolean(
+      res.ok && (
+        data?.success === true ||
+        data?.verified === true ||
+        data?.status === 'verified' ||
+        data?.data?.verified === true ||
+        data?.data?.status === 'verified'
+      )
+    );
+    return { ok: isVerified, data, error: data?.message || data?.error || data?.msg };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+// Unified SMS OTP Dispatcher (Sendar active by default, Brevo & KudiSMS supported)
 async function sendSmsOtpMessage(recipientPhone, message, kudismsConfig = {}, emailConfig = {}) {
-  const provider = (kudismsConfig.provider || 'brevo').toLowerCase();
+  const provider = (kudismsConfig.provider || 'sendar').toLowerCase();
   if (provider === 'kudisms') {
     const kudiRes = await sendKudiSmsMessage(recipientPhone, message, kudismsConfig);
     return { ...kudiRes, provider: 'kudisms' };
   }
-  return await sendBrevoSmsMessage(recipientPhone, message, kudismsConfig, emailConfig);
+  if (provider === 'brevo') {
+    return await sendBrevoSmsMessage(recipientPhone, message, kudismsConfig, emailConfig);
+  }
+  return await sendSendarOtp(recipientPhone, kudismsConfig);
 }
 
 // Helper: Branded HTML Email Template for OTP Password Reset
@@ -697,6 +792,8 @@ app.post('/api/auth/forgot-password/initiate', async (req, res) => {
       sessionToken,
       userId: user.id,
       otp,
+      provider: smsRes.provider,
+      sendarRef: smsRes.reference || null,
       channel: 'sms',
       destination: cleanUserPhone,
       maskedDestination: maskedPhone,
@@ -714,7 +811,7 @@ app.post('/api/auth/forgot-password/initiate', async (req, res) => {
       if (smsRes.provider === 'kudisms' && errCode === '106') {
         notice = `Sender ID "${kudismsConfig.senderID || DEFAULT_KUDISMS_SENDER_ID}" is currently pending approval on KudiSMS.`;
       } else {
-        notice = `${smsRes.provider === 'brevo' ? 'Brevo SMS' : 'KudiSMS'} note: ${errMsg}`;
+        notice = `${smsRes.provider} note: ${errMsg}`;
       }
     }
 
@@ -793,6 +890,8 @@ app.post('/api/auth/forgot-password/send-otp', async (req, res) => {
       sessionToken: newSessionToken,
       userId: user.id,
       otp,
+      provider: smsRes.provider,
+      sendarRef: smsRes.reference || null,
       channel: 'sms',
       destination: phone,
       maskedDestination,
@@ -822,7 +921,7 @@ app.post('/api/auth/forgot-password/send-otp', async (req, res) => {
 });
 
 // 4. Step 3: Verify 6-digit OTP code
-app.post('/api/auth/forgot-password/verify-otp', (req, res) => {
+app.post('/api/auth/forgot-password/verify-otp', async (req, res) => {
   try {
     const { sessionToken, otp } = req.body;
     if (!sessionToken || !otp) {
@@ -845,7 +944,19 @@ app.post('/api/auth/forgot-password/verify-otp', (req, res) => {
     }
 
     const cleanInputOtp = String(otp).trim().replace(/\D/g, '');
-    if (cleanInputOtp !== sess.otp) {
+
+    if (sess.provider === 'sendar' && sess.sendarRef) {
+      const { kudismsConfig } = await getSupabaseCloudData().catch(() => ({ kudismsConfig: {} }));
+      const sendarVerify = await verifySendarOtp(sess.sendarRef, cleanInputOtp, sess.destination, kudismsConfig);
+      if (!sendarVerify.ok) {
+        sess.attempts += 1;
+        const remainingAttempts = 5 - sess.attempts;
+        return res.status(400).json({
+          success: false,
+          error: `Incorrect 6-digit code. ${remainingAttempts} attempt${remainingAttempts === 1 ? '' : 's'} remaining.`
+        });
+      }
+    } else if (cleanInputOtp !== sess.otp) {
       sess.attempts += 1;
       const remainingAttempts = 5 - sess.attempts;
       return res.status(400).json({

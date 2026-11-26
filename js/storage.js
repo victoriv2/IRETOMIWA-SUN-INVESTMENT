@@ -2176,7 +2176,8 @@ const DB = {
       if (raw) {
         const parsed = JSON.parse(raw);
         return {
-          provider: (parsed.provider || 'brevo').trim().toLowerCase(),
+          provider: (parsed.provider || 'sendar').trim().toLowerCase(),
+          sendarApiKey: (parsed.sendarApiKey || '').trim(),
           brevoSmsKey: (parsed.brevoSmsKey || '').trim(),
           token: (parsed.token || defaultToken).trim(),
           senderID: (parsed.senderID || parsed.senderId || defaultSender).trim().toUpperCase(),
@@ -2186,7 +2187,8 @@ const DB = {
       }
     } catch(e) {}
     return {
-      provider: 'brevo',
+      provider: 'sendar',
+      sendarApiKey: '',
       brevoSmsKey: '',
       token: defaultToken,
       senderID: defaultSender,
@@ -2199,7 +2201,8 @@ const DB = {
     const defaultSender = 'IRETOMIWA';
     const defaultGateway = '1';
     const current = this.getKudiSmsConfig();
-    const provider = (cfg.provider || current.provider || 'brevo').trim().toLowerCase();
+    const provider = (cfg.provider || current.provider || 'sendar').trim().toLowerCase();
+    const sendarApiKey = (cfg.sendarApiKey !== undefined ? cfg.sendarApiKey : (current.sendarApiKey || '')).trim();
     const brevoSmsKey = (cfg.brevoSmsKey !== undefined ? cfg.brevoSmsKey : (current.brevoSmsKey || '')).trim();
     const token = (cfg.token || current.token || defaultToken).trim();
     const senderID = (cfg.senderID || current.senderID || defaultSender).trim().toUpperCase();
@@ -2208,6 +2211,7 @@ const DB = {
 
     const newCfg = {
       provider,
+      sendarApiKey,
       brevoSmsKey,
       token,
       senderID,

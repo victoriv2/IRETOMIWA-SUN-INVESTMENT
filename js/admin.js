@@ -2615,6 +2615,8 @@ const AdminApp = (() => {
   function initAdminKudiSmsSettings() {
     const form = document.getElementById('admin-kudisms-config-form');
     const providerSel = document.getElementById('admin-sms-provider');
+    const sendarKeyInp = document.getElementById('admin-sendar-api-key');
+    const grpSendarKey = document.getElementById('group-sendar-api-key');
     const brevoSmsInp = document.getElementById('admin-brevo-sms-key');
     const grpBrevoSms = document.getElementById('group-brevo-sms-key');
     const grpKudiGateway = document.getElementById('group-kudisms-gateway');
@@ -2625,7 +2627,8 @@ const AdminApp = (() => {
     const refreshBtn = document.getElementById('btn-refresh-kudisms-balance');
 
     function syncSmsProviderVisibility() {
-      const p = providerSel ? providerSel.value : 'brevo';
+      const p = providerSel ? providerSel.value : 'sendar';
+      if (grpSendarKey) grpSendarKey.style.display = (p === 'sendar') ? 'block' : 'none';
       if (grpBrevoSms) grpBrevoSms.style.display = (p === 'brevo') ? 'block' : 'none';
       if (grpKudiGateway) grpKudiGateway.style.display = (p === 'kudisms') ? 'block' : 'none';
       if (grpKudiToken) grpKudiToken.style.display = (p === 'kudisms') ? 'block' : 'none';
@@ -2634,6 +2637,7 @@ const AdminApp = (() => {
     // Populate initial saved settings
     const kudiCfg = DB.getKudiSmsConfig ? DB.getKudiSmsConfig() : {};
     if (providerSel && kudiCfg.provider) providerSel.value = kudiCfg.provider;
+    if (sendarKeyInp && kudiCfg.sendarApiKey) sendarKeyInp.value = kudiCfg.sendarApiKey;
     if (brevoSmsInp && kudiCfg.brevoSmsKey) brevoSmsInp.value = kudiCfg.brevoSmsKey;
     if (senderInp && kudiCfg.senderID) senderInp.value = kudiCfg.senderID;
     if (gatewaySel && kudiCfg.gateway) gatewaySel.value = kudiCfg.gateway;
@@ -2655,7 +2659,8 @@ const AdminApp = (() => {
       e.preventDefault();
       const msgBox = document.getElementById('admin-kudisms-msg');
 
-      const provider = (providerSel ? providerSel.value : 'brevo') || 'brevo';
+      const provider = (providerSel ? providerSel.value : 'sendar') || 'sendar';
+      const sendarApiKey = sendarKeyInp ? sendarKeyInp.value.trim() : '';
       const brevoSmsKey = brevoSmsInp ? brevoSmsInp.value.trim() : '';
       const senderID = (senderInp ? senderInp.value.trim().toUpperCase() : '') || 'IRETOMIWA';
       const gateway = (gatewaySel ? gatewaySel.value : '1') || '1';
@@ -2663,6 +2668,7 @@ const AdminApp = (() => {
 
       DB.setKudiSmsConfig({
         provider,
+        sendarApiKey,
         brevoSmsKey,
         senderID,
         gateway,
@@ -2670,9 +2676,9 @@ const AdminApp = (() => {
       });
 
       if (msgBox) {
-        msgBox.textContent = provider === 'brevo'
-          ? 'Brevo SMS settings saved and active!'
-          : 'KudiSMS settings saved and active!';
+        msgBox.textContent = provider === 'sendar'
+          ? 'Sendar OTP settings saved and active!'
+          : (provider === 'brevo' ? 'Brevo SMS settings saved and active!' : 'KudiSMS settings saved and active!');
         msgBox.style.background = '#dcfce7';
         msgBox.style.color = '#15803d';
         msgBox.style.border = '1px solid #bbf7d0';
