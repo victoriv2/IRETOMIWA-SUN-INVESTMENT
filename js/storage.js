@@ -2169,6 +2169,7 @@ const DB = {
   // ---- KUDISMS GATEWAY CONFIG ----
   getKudiSmsConfig() {
     const defaultToken = 'fogAIJrnPUkDMLiRzj9FN5VO3dqQ7pevy4c2lhZEuKSBa1T8s0wGCbxXHYW6tm';
+    const defaultSendarKey = '';
     const defaultSender = 'IRETOMIWA';
     const defaultGateway = '1';
     try {
@@ -2177,7 +2178,7 @@ const DB = {
         const parsed = JSON.parse(raw);
         return {
           provider: (parsed.provider || 'sendar').trim().toLowerCase(),
-          sendarApiKey: (parsed.sendarApiKey || '').trim(),
+          sendarApiKey: (parsed.sendarApiKey || defaultSendarKey).trim(),
           brevoSmsKey: (parsed.brevoSmsKey || '').trim(),
           token: (parsed.token || defaultToken).trim(),
           senderID: (parsed.senderID || parsed.senderId || defaultSender).trim().toUpperCase(),
@@ -2188,7 +2189,7 @@ const DB = {
     } catch(e) {}
     return {
       provider: 'sendar',
-      sendarApiKey: '',
+      sendarApiKey: defaultSendarKey,
       brevoSmsKey: '',
       token: defaultToken,
       senderID: defaultSender,
@@ -2198,11 +2199,12 @@ const DB = {
   },
   setKudiSmsConfig(cfg = {}) {
     const defaultToken = 'fogAIJrnPUkDMLiRzj9FN5VO3dqQ7pevy4c2lhZEuKSBa1T8s0wGCbxXHYW6tm';
+    const defaultSendarKey = '';
     const defaultSender = 'IRETOMIWA';
     const defaultGateway = '1';
     const current = this.getKudiSmsConfig();
     const provider = (cfg.provider || current.provider || 'sendar').trim().toLowerCase();
-    const sendarApiKey = (cfg.sendarApiKey !== undefined ? cfg.sendarApiKey : (current.sendarApiKey || '')).trim();
+    const sendarApiKey = (cfg.sendarApiKey !== undefined ? cfg.sendarApiKey : (current.sendarApiKey || defaultSendarKey)).trim();
     const brevoSmsKey = (cfg.brevoSmsKey !== undefined ? cfg.brevoSmsKey : (current.brevoSmsKey || '')).trim();
     const token = (cfg.token || current.token || defaultToken).trim();
     const senderID = (cfg.senderID || current.senderID || defaultSender).trim().toUpperCase();
