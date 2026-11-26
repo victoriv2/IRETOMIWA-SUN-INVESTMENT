@@ -676,32 +676,6 @@ const Auth = (() => {
       });
 
       if (!ok || !data || !data.success) {
-        // Fallback: If cloud API failed or returned not found, but user exists in local DB
-        if (localUser && localUser.phone) {
-          const hasPhone = Boolean(localUser.phone && localUser.phone.replace(/\D/g, '').length >= 10);
-          const hasEmail = Boolean(localUser.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(localUser.email));
-          const maskedPhone = hasPhone ? (localUser.phone.slice(0, 4) + '****' + localUser.phone.slice(-3)) : null;
-          const maskedEmail = hasEmail ? localUser.email.replace(/^(.)(.*)(.@.*)$/, (_, a, b, c) => a + '*'.repeat(Math.max(2, b.length)) + c) : null;
-
-          if (hasPhone && hasEmail) {
-            fpSession.identifier = identifier;
-            fpSession.userId = localUser.id;
-            fpSession.hasPhone = true;
-            fpSession.hasEmail = true;
-            fpSession.maskedPhone = maskedPhone;
-            fpSession.maskedEmail = maskedEmail;
-
-            const phoneLabel = document.getElementById('fp-masked-phone-label');
-            if (phoneLabel) phoneLabel.textContent = maskedPhone;
-            const emailLabel = document.getElementById('fp-masked-email-label');
-            if (emailLabel) emailLabel.textContent = maskedEmail;
-
-            updateChannelCardStyles('sms');
-            setFpStep(2);
-            return;
-          }
-        }
-
         const errorMsg = data?.error || error || 'Unable to locate account. Please verify your details.';
         if (errBox) {
           errBox.textContent = errorMsg;
@@ -713,27 +687,11 @@ const Auth = (() => {
       fpSession.identifier = identifier;
       fpSession.userId = data.userId;
       fpSession.hasPhone = Boolean(data.hasPhone);
-      fpSession.hasEmail = Boolean(data.hasEmail);
+      fpSession.hasEmail = false;
       fpSession.maskedPhone = data.maskedPhone || '';
-      fpSession.maskedEmail = data.maskedEmail || '';
+      fpSession.maskedEmail = '';
 
-      // Scenario A: User has BOTH phone and email -> Step 2 (Choose Channel)
-      if (data.action === 'choose_channel') {
-        const phoneLabel = document.getElementById('fp-masked-phone-label');
-        if (phoneLabel) phoneLabel.textContent = data.maskedPhone;
-        const emailLabel = document.getElementById('fp-masked-email-label');
-        if (emailLabel) emailLabel.textContent = data.maskedEmail;
-
-        // Reset radio selection styling
-        const radioSms = document.querySelector('input[name="fp_channel"][value="sms"]');
-        if (radioSms) radioSms.checked = true;
-        updateChannelCardStyles('sms');
-
-        setFpStep(2);
-        return;
-      }
-
-      // Scenario B: User has ONLY phone or ONLY email -> Step 3 (OTP Sent)
+      // Phone-only SMS OTP -> Step 3 (OTP Sent)
       if (data.action === 'otp_sent') {
         fpSession.sessionToken = data.sessionToken;
         fpSession.channel = data.channel;

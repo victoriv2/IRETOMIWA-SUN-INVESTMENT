@@ -2614,16 +2614,33 @@ const AdminApp = (() => {
 
   function initAdminKudiSmsSettings() {
     const form = document.getElementById('admin-kudisms-config-form');
+    const providerSel = document.getElementById('admin-sms-provider');
+    const brevoSmsInp = document.getElementById('admin-brevo-sms-key');
+    const grpBrevoSms = document.getElementById('group-brevo-sms-key');
+    const grpKudiGateway = document.getElementById('group-kudisms-gateway');
+    const grpKudiToken = document.getElementById('group-kudisms-token');
     const senderInp = document.getElementById('admin-kudisms-sender-id');
     const gatewaySel = document.getElementById('admin-kudisms-gateway');
     const tokenInp = document.getElementById('admin-kudisms-token');
     const refreshBtn = document.getElementById('btn-refresh-kudisms-balance');
 
+    function syncSmsProviderVisibility() {
+      const p = providerSel ? providerSel.value : 'brevo';
+      if (grpBrevoSms) grpBrevoSms.style.display = (p === 'brevo') ? 'block' : 'none';
+      if (grpKudiGateway) grpKudiGateway.style.display = (p === 'kudisms') ? 'block' : 'none';
+      if (grpKudiToken) grpKudiToken.style.display = (p === 'kudisms') ? 'block' : 'none';
+    }
+
     // Populate initial saved settings
     const kudiCfg = DB.getKudiSmsConfig ? DB.getKudiSmsConfig() : {};
+    if (providerSel && kudiCfg.provider) providerSel.value = kudiCfg.provider;
+    if (brevoSmsInp && kudiCfg.brevoSmsKey) brevoSmsInp.value = kudiCfg.brevoSmsKey;
     if (senderInp && kudiCfg.senderID) senderInp.value = kudiCfg.senderID;
     if (gatewaySel && kudiCfg.gateway) gatewaySel.value = kudiCfg.gateway;
     if (tokenInp && kudiCfg.token) tokenInp.value = kudiCfg.token;
+
+    syncSmsProviderVisibility();
+    if (providerSel) providerSel.addEventListener('change', syncSmsProviderVisibility);
 
     if (refreshBtn) {
       refreshBtn.addEventListener('click', (e) => {
@@ -2638,18 +2655,24 @@ const AdminApp = (() => {
       e.preventDefault();
       const msgBox = document.getElementById('admin-kudisms-msg');
 
+      const provider = (providerSel ? providerSel.value : 'brevo') || 'brevo';
+      const brevoSmsKey = brevoSmsInp ? brevoSmsInp.value.trim() : '';
       const senderID = (senderInp ? senderInp.value.trim().toUpperCase() : '') || 'IRETOMIWA';
       const gateway = (gatewaySel ? gatewaySel.value : '1') || '1';
       const token = (tokenInp ? tokenInp.value.trim() : '') || 'fogAIJrnPUkDMLiRzj9FN5VO3dqQ7pevy4c2lhZEuKSBa1T8s0wGCbxXHYW6tm';
 
       DB.setKudiSmsConfig({
+        provider,
+        brevoSmsKey,
         senderID,
         gateway,
         token
       });
 
       if (msgBox) {
-        msgBox.textContent = 'KudiSMS settings saved and synced successfully!';
+        msgBox.textContent = provider === 'brevo'
+          ? 'Brevo SMS settings saved and active!'
+          : 'KudiSMS settings saved and active!';
         msgBox.style.background = '#dcfce7';
         msgBox.style.color = '#15803d';
         msgBox.style.border = '1px solid #bbf7d0';

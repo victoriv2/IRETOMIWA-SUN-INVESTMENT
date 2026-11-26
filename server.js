@@ -390,6 +390,66 @@ async function sendKudiSmsMessage(recipientPhone, message, config = {}) {
   return { ok: res.ok, status: res.status, data };
 }
 
+// Helper: Send Transactional SMS via Brevo API
+async function sendBrevoSmsMessage(recipientPhone, message, config = {}, emailConfig = {}) {
+  const apiKey = (config.brevoSmsKey || emailConfig.brevoKey || process.env.BREVO_API_KEY || '').trim();
+  if (!apiKey) {
+    return {
+      ok: false,
+      status: 400,
+      provider: 'brevo',
+      data: { status: 'error', msg: 'Brevo API Key is not configured. Please add your Brevo API Key in Admin -> More -> SMS Settings.' }
+    };
+  }
+
+  const sender = String(config.senderID || DEFAULT_KUDISMS_SENDER_ID || 'IRETOMIWA')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .slice(0, 11) || 'IRETOMIWA';
+
+  const cleanDigits = String(recipientPhone || '').replace(/\D/g, '');
+  const formattedPhone = cleanDigits.startsWith('0')
+    ? ('+234' + cleanDigits.slice(1))
+    : (cleanDigits.startsWith('234') ? ('+' + cleanDigits) : ('+234' + cleanDigits));
+
+  const payload = {
+    sender,
+    recipient: formattedPhone,
+    content: message,
+    type: 'transactional'
+  };
+
+  console.log(`[Brevo SMS] Sending Transactional SMS to ${formattedPhone} via sender "${sender}"`);
+
+  try {
+    const res = await fetch('https://api.brevo.com/v3/transactionalSMS/sms', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'content-type': 'application/json',
+        'api-key': apiKey
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json().catch(() => null);
+    console.log(`[Brevo SMS Response]`, res.status, data);
+    return { ok: res.ok, status: res.status, provider: 'brevo', data };
+  } catch (err) {
+    console.warn('[Brevo SMS ERROR]', err.message);
+    return { ok: false, status: 500, provider: 'brevo', data: { status: 'error', msg: err.message } };
+  }
+}
+
+// Unified SMS OTP Dispatcher (Brevo active by default, fallback to KudiSMS when selected)
+async function sendSmsOtpMessage(recipientPhone, message, kudismsConfig = {}, emailConfig = {}) {
+  const provider = (kudismsConfig.provider || 'brevo').toLowerCase();
+  if (provider === 'kudisms') {
+    const kudiRes = await sendKudiSmsMessage(recipientPhone, message, kudismsConfig);
+    return { ...kudiRes, provider: 'kudisms' };
+  }
+  return await sendBrevoSmsMessage(recipientPhone, message, kudismsConfig, emailConfig);
+}
+
 // Helper: Branded HTML Email Template for OTP Password Reset
 function getOtpHtmlTemplate(otp) {
   return `<!DOCTYPE html>
@@ -613,119 +673,65 @@ app.post('/api/auth/forgot-password/initiate', async (req, res) => {
     }
 
     const cleanUserPhone = (user.phone || '').trim();
-    const cleanUserEmail = (user.email || '').trim();
-
     const hasPhone = Boolean(cleanUserPhone && cleanUserPhone.replace(/\D/g, '').length >= 10);
-    const hasEmail = Boolean(cleanUserEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanUserEmail));
 
-    if (!hasPhone && !hasEmail) {
+    if (!hasPhone) {
       return res.status(400).json({
         success: false,
-        error: 'This account has no reachable phone number or email on file. Please contact support.'
+        error: 'No phone number is attached to this account for SMS OTP. Please contact support.'
       });
     }
 
-    const maskedPhone = hasPhone ? maskPhone(cleanUserPhone) : null;
-    const maskedEmail = hasEmail ? maskEmail(cleanUserEmail) : null;
+    const maskedPhone = maskPhone(cleanUserPhone);
 
-    // Rule: If account has BOTH email and phone number, prompt user to choose channel
-    if (hasPhone && hasEmail) {
-      return res.json({
-        success: true,
-        action: 'choose_channel',
-        userId: user.id,
-        maskedPhone,
-        maskedEmail,
-        hasPhone: true,
-        hasEmail: true
-      });
-    }
+    // Phone-only SMS OTP flow (dispatched via active SMS provider: Brevo or KudiSMS)
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const sessionToken = crypto.randomBytes(24).toString('hex');
+    const now = Date.now();
 
-    // Rule: If account has ONLY phone number, send OTP to phone number directly
-    if (hasPhone && !hasEmail) {
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const sessionToken = crypto.randomBytes(24).toString('hex');
-      const now = Date.now();
+    const smsMsg = `Iretomiwa Sun Investment: ${otp} is your reset key. Valid for 10 minutes.`;
+    const smsRes = await sendSmsOtpMessage(cleanUserPhone, smsMsg, kudismsConfig, emailConfig);
 
-      const smsMsg = `Iretomiwa Sun Investment: ${otp} is your reset key. Valid for 10 minutes.`;
-      const smsRes = await sendKudiSmsMessage(cleanUserPhone, smsMsg, kudismsConfig);
+    // Save session
+    otpSessions.set(sessionToken, {
+      sessionToken,
+      userId: user.id,
+      otp,
+      channel: 'sms',
+      destination: cleanUserPhone,
+      maskedDestination: maskedPhone,
+      createdAt: now,
+      expiresAt: now + (10 * 60 * 1000), // 10 minutes
+      resendAfter: now + (60 * 1000),     // 60 seconds
+      attempts: 0,
+      verified: false
+    });
 
-      // Save session
-      otpSessions.set(sessionToken, {
-        sessionToken,
-        userId: user.id,
-        otp,
-        channel: 'sms',
-        destination: cleanUserPhone,
-        maskedDestination: maskedPhone,
-        createdAt: now,
-        expiresAt: now + (10 * 60 * 1000), // 10 minutes
-        resendAfter: now + (60 * 1000),     // 60 seconds
-        attempts: 0,
-        verified: false
-      });
-
-      let notice = null;
-      if (!smsRes.ok || (smsRes.data && smsRes.data.status === 'error')) {
-        const errCode = smsRes.data?.error_code;
-        const errMsg = smsRes.data?.msg || 'SMS gateway error';
-        if (errCode === '106') {
-          notice = `Sender ID "${kudismsConfig.senderID || DEFAULT_KUDISMS_SENDER_ID}" is currently pending approval on KudiSMS.`;
-        } else {
-          notice = `KudiSMS note: ${errMsg}`;
-        }
+    let notice = null;
+    if (!smsRes.ok || (smsRes.data && smsRes.data.status === 'error')) {
+      const errCode = smsRes.data?.error_code;
+      const errMsg = smsRes.data?.message || smsRes.data?.msg || 'SMS gateway error';
+      if (smsRes.provider === 'kudisms' && errCode === '106') {
+        notice = `Sender ID "${kudismsConfig.senderID || DEFAULT_KUDISMS_SENDER_ID}" is currently pending approval on KudiSMS.`;
+      } else {
+        notice = `${smsRes.provider === 'brevo' ? 'Brevo SMS' : 'KudiSMS'} note: ${errMsg}`;
       }
-
-      return res.json({
-        success: true,
-        action: 'otp_sent',
-        sessionToken,
-        channel: 'sms',
-        maskedDestination: maskedPhone,
-        expiresIn: 600,
-        resendCooldown: 60,
-        notice
-      });
     }
 
-    // Rule: If account has ONLY email, send OTP to email directly
-    if (!hasPhone && hasEmail) {
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const sessionToken = crypto.randomBytes(24).toString('hex');
-      const now = Date.now();
-
-      const emailRes = await sendOtpEmail(cleanUserEmail, otp, emailConfig);
-
-      otpSessions.set(sessionToken, {
-        sessionToken,
-        userId: user.id,
-        otp,
-        channel: 'email',
-        destination: cleanUserEmail,
-        maskedDestination: maskedEmail,
-        createdAt: now,
-        expiresAt: now + (10 * 60 * 1000),
-        resendAfter: now + (60 * 1000),
-        attempts: 0,
-        verified: false
-      });
-
-      let notice = null;
-      if (!emailRes.success) {
-        notice = emailRes.notice || (emailRes.error ? `Email notice: ${emailRes.error}` : null);
-      }
-
-      return res.json({
-        success: true,
-        action: 'otp_sent',
-        sessionToken,
-        channel: 'email',
-        maskedDestination: maskedEmail,
-        expiresIn: 600,
-        resendCooldown: 60,
-        notice
-      });
-    }
+    return res.json({
+      success: true,
+      action: 'otp_sent',
+      sessionToken,
+      channel: 'sms',
+      provider: smsRes.provider,
+      maskedDestination: maskedPhone,
+      maskedPhone,
+      hasPhone: true,
+      hasEmail: false,
+      expiresIn: 600,
+      resendCooldown: 60,
+      notice
+    });
 
   } catch (err) {
     console.error('[Forgot Password Initiate ERROR]', err);
@@ -733,15 +739,12 @@ app.post('/api/auth/forgot-password/initiate', async (req, res) => {
   }
 });
 
-// 3. Step 2: Send OTP via chosen channel (or resend)
+// 3. Step 2: Send / Resend OTP via SMS (Phone-only)
 app.post('/api/auth/forgot-password/send-otp', async (req, res) => {
   try {
-    const { userId, channel, sessionToken } = req.body;
+    const { userId, sessionToken } = req.body;
     if (!userId) {
       return res.status(400).json({ success: false, error: 'User ID is required.' });
-    }
-    if (channel !== 'sms' && channel !== 'email') {
-      return res.status(400).json({ success: false, error: 'Please choose SMS or Email channel.' });
     }
 
     // Check resend cooldown if an existing sessionToken exists
@@ -762,77 +765,50 @@ app.post('/api/auth/forgot-password/send-otp', async (req, res) => {
       return res.status(404).json({ success: false, error: 'User account not found.' });
     }
 
+    const phone = (user.phone || '').trim();
+    if (!phone || phone.replace(/\D/g, '').length < 10) {
+      return res.status(400).json({ success: false, error: 'No phone number attached to this account.' });
+    }
+
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const newSessionToken = sessionToken || crypto.randomBytes(24).toString('hex');
     const now = Date.now();
-
-    let maskedDestination = '';
+    const maskedDestination = maskPhone(phone);
     let notice = null;
 
-    if (channel === 'sms') {
-      const phone = (user.phone || '').trim();
-      if (!phone) {
-        return res.status(400).json({ success: false, error: 'No phone number attached to this account.' });
-      }
-      maskedDestination = maskPhone(phone);
-      const smsMsg = `Iretomiwa Sun Investment: ${otp} is your reset key. Valid for 10 minutes.`;
-      const smsRes = await sendKudiSmsMessage(phone, smsMsg, kudismsConfig);
+    const smsMsg = `Iretomiwa Sun Investment: ${otp} is your reset key. Valid for 10 minutes.`;
+    const smsRes = await sendSmsOtpMessage(phone, smsMsg, kudismsConfig, emailConfig);
 
-      if (!smsRes.ok || (smsRes.data && smsRes.data.status === 'error')) {
-        const errCode = smsRes.data?.error_code;
-        const errMsg = smsRes.data?.msg || 'SMS gateway error';
-        if (errCode === '106') {
-          notice = `Sender ID "${kudismsConfig.senderID || DEFAULT_KUDISMS_SENDER_ID}" is currently pending approval on KudiSMS.`;
-        } else {
-          notice = `KudiSMS note: ${errMsg}`;
-        }
+    if (!smsRes.ok || (smsRes.data && smsRes.data.status === 'error')) {
+      const errCode = smsRes.data?.error_code;
+      const errMsg = smsRes.data?.message || smsRes.data?.msg || 'SMS gateway error';
+      if (smsRes.provider === 'kudisms' && errCode === '106') {
+        notice = `Sender ID "${kudismsConfig.senderID || DEFAULT_KUDISMS_SENDER_ID}" is currently pending approval on KudiSMS.`;
+      } else {
+        notice = `${smsRes.provider === 'brevo' ? 'Brevo SMS' : 'KudiSMS'} note: ${errMsg}`;
       }
-
-      otpSessions.set(newSessionToken, {
-        sessionToken: newSessionToken,
-        userId: user.id,
-        otp,
-        channel: 'sms',
-        destination: phone,
-        maskedDestination,
-        createdAt: now,
-        expiresAt: now + (10 * 60 * 1000),
-        resendAfter: now + (60 * 1000),
-        attempts: 0,
-        verified: false
-      });
-    } else {
-      const email = (user.email || '').trim();
-      if (!email) {
-        return res.status(400).json({ success: false, error: 'No email address attached to this account.' });
-      }
-      maskedDestination = maskEmail(email);
-
-      const emailRes = await sendOtpEmail(email, otp, emailConfig);
-      if (!emailRes.success) {
-        notice = emailRes.notice || (emailRes.error ? `Email notice: ${emailRes.error}` : null);
-      }
-
-      otpSessions.set(newSessionToken, {
-        sessionToken: newSessionToken,
-        userId: user.id,
-        otp,
-        channel: 'email',
-        destination: email,
-        maskedDestination,
-        createdAt: now,
-        expiresAt: now + (10 * 60 * 1000),
-        resendAfter: now + (60 * 1000),
-        attempts: 0,
-        verified: false
-      });
     }
+
+    otpSessions.set(newSessionToken, {
+      sessionToken: newSessionToken,
+      userId: user.id,
+      otp,
+      channel: 'sms',
+      destination: phone,
+      maskedDestination,
+      createdAt: now,
+      expiresAt: now + (10 * 60 * 1000),
+      resendAfter: now + (60 * 1000),
+      attempts: 0,
+      verified: false
+    });
 
     return res.json({
       success: true,
       action: 'otp_sent',
       sessionToken: newSessionToken,
-      channel,
+      channel: 'sms',
+      provider: smsRes.provider,
       maskedDestination,
       expiresIn: 600,
       resendCooldown: 60,
@@ -1044,19 +1020,30 @@ app.post('/api/auth/forgot-pin/reset-pin', async (req, res) => {
   }
 });
 
-// 6. Admin: Test KudiSMS SMS dispatch
+// 6. Admin: Test SMS dispatch (Brevo or KudiSMS)
 app.post('/api/kudisms/test-sms', async (req, res) => {
   try {
-    const { phone, message, token, senderID, gateway } = req.body;
+    const { phone, message, token, senderID, gateway, provider, brevoSmsKey } = req.body;
     if (!phone) {
       return res.status(400).json({ success: false, error: 'Recipient phone number is required.' });
     }
 
+    const { kudismsConfig, emailConfig } = await getSupabaseCloudData().catch(() => ({ kudismsConfig: {}, emailConfig: {} }));
+    const activeCfg = {
+      ...kudismsConfig,
+      ...(provider ? { provider } : {}),
+      ...(token ? { token } : {}),
+      ...(senderID ? { senderID } : {}),
+      ...(gateway ? { gateway } : {}),
+      ...(brevoSmsKey ? { brevoSmsKey } : {})
+    };
+
     const testMsg = message || 'Iretomiwa Sun Investment: 123456 is your reset key. Valid for 10 minutes.';
-    const result = await sendKudiSmsMessage(phone, testMsg, { token, senderID, gateway });
+    const result = await sendSmsOtpMessage(phone, testMsg, activeCfg, emailConfig);
 
     return res.json({
       success: result.ok,
+      provider: result.provider,
       data: result.data
     });
   } catch (err) {

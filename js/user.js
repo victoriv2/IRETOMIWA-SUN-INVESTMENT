@@ -2926,33 +2926,51 @@ const UserApp = (() => {
 
       fpinSession.identifier = identifier;
       fpinSession.userId = data.userId;
-      fpinSession.maskedPhone = data.maskedPhone || '';
-      fpinSession.maskedEmail = data.maskedEmail || '';
-      fpinSession.hasPhone = Boolean(data.hasPhone);
-      fpinSession.hasEmail = Boolean(data.hasEmail);
+      fpinSession.maskedPhone = data.maskedPhone || data.maskedDestination || '';
+      fpinSession.maskedEmail = '';
+      fpinSession.hasPhone = Boolean(data.hasPhone || data.action === 'otp_sent');
+      fpinSession.hasEmail = false;
+      fpinSession.chosenChannel = 'sms';
 
-      const phoneLbl = document.getElementById('fpin-masked-phone-label');
-      if (phoneLbl) phoneLbl.textContent = fpinSession.maskedPhone || 'Not available';
+      // Server already dispatched SMS OTP directly
+      if (data.action === 'otp_sent') {
+        fpinSession.sessionToken = data.sessionToken;
 
-      const emailLbl = document.getElementById('fpin-masked-email-label');
-      if (emailLbl) emailLbl.textContent = fpinSession.maskedEmail || 'Not available';
+        const destLbl = document.getElementById('fpin-otp-destination-label');
+        if (destLbl) {
+          destLbl.textContent = data.maskedDestination || fpinSession.maskedPhone || 'your phone number';
+        }
 
-      const smsCard = document.getElementById('fpin-channel-card-sms');
-      const emailCard = document.getElementById('fpin-channel-card-email');
-      if (smsCard) smsCard.style.display = fpinSession.hasPhone ? 'flex' : 'none';
-      if (emailCard) emailCard.style.display = fpinSession.hasEmail ? 'flex' : 'none';
+        const noticeEl = document.getElementById('fpin-otp-notice');
+        if (noticeEl) {
+          if (data.notice) {
+            noticeEl.textContent = data.notice;
+            noticeEl.classList.remove('hidden');
+          } else {
+            noticeEl.classList.add('hidden');
+          }
+        }
 
-      if (fpinSession.hasPhone && fpinSession.hasEmail) {
-        setFpinStep(2);
-      } else if (fpinSession.hasPhone) {
-        fpinSession.chosenChannel = 'sms';
+        const switchBtn = document.getElementById('btn-fpin-switch-channel');
+        if (switchBtn) switchBtn.classList.add('hidden');
+
+        setFpinStep(3);
+        startFpinExpiryTimer(data.expiresIn || 600);
+        startFpinResendCooldown(data.resendCooldown || 60);
+
+        const otpInp = document.getElementById('fpin-otp-input');
+        if (otpInp) {
+          otpInp.value = '';
+          setTimeout(() => otpInp.focus(), 150);
+        }
+        return;
+      }
+
+      if (fpinSession.hasPhone) {
         await sendFpinOtp('sms');
-      } else if (fpinSession.hasEmail) {
-        fpinSession.chosenChannel = 'email';
-        await sendFpinOtp('email');
       } else {
         if (errBox) {
-          errBox.textContent = 'No verified phone or email on file for OTP delivery. Please contact support.';
+          errBox.textContent = 'No phone number on file for SMS OTP delivery. Please contact support.';
           errBox.classList.remove('hidden');
         }
       }

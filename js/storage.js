@@ -2176,6 +2176,8 @@ const DB = {
       if (raw) {
         const parsed = JSON.parse(raw);
         return {
+          provider: (parsed.provider || 'brevo').trim().toLowerCase(),
+          brevoSmsKey: (parsed.brevoSmsKey || '').trim(),
           token: (parsed.token || defaultToken).trim(),
           senderID: (parsed.senderID || parsed.senderId || defaultSender).trim().toUpperCase(),
           gateway: String(parsed.gateway || defaultGateway),
@@ -2184,6 +2186,8 @@ const DB = {
       }
     } catch(e) {}
     return {
+      provider: 'brevo',
+      brevoSmsKey: '',
       token: defaultToken,
       senderID: defaultSender,
       gateway: defaultGateway,
@@ -2195,12 +2199,16 @@ const DB = {
     const defaultSender = 'IRETOMIWA';
     const defaultGateway = '1';
     const current = this.getKudiSmsConfig();
+    const provider = (cfg.provider || current.provider || 'brevo').trim().toLowerCase();
+    const brevoSmsKey = (cfg.brevoSmsKey !== undefined ? cfg.brevoSmsKey : (current.brevoSmsKey || '')).trim();
     const token = (cfg.token || current.token || defaultToken).trim();
     const senderID = (cfg.senderID || current.senderID || defaultSender).trim().toUpperCase();
     const gateway = String(cfg.gateway || current.gateway || defaultGateway);
     const nowIso = new Date().toISOString();
 
     const newCfg = {
+      provider,
+      brevoSmsKey,
       token,
       senderID,
       gateway,
