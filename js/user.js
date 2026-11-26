@@ -2943,12 +2943,8 @@ const UserApp = (() => {
 
         const noticeEl = document.getElementById('fpin-otp-notice');
         if (noticeEl) {
-          if (data.notice) {
-            noticeEl.textContent = data.notice;
-            noticeEl.classList.remove('hidden');
-          } else {
-            noticeEl.classList.add('hidden');
-          }
+          noticeEl.textContent = '';
+          noticeEl.classList.add('hidden');
         }
 
         const switchBtn = document.getElementById('btn-fpin-switch-channel');
@@ -3026,12 +3022,8 @@ const UserApp = (() => {
 
       const noticeEl = document.getElementById('fpin-otp-notice');
       if (noticeEl) {
-        if (data.notice) {
-          noticeEl.textContent = data.notice;
-          noticeEl.classList.remove('hidden');
-        } else {
-          noticeEl.classList.add('hidden');
-        }
+        noticeEl.textContent = '';
+        noticeEl.classList.add('hidden');
       }
 
       const switchBtn = document.getElementById('fpin-switch-channel');

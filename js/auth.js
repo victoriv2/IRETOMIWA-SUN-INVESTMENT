@@ -702,12 +702,8 @@ const Auth = (() => {
 
         const noticeEl = document.getElementById('fp-otp-notice');
         if (noticeEl) {
-          if (data.notice) {
-            noticeEl.textContent = data.notice;
-            noticeEl.classList.remove('hidden');
-          } else {
-            noticeEl.classList.add('hidden');
-          }
+          noticeEl.textContent = '';
+          noticeEl.classList.add('hidden');
         }
 
         const switchBtn = document.getElementById('btn-fp-switch-channel');
@@ -794,12 +790,8 @@ const Auth = (() => {
 
       const noticeEl = document.getElementById('fp-otp-notice');
       if (noticeEl) {
-        if (data.notice) {
-          noticeEl.textContent = data.notice;
-          noticeEl.classList.remove('hidden');
-        } else {
-          noticeEl.classList.add('hidden');
-        }
+        noticeEl.textContent = '';
+        noticeEl.classList.add('hidden');
       }
 
       // Show switch channel button because user has both
