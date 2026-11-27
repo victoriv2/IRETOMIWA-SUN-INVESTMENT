@@ -1060,7 +1060,12 @@ const DB = {
     return this.getUsers().find(u => {
       const idMatch = Boolean(u.id && u.id.toLowerCase() === clean);
       const emailMatch = Boolean(u.email && u.email.trim().toLowerCase() === clean);
-      const phoneMatch = Boolean(cleanDigits.length >= 10 && u.phone && u.phone.replace(/\D/g, '') === cleanDigits);
+      const uDigits = (u.phone || '').replace(/\D/g, '');
+      const phoneMatch = Boolean(
+        cleanDigits.length >= 10 &&
+        uDigits.length >= 10 &&
+        (uDigits === cleanDigits || uDigits.slice(-10) === cleanDigits.slice(-10))
+      );
       return idMatch || emailMatch || phoneMatch;
     }) || null;
   },

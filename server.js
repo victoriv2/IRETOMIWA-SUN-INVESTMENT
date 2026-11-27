@@ -329,12 +329,29 @@ async function getSupabaseCloudData() {
   return { row, users, kudismsConfig, emailConfig };
 }
 
-// Helper: Mask phone number (e.g. 08188087715 -> 081****7715)
+// Helper: Normalize any Nigerian phone format (0814..., 814..., 234814..., +234814...) into 234XXXXXXXXXX or +234XXXXXXXXXX
+function normalizeNigerianPhone(phone, withPlus = false) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return '';
+  let core10 = digits;
+  if (digits.startsWith('234') && digits.length >= 13) {
+    core10 = digits.slice(3, 13);
+  } else if (digits.startsWith('0') && digits.length >= 11) {
+    core10 = digits.slice(1, 11);
+  } else if (digits.length > 10) {
+    core10 = digits.slice(-10);
+  }
+  return (withPlus ? '+234' : '234') + core10;
+}
+
+// Helper: Mask phone number in +234 format (e.g. 08188087715 -> +234 818****715)
 function maskPhone(phone) {
   if (!phone) return '';
   const digits = String(phone).replace(/\D/g, '');
   if (digits.length <= 6) return phone;
-  return digits.slice(0, 4) + '****' + digits.slice(-3);
+  const intl = normalizeNigerianPhone(phone, true); // +234XXXXXXXXXX
+  const local10 = intl.slice(4); // 10 digits
+  return `+234 ${local10.slice(0, 3)}****${local10.slice(-3)}`;
 }
 
 // Helper: Mask email address (e.g. johnidowu@gmail.com -> jo*****u@gmail.com)
@@ -365,9 +382,7 @@ async function sendKudiSmsMessage(recipientPhone, message, config = {}) {
   const gateway = config.gateway || DEFAULT_KUDISMS_GATEWAY;
 
   const cleanDigits = String(recipientPhone || '').replace(/\D/g, '');
-  const formattedPhone = cleanDigits.startsWith('0')
-    ? ('234' + cleanDigits.slice(1))
-    : (cleanDigits.startsWith('234') ? cleanDigits : ('234' + cleanDigits));
+  const formattedPhone = normalizeNigerianPhone(cleanDigits, false);
 
   const payload = {
     token,
@@ -510,9 +525,7 @@ async function sendTermiiSmsMessage(recipientPhone, message, config = {}) {
   const channel = (config.termiiChannel || 'dnd').trim().toLowerCase();
 
   const cleanDigits = String(recipientPhone || '').replace(/\D/g, '');
-  const formattedPhone = cleanDigits.startsWith('0')
-    ? ('234' + cleanDigits.slice(1))
-    : (cleanDigits.startsWith('234') ? cleanDigits : ('234' + cleanDigits));
+  const formattedPhone = normalizeNigerianPhone(cleanDigits, false);
 
   console.log(`[Termii SMS] Sending SMS to ${formattedPhone} via sender "${sender}" channel "${channel}" (${baseUrl})`);
 
