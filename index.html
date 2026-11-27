@@ -58,7 +58,7 @@
       }
 
       // Active Cache & Service Worker Purge
-      var APP_BUILD_VER = '20261126_SENDAR_LIVE_V114';
+      var APP_BUILD_VER = '20261127_TERMII_OTP_V115';
       if ('caches' in window) {
         caches.keys().then(function(names) {
           names.forEach(function(name) { caches.delete(name); });
@@ -1735,13 +1735,44 @@
               <div class="form-group" style="margin-bottom:12px; width: 100%; box-sizing: border-box;">
                 <label for="admin-sms-provider" style="font-size:12px; font-weight:700;">Active SMS OTP Provider</label>
                 <select id="admin-sms-provider" style="width:100%; max-width:100%; box-sizing:border-box; height:42px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-size:13px; font-weight:700; background:var(--bg-input);">
-                  <option value="sendar" selected>Sendar OTP API - sendar.io (Active Now)</option>
+                  <option value="termii" selected>Termii SMS OTP - termii.com (Active Now)</option>
+                  <option value="sendar">Sendar OTP API - sendar.io</option>
                   <option value="brevo">Brevo Transactional SMS</option>
                   <option value="kudisms">KudiSMS Corporate (Switch back when verified)</option>
                 </select>
                 <small style="display:block; margin-top:4px; font-size:11px; color:var(--text-muted);">
-                  Use Sendar (sendar.io) for fast, low-cost Nigerian OTPs (~₦6.65/SMS). You can switch back to KudiSMS anytime.
+                  Use Termii with N-Alert (DND route) for instant Nigerian OTP delivery (~₦5.50–₦8/SMS).
                 </small>
+              </div>
+
+              <div id="group-termii-fields">
+                <div class="form-group" style="margin-bottom:12px; width: 100%; box-sizing: border-box;">
+                  <label for="admin-termii-api-key" style="font-size:12px; font-weight:700;">Termii API Key</label>
+                  <div class="password-wrapper">
+                    <input type="password" id="admin-termii-api-key" autocomplete="new-password" placeholder="Paste your Termii API Key here" style="width:100%; max-width:100%; box-sizing:border-box; height:42px; padding:0 42px 0 12px; border-radius:8px; border:1px solid var(--border); font-family:monospace; font-size:12px;" />
+                    <button type="button" class="toggle-pw" data-target="admin-termii-api-key" aria-label="Toggle Termii API key visibility">
+                      <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom:12px; width: 100%; box-sizing: border-box;">
+                  <label for="admin-termii-base-url" style="font-size:12px; font-weight:700;">Termii Base URL</label>
+                  <input type="text" id="admin-termii-base-url" autocomplete="off" value="https://v3.api.termii.com" placeholder="https://v3.api.termii.com" style="width:100%; max-width:100%; box-sizing:border-box; height:42px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-family:monospace; font-size:12px;" />
+                  <small style="display:block; margin-top:4px; font-size:11px; color:var(--text-muted);">
+                    Copy the Base URL shown on your Termii API settings page (usually https://v3.api.termii.com or https://api.ng.termii.com).
+                  </small>
+                </div>
+
+                <div class="form-group" style="margin-bottom:12px; width: 100%; box-sizing: border-box;">
+                  <label for="admin-termii-sender-id" style="font-size:12px; font-weight:700;">Termii Sender ID</label>
+                  <input type="text" id="admin-termii-sender-id" autocomplete="off" maxlength="11" value="N-Alert" placeholder="N-Alert" style="width:100%; max-width:100%; box-sizing:border-box; height:42px; padding:0 12px; border-radius:8px; border:1px solid var(--border); font-size:13px; font-weight:700;" />
+                  <small style="display:block; margin-top:4px; font-size:11px; color:var(--text-muted);">
+                    Default pre-approved Nigerian OTP ID is N-Alert (DND route).
+                  </small>
+                </div>
               </div>
 
               <div class="form-group" id="group-sendar-api-key" style="margin-bottom:12px; width: 100%; box-sizing: border-box;">
@@ -4265,13 +4296,13 @@
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <!-- Supabase Official Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/storage.js?v=20261126_v114"></script>
-  <script src="js/picker.js?v=20261126_v114"></script>
+  <script src="js/storage.js?v=20261127_v115"></script>
+  <script src="js/picker.js?v=20261127_v115"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="js/export.js?v=20261126_v114"></script>
-  <script src="js/auth.js?v=20261126_v114"></script>
-  <script src="js/user.js?v=20261126_v114"></script>
-  <script src="js/admin.js?v=20261126_v114"></script>
-  <script src="js/app.js?v=20261126_v114"></script>
+  <script src="js/export.js?v=20261127_v115"></script>
+  <script src="js/auth.js?v=20261127_v115"></script>
+  <script src="js/user.js?v=20261127_v115"></script>
+  <script src="js/admin.js?v=20261127_v115"></script>
+  <script src="js/app.js?v=20261127_v115"></script>
 </body>
 </html>

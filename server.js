@@ -490,9 +490,62 @@ async function sendSendarOtp(recipientPhone, message, config = {}) {
   }
 }
 
-// Unified SMS OTP Dispatcher (Sendar active by default, Brevo & KudiSMS supported)
+// Helper: Send Transactional SMS via Termii (https://v3.api.termii.com/api/sms/send)
+async function sendTermiiSmsMessage(recipientPhone, message, config = {}) {
+  const apiKey = (config.termiiApiKey || process.env.TERMII_API_KEY || '').trim();
+  if (!apiKey) {
+    return {
+      ok: false,
+      status: 400,
+      provider: 'termii',
+      data: { status: 'error', msg: 'Termii API Key is not configured.' }
+    };
+  }
+
+  let baseUrl = String(config.termiiBaseUrl || process.env.TERMII_BASE_URL || 'https://v3.api.termii.com').trim().replace(/\/+$/, '');
+  if (!/^https?:\/\//i.test(baseUrl)) baseUrl = 'https://' + baseUrl;
+
+  const rawSender = String(config.termiiSenderID || config.senderID || 'N-Alert').trim().slice(0, 11);
+  const sender = (rawSender && rawSender.toUpperCase() !== 'IRETOMIWA') ? rawSender : 'N-Alert';
+  const channel = (config.termiiChannel || 'dnd').trim().toLowerCase();
+
+  const cleanDigits = String(recipientPhone || '').replace(/\D/g, '');
+  const formattedPhone = cleanDigits.startsWith('0')
+    ? ('234' + cleanDigits.slice(1))
+    : (cleanDigits.startsWith('234') ? cleanDigits : ('234' + cleanDigits));
+
+  console.log(`[Termii SMS] Sending SMS to ${formattedPhone} via sender "${sender}" channel "${channel}" (${baseUrl})`);
+
+  try {
+    const res = await fetch(`${baseUrl}/api/sms/send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        api_key: apiKey,
+        to: formattedPhone,
+        from: sender,
+        sms: message,
+        type: 'plain',
+        channel
+      })
+    });
+
+    const data = await res.json().catch(() => null);
+    console.log(`[Termii SMS Response]`, res.status, data);
+    const ok = Boolean(res.ok && (data?.code === 'ok' || data?.message_id || data?.message === 'Successfully Sent'));
+    return { ok, status: res.status, provider: 'termii', data };
+  } catch (err) {
+    console.warn('[Termii SMS ERROR]', err.message);
+    return { ok: false, status: 500, provider: 'termii', data: { status: 'error', msg: err.message } };
+  }
+}
+
+// Unified SMS OTP Dispatcher (Termii, Sendar, Brevo & KudiSMS supported)
 async function sendSmsOtpMessage(recipientPhone, message, kudismsConfig = {}, emailConfig = {}) {
-  const provider = (kudismsConfig.provider || 'sendar').toLowerCase();
+  const provider = (kudismsConfig.provider || 'termii').toLowerCase();
   if (provider === 'kudisms') {
     const kudiRes = await sendKudiSmsMessage(recipientPhone, message, kudismsConfig);
     return { ...kudiRes, provider: 'kudisms' };
@@ -500,7 +553,10 @@ async function sendSmsOtpMessage(recipientPhone, message, kudismsConfig = {}, em
   if (provider === 'brevo') {
     return await sendBrevoSmsMessage(recipientPhone, message, kudismsConfig, emailConfig);
   }
-  return await sendSendarOtp(recipientPhone, message, kudismsConfig);
+  if (provider === 'sendar') {
+    return await sendSendarOtp(recipientPhone, message, kudismsConfig);
+  }
+  return await sendTermiiSmsMessage(recipientPhone, message, kudismsConfig);
 }
 
 // Helper: Branded HTML Email Template for OTP Password Reset

@@ -2177,7 +2177,11 @@ const DB = {
       if (raw) {
         const parsed = JSON.parse(raw);
         return {
-          provider: (parsed.provider || 'sendar').trim().toLowerCase(),
+          provider: (parsed.provider || 'termii').trim().toLowerCase(),
+          termiiApiKey: (parsed.termiiApiKey || '').trim(),
+          termiiBaseUrl: (parsed.termiiBaseUrl || 'https://v3.api.termii.com').trim(),
+          termiiSenderID: (parsed.termiiSenderID || 'N-Alert').trim(),
+          termiiChannel: (parsed.termiiChannel || 'dnd').trim(),
           sendarApiKey: (parsed.sendarApiKey || defaultSendarKey).trim(),
           brevoSmsKey: (parsed.brevoSmsKey || '').trim(),
           token: (parsed.token || defaultToken).trim(),
@@ -2188,7 +2192,11 @@ const DB = {
       }
     } catch(e) {}
     return {
-      provider: 'sendar',
+      provider: 'termii',
+      termiiApiKey: '',
+      termiiBaseUrl: 'https://v3.api.termii.com',
+      termiiSenderID: 'N-Alert',
+      termiiChannel: 'dnd',
       sendarApiKey: defaultSendarKey,
       brevoSmsKey: '',
       token: defaultToken,
@@ -2203,7 +2211,11 @@ const DB = {
     const defaultSender = 'IRETOMIWA';
     const defaultGateway = '1';
     const current = this.getKudiSmsConfig();
-    const provider = (cfg.provider || current.provider || 'sendar').trim().toLowerCase();
+    const provider = (cfg.provider || current.provider || 'termii').trim().toLowerCase();
+    const termiiApiKey = (cfg.termiiApiKey !== undefined ? cfg.termiiApiKey : (current.termiiApiKey || '')).trim();
+    const termiiBaseUrl = (cfg.termiiBaseUrl !== undefined ? cfg.termiiBaseUrl : (current.termiiBaseUrl || 'https://v3.api.termii.com')).trim();
+    const termiiSenderID = (cfg.termiiSenderID !== undefined ? cfg.termiiSenderID : (current.termiiSenderID || 'N-Alert')).trim();
+    const termiiChannel = (cfg.termiiChannel !== undefined ? cfg.termiiChannel : (current.termiiChannel || 'dnd')).trim();
     const sendarApiKey = (cfg.sendarApiKey !== undefined ? cfg.sendarApiKey : (current.sendarApiKey || defaultSendarKey)).trim();
     const brevoSmsKey = (cfg.brevoSmsKey !== undefined ? cfg.brevoSmsKey : (current.brevoSmsKey || '')).trim();
     const token = (cfg.token || current.token || defaultToken).trim();
@@ -2213,6 +2225,10 @@ const DB = {
 
     const newCfg = {
       provider,
+      termiiApiKey,
+      termiiBaseUrl,
+      termiiSenderID,
+      termiiChannel,
       sendarApiKey,
       brevoSmsKey,
       token,

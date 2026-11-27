@@ -2615,6 +2615,10 @@ const AdminApp = (() => {
   function initAdminKudiSmsSettings() {
     const form = document.getElementById('admin-kudisms-config-form');
     const providerSel = document.getElementById('admin-sms-provider');
+    const termiiKeyInp = document.getElementById('admin-termii-api-key');
+    const termiiUrlInp = document.getElementById('admin-termii-base-url');
+    const termiiSenderInp = document.getElementById('admin-termii-sender-id');
+    const grpTermiiFields = document.getElementById('group-termii-fields');
     const sendarKeyInp = document.getElementById('admin-sendar-api-key');
     const grpSendarKey = document.getElementById('group-sendar-api-key');
     const brevoSmsInp = document.getElementById('admin-brevo-sms-key');
@@ -2627,7 +2631,8 @@ const AdminApp = (() => {
     const refreshBtn = document.getElementById('btn-refresh-kudisms-balance');
 
     function syncSmsProviderVisibility() {
-      const p = providerSel ? providerSel.value : 'sendar';
+      const p = providerSel ? providerSel.value : 'termii';
+      if (grpTermiiFields) grpTermiiFields.style.display = (p === 'termii') ? 'block' : 'none';
       if (grpSendarKey) grpSendarKey.style.display = (p === 'sendar') ? 'block' : 'none';
       if (grpBrevoSms) grpBrevoSms.style.display = (p === 'brevo') ? 'block' : 'none';
       if (grpKudiGateway) grpKudiGateway.style.display = (p === 'kudisms') ? 'block' : 'none';
@@ -2637,6 +2642,9 @@ const AdminApp = (() => {
     // Populate initial saved settings
     const kudiCfg = DB.getKudiSmsConfig ? DB.getKudiSmsConfig() : {};
     if (providerSel && kudiCfg.provider) providerSel.value = kudiCfg.provider;
+    if (termiiKeyInp && kudiCfg.termiiApiKey) termiiKeyInp.value = kudiCfg.termiiApiKey;
+    if (termiiUrlInp && kudiCfg.termiiBaseUrl) termiiUrlInp.value = kudiCfg.termiiBaseUrl;
+    if (termiiSenderInp && kudiCfg.termiiSenderID) termiiSenderInp.value = kudiCfg.termiiSenderID;
     if (sendarKeyInp && kudiCfg.sendarApiKey) sendarKeyInp.value = kudiCfg.sendarApiKey;
     if (brevoSmsInp && kudiCfg.brevoSmsKey) brevoSmsInp.value = kudiCfg.brevoSmsKey;
     if (senderInp && kudiCfg.senderID) senderInp.value = kudiCfg.senderID;
@@ -2659,7 +2667,10 @@ const AdminApp = (() => {
       e.preventDefault();
       const msgBox = document.getElementById('admin-kudisms-msg');
 
-      const provider = (providerSel ? providerSel.value : 'sendar') || 'sendar';
+      const provider = (providerSel ? providerSel.value : 'termii') || 'termii';
+      const termiiApiKey = termiiKeyInp ? termiiKeyInp.value.trim() : '';
+      const termiiBaseUrl = (termiiUrlInp ? termiiUrlInp.value.trim() : '') || 'https://v3.api.termii.com';
+      const termiiSenderID = (termiiSenderInp ? termiiSenderInp.value.trim() : '') || 'N-Alert';
       const sendarApiKey = sendarKeyInp ? sendarKeyInp.value.trim() : '';
       const brevoSmsKey = brevoSmsInp ? brevoSmsInp.value.trim() : '';
       const senderID = (senderInp ? senderInp.value.trim().toUpperCase() : '') || 'IRETOMIWA';
@@ -2668,6 +2679,9 @@ const AdminApp = (() => {
 
       DB.setKudiSmsConfig({
         provider,
+        termiiApiKey,
+        termiiBaseUrl,
+        termiiSenderID,
         sendarApiKey,
         brevoSmsKey,
         senderID,
@@ -2676,9 +2690,9 @@ const AdminApp = (() => {
       });
 
       if (msgBox) {
-        msgBox.textContent = provider === 'sendar'
-          ? 'Sendar OTP settings saved and active!'
-          : (provider === 'brevo' ? 'Brevo SMS settings saved and active!' : 'KudiSMS settings saved and active!');
+        msgBox.textContent = provider === 'termii'
+          ? 'Termii SMS settings saved and active!'
+          : (provider === 'sendar' ? 'Sendar OTP settings saved and active!' : (provider === 'brevo' ? 'Brevo SMS settings saved and active!' : 'KudiSMS settings saved and active!'));
         msgBox.style.background = '#dcfce7';
         msgBox.style.color = '#15803d';
         msgBox.style.border = '1px solid #bbf7d0';
